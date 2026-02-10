@@ -56,16 +56,47 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="analyze"
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom',
-          }}
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen
           name="item/[id]"
-          options={{
-            animation: 'slide_from_right',
-          }}
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="digital-twin"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="digital-twin-preview"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="style-chat"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="search-to-add"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="import-fit-pic"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="virtual-try-on"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="virtual-try-on-result"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="trip-planner"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="trip-result"
+          options={{ animation: 'slide_from_right' }}
         />
       </Stack>
     </ThemeProvider>
