@@ -19,6 +19,7 @@ import { AIOverlay } from '@/components/ui/AIOverlay';
 import { WornItemCard } from '@/components/ui/WornItemCard';
 import { usePhotoAnalyzer } from '@/hooks/usePhotoAnalyzer';
 import { useClosetStore } from '@/stores/closetStore';
+import { removeBackground } from '@/lib/backgroundRemoval';
 import { ClosetItem } from '@/types';
 
 const FUN_FACTS = [
@@ -54,15 +55,29 @@ export default function AnalyzeScreen() {
     }
   }, [clearDetections]);
 
-  const handlePost = useCallback(() => {
+  const handlePost = useCallback(async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let cleanImageUri: string | undefined;
+    try {
+      const bgResult = await removeBackground(imageUri!);
+      if (bgResult.success && bgResult.cleanImageUri) {
+        cleanImageUri = bgResult.cleanImageUri;
+      }
+    } catch {
+      // Background removal is best-effort; continue without it
+    }
+
     for (const det of detections) {
       const newItem: ClosetItem = {
         id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         user_id: 'demo',
         image_url: imageUri!,
+        clean_image_url: cleanImageUri,
+        original_image_url: imageUri!,
         name: det.suggested_name || `${det.category} item`,
         category: det.category,
+        brand: det.brand_guess,
         colors: det.colors,
         detected_confidence: det.confidence,
         tags: [],

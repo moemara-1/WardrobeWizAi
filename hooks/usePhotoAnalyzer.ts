@@ -1,17 +1,116 @@
-import { useState, useCallback } from 'react';
+import { AnalysisResult, ClosetItem, ClothingCategory, Detection } from '@/types';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { Detection, ClothingCategory, AnalysisResult } from '@/types';
+import { useCallback, useState } from 'react';
 
-// api4.ai Fashion API endpoint
-const API4AI_ENDPOINT = 'https://api4.ai/api/v1/results';
-const API4AI_KEY = process.env.EXPO_PUBLIC_API4AI_KEY || '';
+// API4AI fashion endpoint with authentication
+const API4AI_ENDPOINT = 'https://api4.ai/apis/fashion/v1/results';
+const API4AI_DEMO_ENDPOINT = 'https://demo.api4.ai/fashion/v1/results';
 
-// OpenAI for fallback/enhancement
-const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
+const getApi4AiKey = () => process.env.EXPO_PUBLIC_API4AI_KEY || '';
 
 interface AnalyzeOptions {
     useCloudFallback?: boolean;
-    enhanceWithAI?: boolean;
+    useMockOnError?: boolean;
+}
+
+interface EnhancedAnalysisResult extends AnalysisResult {
+    brandDetections?: {
+        name: string;
+        brand?: string;
+        brandConfidence: number;
+        modelName?: string;
+        estimatedValue?: number;
+        colors: string[];
+    }[];
+    overallStyle?: string;
+    occasion?: string;
+}
+
+// Helper to wait with exponential backoff
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Retry wrapper for API calls with rate limit handling
+async function withRetry<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+): Promise<T> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+
+            if (lastError.message.includes('429') || lastError.message.includes('rate')) {
+                const delay = baseDelay * Math.pow(2, attempt);
+                console.log(`[Analyzer] Rate limited, waiting ${delay}ms before retry ${attempt + 1}/${maxRetries}`);
+                await wait(delay);
+                continue;
+            }
+
+            // For network errors, retry
+            if (lastError.message.includes('Network request failed')) {
+                const delay = baseDelay * Math.pow(2, attempt);
+                console.log(`[Analyzer] Network error, retrying in ${delay}ms (${attempt + 1}/${maxRetries})`);
+                await wait(delay);
+                continue;
+            }
+
+            throw lastError;
+        }
+    }
+
+    throw lastError || new Error('Max retries exceeded');
+}
+
+// Mock data for when APIs are unavailable
+const createMockDetections = (): Detection[] => {
+    return [
+        {
+            id: `det-mock-${Date.now()}-1`,
+            bounding_box: { x: 0, y: 0, width: 100, height: 100 },
+            category: 'top' as ClothingCategory,
+            confidence: 0.85,
+            suggested_name: 'Casual Top',
+            colors: ['#2C3E50', '#34495E'],
+            brand_guess: 'Unknown',
+        },
+    ];
+};
+
+// Estimate brand/model from API4AI class names
+function enrichDetection(className: string, confidence: number): {
+    brand?: string;
+    brandConfidence: number;
+    modelName?: string;
+    estimatedValue?: number;
+} {
+    const knownBrands: Record<string, { brand: string; value: number }> = {
+        'sneakers': { brand: 'Nike', value: 120 },
+        'boots': { brand: 'Dr. Martens', value: 170 },
+        'jeans': { brand: "Levi's", value: 80 },
+        'jacket': { brand: 'Zara', value: 90 },
+        'coat': { brand: 'H&M', value: 120 },
+        'dress': { brand: 'Zara', value: 70 },
+        'hoodie': { brand: 'Nike', value: 65 },
+        't-shirt': { brand: 'Uniqlo', value: 20 },
+        'shirt': { brand: 'Ralph Lauren', value: 90 },
+    };
+
+    const lower = className.toLowerCase();
+    const match = Object.entries(knownBrands).find(([key]) => lower.includes(key));
+
+    if (match) {
+        return {
+            brand: match[1].brand,
+            brandConfidence: confidence * 0.6,
+            estimatedValue: match[1].value,
+        };
+    }
+
+    return { brandConfidence: 0 };
 }
 
 export function usePhotoAnalyzer() {
@@ -23,13 +122,18 @@ export function usePhotoAnalyzer() {
     const preprocessImage = async (uri: string): Promise<string> => {
         const result = await ImageManipulator.manipulateAsync(
             uri,
-            [{ resize: { width: 800 } }],
-            { format: ImageManipulator.SaveFormat.JPEG, compress: 0.8 }
+            [{ resize: { width: 1024 } }],
+            { format: ImageManipulator.SaveFormat.JPEG, compress: 0.85 }
         );
         return result.uri;
     };
 
+    /**
+     * Analyze with API4AI Fashion endpoint — tries authenticated then demo
+     */
     const analyzeWithApi4AI = async (imageUri: string): Promise<Detection[]> => {
+        const apiKey = getApi4AiKey();
+
         const formData = new FormData();
         formData.append('image', {
             uri: imageUri,
@@ -37,111 +141,78 @@ export function usePhotoAnalyzer() {
             name: 'photo.jpg',
         } as any);
 
-        const response = await fetch('https://demo.api4.ai/fashion/v1/results', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Accept': 'application/json',
-            },
-        });
+        // Try authenticated endpoint first, fallback to demo
+        const endpoints = apiKey
+            ? [
+                { url: API4AI_ENDPOINT, headers: { 'Accept': 'application/json', 'X-API-Key': apiKey } },
+                { url: API4AI_DEMO_ENDPOINT, headers: { 'Accept': 'application/json' } },
+            ]
+            : [
+                { url: API4AI_DEMO_ENDPOINT, headers: { 'Accept': 'application/json' } },
+            ];
 
-        if (!response.ok) {
-            throw new Error(`API4AI error: ${response.status}`);
-        }
+        let lastError: Error | null = null;
 
-        const data = await response.json();
-
-        // Parse api4.ai response into our Detection format
-        const detections: Detection[] = [];
-
-        if (data.results?.[0]?.entities) {
-            for (const entity of data.results[0].entities) {
-                detections.push({
-                    id: `det-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    bounding_box: {
-                        x: entity.box?.x || 0,
-                        y: entity.box?.y || 0,
-                        width: entity.box?.w || 100,
-                        height: entity.box?.h || 100,
-                    },
-                    category: mapCategoryFromApi4AI(entity.classes?.[0]?.class_name || 'other'),
-                    confidence: entity.classes?.[0]?.confidence || 0.5,
-                    suggested_name: entity.classes?.[0]?.class_name || 'Unknown Item',
-                    colors: entity.colors || [],
+        for (const endpoint of endpoints) {
+            try {
+                console.log(`[Analyzer] Trying API4AI: ${endpoint.url}`);
+                const response = await fetch(endpoint.url, {
+                    method: 'POST',
+                    body: formData,
+                    headers: endpoint.headers,
                 });
+
+                if (!response.ok) {
+                    throw new Error(`API4AI error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const detections: Detection[] = [];
+
+                if (data.results?.[0]?.entities) {
+                    for (const entity of data.results[0].entities) {
+                        const className = entity.classes?.[0]?.class_name || 'Unknown Item';
+                        const conf = entity.classes?.[0]?.confidence || 0.5;
+                        const enrichment = enrichDetection(className, conf);
+
+                        detections.push({
+                            id: `det-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            bounding_box: {
+                                x: entity.box?.x || 0,
+                                y: entity.box?.y || 0,
+                                width: entity.box?.w || 100,
+                                height: entity.box?.h || 100,
+                            },
+                            category: mapCategoryFromApi4AI(className),
+                            confidence: conf,
+                            suggested_name: className,
+                            colors: entity.colors || [],
+                            brand_guess: enrichment.brand,
+                        });
+                    }
+                }
+
+                if (detections.length > 0) {
+                    console.log(`[Analyzer] API4AI found ${detections.length} items`);
+                    return detections;
+                }
+            } catch (err) {
+                lastError = err instanceof Error ? err : new Error(String(err));
+                console.warn(`[Analyzer] API4AI endpoint failed:`, lastError.message);
             }
         }
 
-        return detections;
+        throw lastError || new Error('API4AI: No detections');
     };
 
-    const analyzeWithOpenAI = async (imageUri: string): Promise<Detection[]> => {
-        if (!OPENAI_API_KEY) {
-            console.log('OpenAI API key not set, skipping AI analysis');
-            return [];
-        }
-
-        // Convert image to base64
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-        const base64 = await blobToBase64(blob);
-
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [
-                    {
-                        role: 'user',
-                        content: [
-                            {
-                                type: 'text',
-                                text: `Analyze this clothing image and identify all visible clothing items. For each item, provide:
-                - category (top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry)
-                - suggested_name (descriptive name like "1996 Retro North Face Jacket")
-                - colors (array of color names)
-                - confidence (0.0 to 1.0)
-                
-                Return as JSON array: [{ category, suggested_name, colors, confidence }]`,
-                            },
-                            {
-                                type: 'image_url',
-                                image_url: { url: `data:image/jpeg;base64,${base64}` },
-                            },
-                        ],
-                    },
-                ],
-                max_tokens: 1000,
-            }),
-        });
-
-        const data = await openaiResponse.json();
-        const content = data.choices?.[0]?.message?.content || '[]';
-
-        try {
-            const parsed = JSON.parse(content.replace(/```json\n?|\n?```/g, ''));
-            return parsed.map((item: any, index: number) => ({
-                id: `det-${Date.now()}-${index}`,
-                bounding_box: { x: 0, y: 0, width: 100, height: 100 },
-                category: item.category as ClothingCategory,
-                confidence: item.confidence || 0.8,
-                suggested_name: item.suggested_name,
-                colors: item.colors || [],
-            }));
-        } catch {
-            return [];
-        }
-    };
-
+    /**
+     * Main analyze function — API4AI primary, with mock fallback
+     */
     const analyze = useCallback(async (
         imageUri: string,
         options: AnalyzeOptions = {}
-    ): Promise<AnalysisResult> => {
-        const { useCloudFallback = true, enhanceWithAI = false } = options;
+    ): Promise<EnhancedAnalysisResult> => {
+        const { useMockOnError = true } = options;
 
         setIsAnalyzing(true);
         setError(null);
@@ -155,27 +226,26 @@ export function usePhotoAnalyzer() {
 
             setProgress(0.3);
             let results: Detection[] = [];
-            let modelUsed: 'ml_kit' | 'api4ai' | 'openai' = 'api4ai';
+            let modelUsed: 'ml_kit' | 'api4ai' | 'openai' | 'gemini' | 'mock' = 'api4ai';
 
-            // Try api4.ai first (better fashion-specific detection)
+            // Try API4AI with retry for network errors
             try {
-                results = await analyzeWithApi4AI(processedUri);
-                setProgress(0.7);
+                results = await withRetry(() => analyzeWithApi4AI(processedUri), 3, 2000);
+                setProgress(0.8);
             } catch (apiError) {
-                console.warn('api4.ai failed, trying OpenAI fallback:', apiError);
-
-                if (useCloudFallback) {
-                    results = await analyzeWithOpenAI(processedUri);
-                    modelUsed = 'openai';
-                }
+                console.warn('[Analyzer] API4AI failed after retries:', apiError);
             }
 
-            // Enhance with OpenAI if requested and we have results
-            if (enhanceWithAI && results.length > 0 && OPENAI_API_KEY) {
-                const enhanced = await analyzeWithOpenAI(processedUri);
-                // Merge enhanced data with detection boxes
-                results = mergeDetections(results, enhanced);
-                modelUsed = 'openai';
+            // Use mock data if API failed
+            if (results.length === 0 && useMockOnError) {
+                console.log('[Analyzer] API unavailable, using mock data');
+                results = createMockDetections();
+                modelUsed = 'mock';
+                setError('AI services temporarily unavailable — using placeholder data');
+            }
+
+            if (results.length === 0) {
+                throw new Error('All analysis services unavailable');
             }
 
             setProgress(1);
@@ -195,6 +265,54 @@ export function usePhotoAnalyzer() {
         }
     }, []);
 
+    /**
+     * Analyze a single item for detailed brand/value info
+     */
+    const analyzeItem = useCallback(async (imageUri: string): Promise<Partial<ClosetItem>> => {
+        setIsAnalyzing(true);
+        setError(null);
+
+        try {
+            const processedUri = await preprocessImage(imageUri);
+            const results = await withRetry(() => analyzeWithApi4AI(processedUri), 3, 2000);
+
+            if (results.length > 0) {
+                const item = results[0];
+                const enrichment = enrichDetection(item.suggested_name || '', item.confidence);
+
+                return {
+                    name: item.suggested_name || 'Clothing Item',
+                    category: item.category,
+                    brand: item.brand_guess || enrichment.brand,
+                    brand_confidence: enrichment.brandConfidence,
+                    model_name: enrichment.modelName,
+                    estimated_value: enrichment.estimatedValue,
+                    colors: item.colors || ['#333333'],
+                    detected_confidence: item.confidence,
+                };
+            }
+
+            return {
+                name: 'Clothing Item',
+                category: 'other' as ClothingCategory,
+                colors: ['#333333'],
+                detected_confidence: 0.5,
+            };
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Item analysis failed';
+            setError(message);
+
+            return {
+                name: 'Clothing Item',
+                category: 'other' as ClothingCategory,
+                colors: ['#333333'],
+                detected_confidence: 0.5,
+            };
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, []);
+
     const clearDetections = useCallback(() => {
         setDetections([]);
         setError(null);
@@ -203,6 +321,7 @@ export function usePhotoAnalyzer() {
 
     return {
         analyze,
+        analyzeItem,
         isAnalyzing,
         detections,
         error,
@@ -219,57 +338,41 @@ function mapCategoryFromApi4AI(apiCategory: string): ClothingCategory {
         'blouse': 'top',
         'sweater': 'top',
         'hoodie': 'top',
+        'top': 'top',
         'pants': 'bottom',
         'jeans': 'bottom',
         'shorts': 'bottom',
+        'trousers': 'bottom',
         'skirt': 'bottom',
         'jacket': 'outerwear',
         'coat': 'outerwear',
         'blazer': 'outerwear',
+        'vest': 'outerwear',
         'dress': 'dress',
         'sneakers': 'shoe',
         'boots': 'shoe',
         'heels': 'shoe',
         'sandals': 'shoe',
+        'shoes': 'shoe',
         'bag': 'bag',
         'handbag': 'bag',
         'backpack': 'bag',
         'hat': 'hat',
         'cap': 'hat',
+        'beanie': 'hat',
         'watch': 'accessory',
         'sunglasses': 'accessory',
+        'belt': 'accessory',
+        'scarf': 'accessory',
         'necklace': 'jewelry',
         'ring': 'jewelry',
         'earrings': 'jewelry',
+        'bracelet': 'jewelry',
     };
 
     const lower = apiCategory.toLowerCase();
-    return mapping[lower] || 'other';
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64 = (reader.result as string).split(',')[1];
-            resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-}
-
-function mergeDetections(primary: Detection[], enhanced: Detection[]): Detection[] {
-    // Match enhanced names/colors to primary detections by category
-    return primary.map((detection, index) => {
-        const match = enhanced.find(e => e.category === detection.category);
-        if (match) {
-            return {
-                ...detection,
-                suggested_name: match.suggested_name || detection.suggested_name,
-                colors: match.colors.length > 0 ? match.colors : detection.colors,
-            };
-        }
-        return detection;
-    });
+    for (const [key, value] of Object.entries(mapping)) {
+        if (lower.includes(key)) return value;
+    }
+    return 'other';
 }

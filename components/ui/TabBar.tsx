@@ -2,12 +2,11 @@ import { Colors, Radius } from '@/constants/Colors';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CirclePlus, Search, Shirt, User, Users } from 'lucide-react-native';
+import { Compass, Sparkles, Shirt, User } from 'lucide-react-native';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-const TAB_ICONS = [Users, Search, CirclePlus, Shirt, User] as const;
-const CENTER_INDEX = 2;
+const TAB_ICONS = [Compass, Sparkles, Shirt, User] as const;
 
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     return (
@@ -21,7 +20,6 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 {state.routes.map((route, index) => {
                     const { options } = descriptors[route.key];
                     const isFocused = state.index === index;
-                    const isCenter = index === CENTER_INDEX;
                     const IconComponent = TAB_ICONS[index];
 
                     const onPress = () => {
@@ -47,7 +45,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                             accessibilityLabel={options.tabBarAccessibilityLabel}
                         >
                             <IconComponent
-                                size={isCenter ? 28 : 22}
+                                size={22}
                                 color={isFocused ? Colors.textPrimary : Colors.textTertiary}
                                 strokeWidth={isFocused ? 2.2 : 1.8}
                             />
@@ -82,7 +80,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 12,
         alignItems: 'center',
-        width: 280,
+        width: 240,
         justifyContent: 'space-around',
         borderWidth: 1,
         borderColor: Colors.border,

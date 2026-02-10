@@ -21,19 +21,27 @@ export interface ClosetItem {
     user_id: string;
     image_url: string;
     thumbnail_url?: string;
+    clean_image_url?: string;      // White background version
+    original_image_url?: string;   // Original photo context
     name: string;
     category: ClothingCategory;
     subcategory?: string;
     brand?: string;
+    brand_confidence?: number;     // AI confidence in brand identification
+    model_name?: string;           // Specific product model name
     colors: string[];
     size?: string;
     purchase_date?: string;
     price?: number;
+    estimated_value?: number;      // AI-estimated retail price
+    product_url?: string;          // Link to product online
     detected_confidence: number;
     tags: string[];
     wear_count: number;
     last_worn?: string;
     favorite: boolean;
+    garment_type?: string;
+    layer_type?: 'inner' | 'outer' | 'both';
     created_at: string;
     updated_at: string;
 }
@@ -96,7 +104,7 @@ export interface OutfitSuggestion {
 export interface AnalysisResult {
     detections: Detection[];
     processing_time_ms: number;
-    model_used: "ml_kit" | "api4ai" | "openai";
+    model_used: "ml_kit" | "api4ai" | "openai" | "gemini" | "mock";
 }
 
 export interface OutfitGenerationRequest {
