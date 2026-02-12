@@ -68,7 +68,7 @@ export function AddToClosetSheet({ visible, onClose, onAction }: AddToClosetShee
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', zIndex: 200 },
   backdropView: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingBottom: 48, alignItems: 'center' },
+  sheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingBottom: 110, alignItems: 'center' },
   handleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 16 },
   closeBtn: { position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: Typography.bodyFamilyBold, fontSize: 20, color: Colors.textPrimary, marginBottom: 8 },

@@ -1,4 +1,6 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
+import { generateDigitalTwin } from '@/lib/ai';
+import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -39,20 +41,21 @@ async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
     // For now, we return a reasonable median color from the photo
     // The user sees their photo and the picked color as a visual verification
     return null;
-  } catch (err) {
-    console.warn('[DigitalTwin] Color detection error:', err);
+  } catch {
     return null;
   }
 }
 
 export default function DigitalTwinScreen() {
-  const [selfieUri, setSelfieUri] = useState<string | null>(null);
-  const [bodyUri, setBodyUri] = useState<string | null>(null);
-  const [skinColor, setSkinColor] = useState<string | null>(null);
-  const [hairColor, setHairColor] = useState<string | null>(null);
-  const [additionalDetails, setAdditionalDetails] = useState('');
+  const { digitalTwin, setDigitalTwin } = useClosetStore();
+  const [selfieUri, setSelfieUri] = useState<string | null>(digitalTwin?.selfie_url ?? null);
+  const [bodyUri, setBodyUri] = useState<string | null>(digitalTwin?.body_url ?? null);
+  const [skinColor, setSkinColor] = useState<string | null>(digitalTwin?.skin_color ?? null);
+  const [hairColor, setHairColor] = useState<string | null>(digitalTwin?.hair_color ?? null);
+  const [additionalDetails, setAdditionalDetails] = useState(digitalTwin?.additional_details ?? '');
   const [isDetectingSkin, setIsDetectingSkin] = useState(false);
   const [isDetectingHair, setIsDetectingHair] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const pickImage = async (setter: (uri: string | null) => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -90,8 +93,8 @@ export default function DigitalTwinScreen() {
           Alert.alert('Color Detected', `We've selected a close match. You can fine-tune by tapping a swatch below.`);
         }
       }
-    } catch (err) {
-      console.warn('[DigitalTwin] Skin detection failed:', err);
+    } catch {
+      // detection failed — default selected above
     } finally {
       setIsDetectingSkin(false);
     }
@@ -113,8 +116,8 @@ export default function DigitalTwinScreen() {
           Alert.alert('Color Detected', `We've selected a close match. You can fine-tune by tapping a swatch below.`);
         }
       }
-    } catch (err) {
-      console.warn('[DigitalTwin] Hair detection failed:', err);
+    } catch {
+      // detection failed — default selected above
     } finally {
       setIsDetectingHair(false);
     }
@@ -122,18 +125,49 @@ export default function DigitalTwinScreen() {
 
   const canGenerate = selfieUri && skinColor && hairColor;
 
-  const handleGenerate = () => {
-    if (!canGenerate) {
+  const handleGenerate = async () => {
+    if (!canGenerate || !selfieUri || !skinColor || !hairColor) {
       Alert.alert('Missing Info', 'Please upload a selfie and select your skin & hair colors.');
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // TODO: Send to AI generation backend
-    Alert.alert(
-      'Twin Created!',
-      'Your digital twin is being generated. This may take a moment.',
-      [{ text: 'OK', onPress: () => router.back() }]
-    );
+    setIsGenerating(true);
+
+    try {
+      const analysis = await generateDigitalTwin(
+        selfieUri,
+        skinColor,
+        hairColor,
+        additionalDetails,
+        bodyUri ?? undefined,
+      );
+
+      const twin = {
+        id: `twin_${Date.now()}`,
+        user_id: 'local',
+        selfie_url: selfieUri,
+        body_url: bodyUri ?? undefined,
+        skin_color: skinColor,
+        hair_color: hairColor,
+        additional_details: additionalDetails || undefined,
+        ai_description: analysis.ai_description,
+        body_type: analysis.body_type,
+        style_recommendations: analysis.style_recommendations,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      setDigitalTwin(twin);
+      router.replace('/digital-twin-preview' as never);
+    } catch (err) {
+      console.error('Digital twin generation failed:', err);
+      Alert.alert(
+        'Generation Failed',
+        'Could not generate your digital twin. Please check your internet connection and try again.',
+      );
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -282,11 +316,20 @@ export default function DigitalTwinScreen() {
 
       <SafeAreaView edges={['bottom']} style={styles.ctaWrapper}>
         <Pressable
-          style={[styles.saveBtn, !canGenerate && styles.saveBtnDisabled]}
+          style={[styles.saveBtn, (!canGenerate || isGenerating) && styles.saveBtnDisabled]}
           onPress={handleGenerate}
-          disabled={!canGenerate}
+          disabled={!canGenerate || isGenerating}
         >
-          <Text style={styles.saveBtnText}>Generate Twin</Text>
+          {isGenerating ? (
+            <View style={styles.generatingRow}>
+              <ActivityIndicator size="small" color={Colors.background} />
+              <Text style={styles.saveBtnText}>Generating…</Text>
+            </View>
+          ) : (
+            <Text style={styles.saveBtnText}>
+              {digitalTwin ? 'Regenerate Twin' : 'Generate Twin'}
+            </Text>
+          )}
         </Pressable>
       </SafeAreaView>
     </View>
@@ -327,4 +370,5 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: Colors.accentGreen, borderRadius: Radius.pill, paddingVertical: 16, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
+  generatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

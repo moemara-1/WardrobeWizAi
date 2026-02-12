@@ -1,5 +1,7 @@
-import { ClosetItem, ClothingCategory, Outfit } from '@/types';
+import { ClosetItem, ClothingCategory, DigitalTwin, Outfit } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface ClosetState {
     // Items
@@ -17,6 +19,9 @@ interface ClosetState {
     outfits: Outfit[];
     selectedOutfit: Outfit | null;
 
+    // Digital Twin
+    digitalTwin: DigitalTwin | null;
+
     // Actions
     setItems: (items: ClosetItem[]) => void;
     addItem: (item: ClosetItem) => void;
@@ -29,6 +34,9 @@ interface ClosetState {
     deleteOutfit: (id: string) => void;
     selectOutfit: (outfit: Outfit | null) => void;
 
+    setDigitalTwin: (twin: DigitalTwin) => void;
+    clearDigitalTwin: () => void;
+
     setSearchQuery: (query: string) => void;
     setCategoryFilter: (category: ClothingCategory | null) => void;
     setColorFilter: (color: string | null) => void;
@@ -38,7 +46,9 @@ interface ClosetState {
     clearFilters: () => void;
 }
 
-export const useClosetStore = create<ClosetState>((set, get) => ({
+export const useClosetStore = create<ClosetState>()(
+  persist(
+    (set, get) => ({
     // Initial state
     items: [],
     selectedItem: null,
@@ -49,6 +59,7 @@ export const useClosetStore = create<ClosetState>((set, get) => ({
     colorFilter: null,
     outfits: [],
     selectedOutfit: null,
+    digitalTwin: null,
 
     // Item actions
     setItems: (items) => set({ items }),
@@ -86,6 +97,10 @@ export const useClosetStore = create<ClosetState>((set, get) => ({
 
     selectOutfit: (outfit) => set({ selectedOutfit: outfit }),
 
+    // Digital Twin actions
+    setDigitalTwin: (twin) => set({ digitalTwin: twin }),
+    clearDigitalTwin: () => set({ digitalTwin: null }),
+
     // Filter actions
     setSearchQuery: (query) => set({ searchQuery: query }),
     setCategoryFilter: (category) => set({ categoryFilter: category }),
@@ -100,7 +115,18 @@ export const useClosetStore = create<ClosetState>((set, get) => ({
     // UI state
     setLoading: (loading) => set({ isLoading: loading }),
     setError: (error) => set({ error }),
-}));
+    }),
+    {
+      name: 'closet-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        items: state.items,
+        outfits: state.outfits,
+        digitalTwin: state.digitalTwin,
+      }),
+    },
+  ),
+);
 
 // Selectors
 export const useFilteredItems = () => {

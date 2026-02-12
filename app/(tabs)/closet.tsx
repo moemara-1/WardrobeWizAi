@@ -1,11 +1,11 @@
 import { AddToClosetSheet } from '@/components/ui/AddToClosetSheet';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
-import { ClosetItem } from '@/types';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Plus } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { Plus, Sparkles } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -27,28 +27,38 @@ type ClosetTab = 'pieces' | 'fits' | 'collections';
 
 const FILTER_PILLS = ['All', 'Favorites', 'Category', 'Type', 'Color'] as const;
 
-const MOCK_ITEMS: ClosetItem[] = [
-  { id: '1', user_id: 'demo', image_url: 'https://images.unsplash.com/photo-1544441893-675973e31985?w=400', name: '1996 Retro Nuptse', category: 'outerwear', brand: 'The North Face', colors: ['black', 'red'], detected_confidence: 0.95, tags: ['vintage', 'streetwear'], wear_count: 12, favorite: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '2', user_id: 'demo', image_url: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=400', name: 'Classic Blue Denim', category: 'bottom', brand: "Levi's", colors: ['blue'], detected_confidence: 0.92, tags: ['casual'], wear_count: 28, favorite: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '3', user_id: 'demo', image_url: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400', name: 'AJ1 Retro High', category: 'shoe', brand: 'Nike', colors: ['red', 'black', 'white'], detected_confidence: 0.98, tags: ['sneakers'], wear_count: 8, favorite: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '4', user_id: 'demo', image_url: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400', name: 'Essential White Tee', category: 'top', colors: ['white'], detected_confidence: 0.88, tags: ['basic'], wear_count: 42, favorite: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '5', user_id: 'demo', image_url: 'https://images.unsplash.com/photo-1622470953794-aa9c70b0fb9d?w=400', name: 'Oversized Hoodie', category: 'top', brand: 'Essentials', colors: ['black'], detected_confidence: 0.91, tags: ['streetwear'], wear_count: 15, favorite: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '6', user_id: 'demo', image_url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400', name: 'Canvas Backpack', category: 'bag', brand: 'Herschel', colors: ['brown', 'tan'], detected_confidence: 0.87, tags: ['school'], wear_count: 50, favorite: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-];
-
 export default function ClosetScreen() {
   const [activeTab, setActiveTab] = useState<ClosetTab>('pieces');
   const [activeFilter, setActiveFilter] = useState('All');
   const [showAddSheet, setShowAddSheet] = useState(false);
-  const { setItems, items } = useClosetStore();
-
-  useEffect(() => {
-    if (items.length === 0) setItems(MOCK_ITEMS);
-  }, []);
+  const items = useClosetStore((s) => s.items);
+  const outfits = useClosetStore((s) => s.outfits);
 
   const displayItems = activeFilter === 'Favorites'
     ? items.filter((i) => i.favorite)
     : items;
+
+  const pickFromCamera = useCallback(async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) return;
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+    }
+  }, []);
+
+  const pickFromLibrary = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+    }
+  }, []);
 
   const handleAddSheetAction = (action: string) => {
     setShowAddSheet(false);
@@ -57,15 +67,14 @@ export default function ClosetScreen() {
     } else if (action === 'import') {
       router.push('/import-fit-pic' as never);
     } else if (action === 'camera') {
-      router.push('/analyze' as never);
+      pickFromCamera();
     } else if (action === 'library') {
-      router.push('/analyze' as never);
+      pickFromLibrary();
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Top Tabs */}
       <View style={styles.topTabs}>
         {(['pieces', 'fits', 'collections'] as ClosetTab[]).map((tab) => (
           <Pressable
@@ -81,52 +90,101 @@ export default function ClosetScreen() {
         ))}
       </View>
 
-      {/* Filter Pills */}
-      <View style={styles.filterWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-        >
-          {FILTER_PILLS.map((pill) => {
-            const isActive = pill === activeFilter;
-            return (
-              <Pressable
-                key={pill}
-                style={[styles.filterPill, isActive && styles.filterPillActive]}
-                onPress={() => { Haptics.selectionAsync(); setActiveFilter(pill); }}
-              >
-                <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
-                  {pill}
-                </Text>
+      {activeTab === 'pieces' && (
+        <>
+          <View style={styles.filterWrapper}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {FILTER_PILLS.map((pill) => {
+                const isActive = pill === activeFilter;
+                return (
+                  <Pressable
+                    key={pill}
+                    style={[styles.filterPill, isActive && styles.filterPillActive]}
+                    onPress={() => { Haptics.selectionAsync(); setActiveFilter(pill); }}
+                  >
+                    <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                      {pill}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {displayItems.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No pieces yet</Text>
+              <Text style={styles.emptySubtitle}>Take a photo or pick from your library to add your first piece</Text>
+              <Pressable style={styles.emptyBtn} onPress={() => setShowAddSheet(true)}>
+                <Plus size={18} color={Colors.background} />
+                <Text style={styles.emptyBtnText}>Add Piece</Text>
               </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+            </View>
+          ) : (
+            <FlatList
+              data={displayItems}
+              keyExtractor={(item) => item.id}
+              numColumns={NUM_COLUMNS}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={styles.gridItem}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(`/item/${item.id}` as never);
+                  }}
+                >
+                  <Image source={{ uri: item.clean_image_url || item.image_url }} style={styles.gridImage} resizeMode="contain" />
+                </Pressable>
+              )}
+              contentContainerStyle={styles.gridContent}
+              showsVerticalScrollIndicator={false}
+              columnWrapperStyle={styles.gridRow}
+            />
+          )}
+        </>
+      )}
 
-      {/* Grid */}
-      <FlatList
-        data={displayItems}
-        keyExtractor={(item) => item.id}
-        numColumns={NUM_COLUMNS}
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.gridItem}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push(`/item/${item.id}` as never);
-            }}
-          >
-            <Image source={{ uri: item.clean_image_url || item.image_url }} style={styles.gridImage} resizeMode="contain" />
-          </Pressable>
-        )}
-        contentContainerStyle={styles.gridContent}
-        showsVerticalScrollIndicator={false}
-        columnWrapperStyle={styles.gridRow}
-      />
+      {activeTab === 'fits' && (
+        <View style={styles.emptyState}>
+          {outfits.length === 0 ? (
+            <>
+              <Sparkles size={32} color={Colors.textTertiary} strokeWidth={1.2} />
+              <Text style={styles.emptyTitle}>No fits saved</Text>
+              <Text style={styles.emptySubtitle}>
+                Create and save outfits from the Stylist tab to see them here
+              </Text>
+            </>
+          ) : (
+            <FlatList
+              data={outfits}
+              keyExtractor={(o) => o.id}
+              renderItem={({ item: outfit }) => (
+                <View style={styles.fitCard}>
+                  <Text style={styles.fitCardTitle}>{outfit.name}</Text>
+                  <Text style={styles.fitCardSubtitle}>
+                    {outfit.items.length} pieces · {outfit.occasion || 'casual'}
+                  </Text>
+                </View>
+              )}
+              contentContainerStyle={styles.gridContent}
+            />
+          )}
+        </View>
+      )}
 
-      {/* Floating + FAB — positioned above the tab bar */}
+      {activeTab === 'collections' && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>No collections yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Organize your pieces and fits into collections
+          </Text>
+        </View>
+      )}
+
       <Pressable
         style={styles.fab}
         onPress={() => {
@@ -134,7 +192,7 @@ export default function ClosetScreen() {
           setShowAddSheet(true);
         }}
       >
-        <Plus size={26} color="#FFFFFF" />
+        <Plus size={26} color={Colors.background} />
       </Pressable>
 
       <AddToClosetSheet
@@ -159,9 +217,17 @@ const styles = StyleSheet.create({
   filterPillActive: { backgroundColor: Colors.textPrimary, borderColor: Colors.textPrimary },
   filterPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
   filterPillTextActive: { color: Colors.background },
-  gridContent: { paddingBottom: 100 },
+  gridContent: { paddingBottom: 120 },
   gridRow: { gap: GRID_GAP },
   gridItem: { width: ITEM_SIZE, height: ITEM_SIZE, backgroundColor: '#FFFFFF', marginBottom: GRID_GAP },
   gridImage: { width: '100%', height: '100%' },
-  fab: { position: 'absolute', bottom: 90, alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.textPrimary, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  fab: { position: 'absolute', bottom: 100, alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
+  emptyTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
+  emptySubtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen, marginTop: 8 },
+  emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
+  fitCard: { marginHorizontal: 16, marginBottom: 12, padding: 16, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
+  fitCardTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
+  fitCardSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, marginTop: 4, textTransform: 'capitalize' },
 });

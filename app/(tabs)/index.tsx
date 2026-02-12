@@ -2,6 +2,7 @@ import { CategoryPills } from '@/components/ui/CategoryPills';
 import { PinCard } from '@/components/ui/PinCard';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import {
   Clock,
@@ -10,7 +11,7 @@ import {
   ScanLine,
   Search
 } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -88,19 +89,28 @@ export default function CommunityScreen() {
   const [activeView, setActiveView] = useState<SubView>('explore');
   const [searchQuery, setSearchQuery] = useState('');
   const [exploreCategory, setExploreCategory] = useState('All');
-  const [showAddSheet, setShowAddSheet] = useState(false);
 
   const switchView = (view: SubView) => {
     Haptics.selectionAsync();
     setActiveView(view);
   };
 
+  const pickAndAnalyze = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+    }
+  }, []);
+
   const handleShortcutPress = (shortcut: (typeof SHORTCUTS)[number]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (shortcut.route) {
       router.push(shortcut.route as never);
     } else if (shortcut.key === 'add') {
-      setShowAddSheet(true);
+      pickAndAnalyze();
     }
   };
 

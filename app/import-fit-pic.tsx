@@ -1,16 +1,16 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { Colors, Radius, Typography } from '@/constants/Colors';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { ArrowLeft, Camera, ImageIcon, Sparkles } from 'lucide-react-native';
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import React from 'react';
+import {
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ImportFitPicScreen() {
   const handleTakePhoto = async () => {
@@ -19,7 +19,7 @@ export default function ImportFitPicScreen() {
     if (!permission.granted) return;
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as never);
     }
   };
 
@@ -27,7 +27,7 @@ export default function ImportFitPicScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as never);
     }
   };
 
@@ -51,7 +51,7 @@ export default function ImportFitPicScreen() {
 
         <Text style={styles.title}>Upload a Fit Pic</Text>
         <Text style={styles.desc}>
-          Take or upload a photo of yourself wearing an outfit. We'll extract each piece as a flat-lay image.
+          Take or upload a photo of yourself wearing an outfit. We'll detect and extract each clothing piece from the image.
         </Text>
 
         <View style={styles.tipRow}>
