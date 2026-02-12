@@ -100,6 +100,21 @@ export interface OutfitSuggestion {
     style_match_score: number;
 }
 
+export interface DigitalTwin {
+    id: string;
+    user_id: string;
+    selfie_url: string;
+    body_url?: string;
+    skin_color: string;
+    hair_color: string;
+    additional_details?: string;
+    ai_description: string;          // AI-generated appearance profile
+    body_type?: string;              // AI-detected body type
+    style_recommendations?: string;  // AI style tips based on appearance
+    created_at: string;
+    updated_at: string;
+}
+
 // API Response types
 export interface AnalysisResult {
     detections: Detection[];

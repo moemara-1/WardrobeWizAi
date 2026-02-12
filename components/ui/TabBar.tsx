@@ -5,12 +5,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Compass, Sparkles, Shirt, User } from 'lucide-react-native';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TAB_ICONS = [Compass, Sparkles, Shirt, User] as const;
 
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+    const insets = useSafeAreaInsets();
+
     return (
-        <View style={styles.wrapper}>
+        <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <LinearGradient
                 colors={['transparent', Colors.background]}
                 style={styles.fadeOverlay}
@@ -64,7 +67,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         alignItems: 'center',
-        paddingBottom: 34,
+        paddingBottom: 16,
     },
     fadeOverlay: {
         position: 'absolute',

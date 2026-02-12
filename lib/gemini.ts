@@ -5,7 +5,6 @@ const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/
 const getApiKey = () => {
     const key = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
     if (!key) {
-        console.warn('[Gemini] API key not configured');
         return null;
     }
     return key;
@@ -107,8 +106,6 @@ Respond in valid JSON format:
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            console.error('[Gemini] API error:', error);
             throw new Error(`Gemini API error: ${response.status}`);
         }
 
@@ -130,7 +127,6 @@ Respond in valid JSON format:
             processingTimeMs: Date.now() - startTime,
         };
     } catch (error) {
-        console.error('[Gemini] Analysis error:', error);
         throw error;
     }
 }
@@ -204,7 +200,6 @@ Respond in valid JSON:
 
         return JSON.parse(jsonMatch[0]);
     } catch (error) {
-        console.error('[Gemini] Item identification error:', error);
         throw error;
     }
 }
@@ -216,6 +211,5 @@ export async function generateCleanProductImage(imageUri: string): Promise<strin
     // Note: For actual background removal, we'd use a service like remove.bg
     // or Gemini's image editing capabilities when available
     // For now, return the original URI and flag for future enhancement
-    console.log('[Gemini] Background removal requested - feature pending');
     return imageUri;
 }

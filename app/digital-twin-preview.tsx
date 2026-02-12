@@ -6,17 +6,21 @@ import {
   Image,
   StyleSheet,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, RefreshCw, Sparkles, User } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
+import { useClosetStore } from '@/stores/closetStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PREVIEW_WIDTH = (SCREEN_WIDTH - 48 - 12) / 2;
 
 export default function DigitalTwinPreviewScreen() {
+  const { digitalTwin } = useClosetStore();
+
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
@@ -27,6 +31,80 @@ export default function DigitalTwinPreviewScreen() {
     router.push('/digital-twin' as never);
   };
 
+  const handleTryOn = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.push('/virtual-try-on' as never);
+  };
+
+  // If twin exists, show the profile view
+  if (digitalTwin) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView edges={['top']} style={styles.headerBar}>
+          <Pressable style={styles.backBtn} onPress={handleBack}>
+            <ArrowLeft size={20} color={Colors.textPrimary} />
+          </Pressable>
+          <Text style={styles.headerTitle}>My Digital Twin</Text>
+          <View style={styles.headerSpacer} />
+        </SafeAreaView>
+
+        <ScrollView contentContainerStyle={styles.twinScrollContent} showsVerticalScrollIndicator={false}>
+          {/* Selfie + Color Badges */}
+          <View style={styles.twinProfileRow}>
+            <Image source={{ uri: digitalTwin.selfie_url }} style={styles.twinSelfie} resizeMode="cover" />
+            <View style={styles.twinMeta}>
+              <View style={styles.colorBadgeRow}>
+                <View style={[styles.colorDot, { backgroundColor: digitalTwin.skin_color }]} />
+                <Text style={styles.colorBadgeLabel}>Skin</Text>
+              </View>
+              <View style={styles.colorBadgeRow}>
+                <View style={[styles.colorDot, { backgroundColor: digitalTwin.hair_color }]} />
+                <Text style={styles.colorBadgeLabel}>Hair</Text>
+              </View>
+              {digitalTwin.body_type && (
+                <View style={styles.bodyBadge}>
+                  <Text style={styles.bodyBadgeText}>{digitalTwin.body_type}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* AI Description */}
+          <View style={styles.twinCard}>
+            <View style={styles.twinCardHeader}>
+              <Sparkles size={16} color={Colors.accentGreen} />
+              <Text style={styles.twinCardTitle}>AI Profile</Text>
+            </View>
+            <Text style={styles.twinCardBody}>{digitalTwin.ai_description}</Text>
+          </View>
+
+          {/* Style Recommendations */}
+          {digitalTwin.style_recommendations && (
+            <View style={styles.twinCard}>
+              <View style={styles.twinCardHeader}>
+                <Sparkles size={16} color={Colors.accentBlue} />
+                <Text style={styles.twinCardTitle}>Style Tips</Text>
+              </View>
+              <Text style={styles.twinCardBody}>{digitalTwin.style_recommendations}</Text>
+            </View>
+          )}
+        </ScrollView>
+
+        <SafeAreaView edges={['bottom']} style={styles.twinCtaWrapper}>
+          <Pressable style={styles.tryOnCta} onPress={handleTryOn}>
+            <User size={18} color="#FFF" />
+            <Text style={styles.tryOnCtaText}>Virtual Try-On</Text>
+          </Pressable>
+          <Pressable style={styles.regenCta} onPress={handleGetStarted}>
+            <RefreshCw size={16} color={Colors.textSecondary} />
+            <Text style={styles.regenCtaText}>Regenerate</Text>
+          </Pressable>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // No twin yet — show onboarding CTA
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.headerBar}>
@@ -198,4 +276,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.background,
   },
+
+  /* ─── Twin Profile Styles ─── */
+  twinScrollContent: { padding: 16, paddingBottom: 140 },
+  twinProfileRow: { flexDirection: 'row', gap: 16, marginBottom: 20 },
+  twinSelfie: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: Colors.accentGreen },
+  twinMeta: { justifyContent: 'center', gap: 8, flex: 1 },
+  colorBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
+  colorBadgeLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
+  bodyBadge: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: Colors.border },
+  bodyBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textPrimary, textTransform: 'capitalize' },
+  twinCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: 16, gap: 8, marginBottom: 12 },
+  twinCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  twinCardTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
+  twinCardBody: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  twinCtaWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: Colors.background, gap: 8 },
+  tryOnCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.accentGreen, borderRadius: Radius.pill, paddingVertical: 16 },
+  tryOnCtaText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
+  regenCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10 },
+  regenCtaText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.textSecondary },
 });

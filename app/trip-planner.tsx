@@ -38,9 +38,22 @@ const OCCASIONS: { key: Occasion; label: string; icon: React.ComponentType<{ siz
 
 export default function TripPlannerScreen() {
   const [days, setDays] = useState(3);
-  const [destination, setDestination] = useState('');
+  const [destinations, setDestinations] = useState<string[]>(['']);
   const [occasion, setOccasion] = useState<Occasion>('fun');
   const [multiCity, setMultiCity] = useState(false);
+
+  const updateDestination = (index: number, value: string) => {
+    setDestinations((prev) => prev.map((d, i) => (i === index ? value : d)));
+  };
+
+  const addDestination = () => {
+    setDestinations((prev) => [...prev, '']);
+  };
+
+  const removeDestination = (index: number) => {
+    if (destinations.length <= 1) return;
+    setDestinations((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleBuild = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -61,7 +74,12 @@ export default function TripPlannerScreen() {
         <Text style={styles.subtitle}>Plan your perfect travel wardrobe</Text>
 
         {/* Multi-City Toggle */}
-        <Pressable style={styles.toggleRow} onPress={() => { Haptics.selectionAsync(); setMultiCity(!multiCity); }}>
+        <Pressable style={styles.toggleRow} onPress={() => {
+          Haptics.selectionAsync();
+          const next = !multiCity;
+          setMultiCity(next);
+          if (!next) setDestinations((prev) => [prev[0] || '']);
+        }}>
           <Text style={styles.toggleLabel}>Multi-City Trip</Text>
           <View style={[styles.toggle, multiCity && styles.toggleActive]}>
             <View style={[styles.toggleThumb, multiCity && styles.toggleThumbActive]} />
@@ -83,13 +101,31 @@ export default function TripPlannerScreen() {
           </Pressable>
         </View>
 
-        {/* Destination */}
-        <Text style={styles.sectionLabel}>Destination</Text>
-        <View style={styles.destinationRow}>
-          <Search size={16} color={Colors.textSecondary} />
-          <TextInput style={styles.destInput} placeholder="Search for a city..." placeholderTextColor={Colors.textTertiary} value={destination} onChangeText={setDestination} />
-          <ChevronRight size={16} color={Colors.textSecondary} />
-        </View>
+        {/* Destinations */}
+        <Text style={styles.sectionLabel}>{multiCity ? 'Cities' : 'Destination'}</Text>
+        {destinations.map((dest, index) => (
+          <View key={index} style={styles.destinationRow}>
+            <Search size={16} color={Colors.textSecondary} />
+            <TextInput
+              style={styles.destInput}
+              placeholder={multiCity ? `City ${index + 1}...` : 'Search for a city...'}
+              placeholderTextColor={Colors.textTertiary}
+              value={dest}
+              onChangeText={(v) => updateDestination(index, v)}
+            />
+            {multiCity && destinations.length > 1 && (
+              <Pressable onPress={() => removeDestination(index)}>
+                <Minus size={16} color={Colors.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+        ))}
+        {multiCity && (
+          <Pressable style={styles.addCityBtn} onPress={addDestination}>
+            <Plus size={16} color={Colors.accentBlue} />
+            <Text style={styles.addCityText}>Add City</Text>
+          </Pressable>
+        )}
 
         {/* Occasion */}
         <View style={styles.occasionHeader}>
@@ -159,4 +195,6 @@ const styles = StyleSheet.create({
   buildBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
   savedBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', paddingVertical: 14, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
   savedBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.accentBlue },
+  addCityBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', paddingVertical: 12, borderRadius: Radius.md, backgroundColor: Colors.cardSurfaceAlt, marginBottom: 24, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
+  addCityText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.accentBlue },
 });

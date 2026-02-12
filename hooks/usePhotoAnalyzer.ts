@@ -1,3 +1,4 @@
+import { analyzeOutfit } from '@/lib/gemini';
 import { AnalysisResult, ClosetItem, ClothingCategory, Detection } from '@/types';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useCallback, useState } from 'react';
@@ -45,15 +46,12 @@ async function withRetry<T>(
 
             if (lastError.message.includes('429') || lastError.message.includes('rate')) {
                 const delay = baseDelay * Math.pow(2, attempt);
-                console.log(`[Analyzer] Rate limited, waiting ${delay}ms before retry ${attempt + 1}/${maxRetries}`);
                 await wait(delay);
                 continue;
             }
 
-            // For network errors, retry
             if (lastError.message.includes('Network request failed')) {
                 const delay = baseDelay * Math.pow(2, attempt);
-                console.log(`[Analyzer] Network error, retrying in ${delay}ms (${attempt + 1}/${maxRetries})`);
                 await wait(delay);
                 continue;
             }
@@ -142,7 +140,7 @@ export function usePhotoAnalyzer() {
         } as any);
 
         // Try authenticated endpoint first, fallback to demo
-        const endpoints = apiKey
+        const endpoints: { url: string; headers: Record<string, string> }[] = apiKey
             ? [
                 { url: API4AI_ENDPOINT, headers: { 'Accept': 'application/json', 'X-API-Key': apiKey } },
                 { url: API4AI_DEMO_ENDPOINT, headers: { 'Accept': 'application/json' } },
@@ -155,7 +153,6 @@ export function usePhotoAnalyzer() {
 
         for (const endpoint of endpoints) {
             try {
-                console.log(`[Analyzer] Trying API4AI: ${endpoint.url}`);
                 const response = await fetch(endpoint.url, {
                     method: 'POST',
                     body: formData,
@@ -193,21 +190,29 @@ export function usePhotoAnalyzer() {
                 }
 
                 if (detections.length > 0) {
-                    console.log(`[Analyzer] API4AI found ${detections.length} items`);
                     return detections;
                 }
             } catch (err) {
                 lastError = err instanceof Error ? err : new Error(String(err));
-                console.warn(`[Analyzer] API4AI endpoint failed:`, lastError.message);
             }
         }
 
         throw lastError || new Error('API4AI: No detections');
     };
 
-    /**
-     * Main analyze function — API4AI primary, with mock fallback
-     */
+    const analyzeWithGemini = async (imageUri: string): Promise<Detection[]> => {
+        const result = await analyzeOutfit(imageUri);
+        return result.detections.map((det, i) => ({
+            id: `det-${Date.now()}-${i}`,
+            bounding_box: { x: 0, y: 0, width: 100, height: 100 },
+            category: det.category,
+            confidence: det.confidence,
+            suggested_name: det.name,
+            colors: det.colors,
+            brand_guess: det.brand,
+        }));
+    };
+
     const analyze = useCallback(async (
         imageUri: string,
         options: AnalyzeOptions = {}
@@ -226,19 +231,26 @@ export function usePhotoAnalyzer() {
 
             setProgress(0.3);
             let results: Detection[] = [];
-            let modelUsed: 'ml_kit' | 'api4ai' | 'openai' | 'gemini' | 'mock' = 'api4ai';
+            let modelUsed: 'ml_kit' | 'api4ai' | 'openai' | 'gemini' | 'mock' = 'gemini';
 
-            // Try API4AI with retry for network errors
             try {
-                results = await withRetry(() => analyzeWithApi4AI(processedUri), 3, 2000);
+                results = await withRetry(() => analyzeWithGemini(processedUri), 2, 2000);
                 setProgress(0.8);
-            } catch (apiError) {
-                console.warn('[Analyzer] API4AI failed after retries:', apiError);
+            } catch {
+                // Gemini failed — fall back to API4AI
             }
 
-            // Use mock data if API failed
+            if (results.length === 0) {
+                try {
+                    results = await withRetry(() => analyzeWithApi4AI(processedUri), 2, 2000);
+                    modelUsed = 'api4ai';
+                    setProgress(0.8);
+                } catch {
+                    // API4AI also failed
+                }
+            }
+
             if (results.length === 0 && useMockOnError) {
-                console.log('[Analyzer] API unavailable, using mock data');
                 results = createMockDetections();
                 modelUsed = 'mock';
                 setError('AI services temporarily unavailable — using placeholder data');
