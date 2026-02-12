@@ -1,19 +1,19 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  Image,
-  StyleSheet,
-  Dimensions,
-  ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { ArrowLeft, RefreshCw, Sparkles, User } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { ArrowLeft, RefreshCw, Sparkles, User } from 'lucide-react-native';
+import React from 'react';
+import {
+    Dimensions,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PREVIEW_WIDTH = (SCREEN_WIDTH - 48 - 12) / 2;
@@ -49,7 +49,12 @@ export default function DigitalTwinPreviewScreen() {
         </SafeAreaView>
 
         <ScrollView contentContainerStyle={styles.twinScrollContent} showsVerticalScrollIndicator={false}>
-          {/* Selfie + Color Badges */}
+          {/* Generated Twin Image */}
+          <View style={styles.twinImageWrapper}>
+            <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinFullImage} resizeMode="contain" />
+          </View>
+
+          {/* Selfie comparison + Color Badges */}
           <View style={styles.twinProfileRow}>
             <Image source={{ uri: digitalTwin.selfie_url }} style={styles.twinSelfie} resizeMode="cover" />
             <View style={styles.twinMeta}>
@@ -279,8 +284,10 @@ const styles = StyleSheet.create({
 
   /* ─── Twin Profile Styles ─── */
   twinScrollContent: { padding: 16, paddingBottom: 140 },
+  twinImageWrapper: { alignItems: 'center', marginBottom: 20, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  twinFullImage: { width: '100%', height: 420 },
   twinProfileRow: { flexDirection: 'row', gap: 16, marginBottom: 20 },
-  twinSelfie: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: Colors.accentGreen },
+  twinSelfie: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: Colors.accentGreen },
   twinMeta: { justifyContent: 'center', gap: 8, flex: 1 },
   colorBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },

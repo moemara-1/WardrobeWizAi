@@ -5,26 +5,26 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import {
-  ArrowLeft,
-  Camera,
-  Check,
-  FileText,
-  Palette,
-  Scan,
-  Upload,
-  UserCircle,
+    ArrowLeft,
+    Camera,
+    Check,
+    FileText,
+    Palette,
+    Scan,
+    Upload,
+    UserCircle,
 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -153,6 +153,7 @@ export default function DigitalTwinScreen() {
         ai_description: analysis.ai_description,
         body_type: analysis.body_type,
         style_recommendations: analysis.style_recommendations,
+        twin_image_url: analysis.twin_image_url,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -163,7 +164,7 @@ export default function DigitalTwinScreen() {
       console.error('Digital twin generation failed:', err);
       Alert.alert(
         'Generation Failed',
-        'Could not generate your digital twin. Please check your internet connection and try again.',
+        `Could not create your digital twin: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
       );
     } finally {
       setIsGenerating(false);
@@ -181,14 +182,21 @@ export default function DigitalTwinScreen() {
       </SafeAreaView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Empty State */}
-        {!selfieUri && !bodyUri && (
+        {/* Existing Twin Preview or Empty State */}
+        {digitalTwin?.twin_image_url ? (
+          <Pressable style={styles.twinPreview} onPress={() => router.push('/digital-twin-preview' as never)}>
+            <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinPreviewImage} resizeMode="contain" />
+            <View style={styles.twinPreviewBadge}>
+              <Text style={styles.twinPreviewBadgeText}>My Digital Twin</Text>
+            </View>
+          </Pressable>
+        ) : !selfieUri && !bodyUri ? (
           <View style={styles.emptyState}>
             <UserCircle size={48} color={Colors.textTertiary} strokeWidth={1.2} />
             <Text style={styles.emptyTitle}>No twins yet</Text>
             <Text style={styles.emptyDesc}>Upload your photos to create a digital twin for virtual try-ons</Text>
           </View>
-        )}
+        ) : null}
 
         <View style={styles.divider} />
 
@@ -346,6 +354,10 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', gap: 8, paddingVertical: 32 },
   emptyTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 20, color: Colors.textPrimary },
   emptyDesc: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', maxWidth: 260 },
+  twinPreview: { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 4 },
+  twinPreviewImage: { width: '100%', height: 320 },
+  twinPreviewBadge: { position: 'absolute', bottom: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, paddingHorizontal: 14, paddingVertical: 6 },
+  twinPreviewBadgeText: { fontFamily: Typography.bodyFamilyBold, fontSize: 12, color: '#FFF' },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: 20 },
   sectionTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, marginBottom: 12 },
   uploadCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: 20, alignItems: 'center', gap: 8, marginBottom: 12 },
