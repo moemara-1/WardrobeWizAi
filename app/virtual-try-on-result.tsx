@@ -5,16 +5,19 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  Image,
   StyleSheet,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Clock, Sparkles } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
+import { generateDigitalTwin } from '@/lib/ai';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -30,8 +33,40 @@ const SCENES = [
 export default function VirtualTryOnResultScreen() {
   const [activeScene, setActiveScene] = useState('studio');
   const [prompt, setPrompt] = useState('');
-  const { items } = useClosetStore();
+  const [generating, setGenerating] = useState(false);
+  const { items, digitalTwin } = useClosetStore();
   const selectedItems = items.slice(0, 3);
+
+  const handleGenerate = async () => {
+    if (!digitalTwin?.twin_image_url) {
+      Alert.alert('Digital Twin Required', 'Please create your digital twin first in your Profile.');
+      return;
+    }
+
+    const outfitDesc = selectedItems.map(i => `${i.name} (${i.colors.join(', ')})`).join(', ');
+    const sceneLabel = SCENES.find(s => s.key === activeScene)?.label ?? activeScene;
+    const fullPrompt = `Outfit: ${outfitDesc}. Scene: ${sceneLabel} setting.${prompt ? ` ${prompt}` : ''}`;
+
+    setGenerating(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const result = await generateDigitalTwin(
+        digitalTwin.selfie_url,
+        digitalTwin.skin_color,
+        digitalTwin.hair_color,
+        fullPrompt,
+        digitalTwin.body_url,
+      );
+      Alert.alert('Try-On Complete!', 'Your virtual try-on image has been generated.', [
+        { text: 'OK' },
+      ]);
+    } catch (err) {
+      Alert.alert('Generation Failed', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -87,7 +122,7 @@ export default function VirtualTryOnResultScreen() {
               key={item.id}
               source={{ uri: item.image_url }}
               style={[styles.canvasItem, { top: 20 + i * 120, zIndex: selectedItems.length - i }]}
-              resizeMode="contain"
+              contentFit="contain"
             />
           ))}
         </View>
@@ -96,11 +131,16 @@ export default function VirtualTryOnResultScreen() {
       {/* Generate CTA */}
       <SafeAreaView edges={['bottom']} style={styles.ctaWrapper}>
         <Pressable
-          style={styles.generateBtn}
-          onPress={() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}
+          style={[styles.generateBtn, generating && { opacity: 0.6 }]}
+          onPress={handleGenerate}
+          disabled={generating}
         >
-          <Sparkles size={18} color="#FFF" />
-          <Text style={styles.generateText}>Generate Image</Text>
+          {generating ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Sparkles size={18} color="#FFF" />
+          )}
+          <Text style={styles.generateText}>{generating ? 'Generating...' : 'Generate Image'}</Text>
         </Pressable>
         <Text style={styles.costText}>Costs 1 AI credit</Text>
       </SafeAreaView>

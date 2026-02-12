@@ -7,7 +7,7 @@ import { generateDigitalTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClothingCategory, ClosetItem, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
     Bookmark,
     BookmarkCheck,
@@ -23,7 +23,6 @@ import {
     Alert,
     Animated,
     FlatList,
-    Image,
     KeyboardAvoidingView,
     Modal,
     PanResponder,
@@ -35,6 +34,7 @@ import {
     TextInput,
     View
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Slot definitions in vertical order (top to bottom on the board)
@@ -279,7 +279,7 @@ export default function StylistScreen() {
     if (!digitalTwin?.selfie_url) {
       Alert.alert('Set up twin first', 'Go to your profile and add a selfie photo before generating an AI twin.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Set Up', onPress: () => router.push('/digital-twin' as never) },
+        { text: 'Set Up', onPress: () => router.push('/digital-twin' as Href) },
       ]);
       return;
     }
@@ -332,7 +332,7 @@ export default function StylistScreen() {
 
   const handleOpenStyleChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/style-chat' as never);
+    router.push('/style-chat' as Href);
   };
 
   const twinGenerating = useClosetStore((s) => s.twinGenerating);
@@ -367,7 +367,7 @@ export default function StylistScreen() {
           style={styles.avatarCircle}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/digital-twin' as never);
+            router.push('/digital-twin' as Href);
           }}
         >
           <Text style={styles.avatarText}>U</Text>
@@ -398,14 +398,14 @@ export default function StylistScreen() {
                           <Pressable
                             onPress={() => {
                               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              router.push(`/item/${currentItem.id}` as never);
+                              router.push(`/item/${currentItem.id}` as Href);
                             }}
                             style={styles.slotImagePressable}
                           >
                             <Image
                               source={{ uri: currentItem.clean_image_url || currentItem.image_url }}
                               style={styles.slotImage}
-                              resizeMode="contain"
+                              contentFit="contain"
                             />
                           </Pressable>
                         </Animated.View>
@@ -518,7 +518,7 @@ export default function StylistScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fitsPickerItems}>
                   {outfit.items.slice(0, 5).map((piece) => (
                     <View key={piece.id} style={styles.fitsPickerThumb}>
-                      <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} resizeMode="contain" />
+                      <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} contentFit="contain" />
                     </View>
                   ))}
                 </ScrollView>

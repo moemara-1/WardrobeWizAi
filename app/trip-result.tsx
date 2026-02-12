@@ -3,11 +3,11 @@ import {
   View,
   Text,
   Pressable,
-  Image,
   StyleSheet,
   Dimensions,
   FlatList,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -88,7 +88,7 @@ export default function TripResultScreen() {
             </View>
             {item.items.map((outfit: DayOutfit['items'][number], i: number) => (
               <View key={i} style={styles.outfitCard}>
-                <Image source={{ uri: outfit.imageUrl }} style={styles.outfitImage} resizeMode="contain" />
+                <Image source={{ uri: outfit.imageUrl }} style={styles.outfitImage} contentFit="contain" />
                 <View style={styles.outfitInfo}>
                   <Text style={styles.outfitName}>{outfit.name}</Text>
                   <Text style={styles.outfitCat}>{outfit.category}</Text>

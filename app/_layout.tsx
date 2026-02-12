@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Alert } from 'react-native';
 import { useFonts, Fraunces_400Regular, Fraunces_700Bold } from '@expo-google-fonts/fraunces';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
@@ -45,6 +46,15 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+
+  useEffect(() => {
+    if (!process.env.EXPO_PUBLIC_DEEPINFRA_KEY) {
+      Alert.alert(
+        'Configuration Missing',
+        'EXPO_PUBLIC_DEEPINFRA_KEY is not set. AI features will not work. Please check your .env file.',
+      );
+    }
+  }, []);
 
   if (!loaded) {
     return null;

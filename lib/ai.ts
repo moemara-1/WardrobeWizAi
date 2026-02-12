@@ -260,7 +260,7 @@ Return ONLY valid JSON:
             occasion: parsed.occasion,
         };
     } catch {
-        console.warn('Outfit analysis returned non-JSON, using defaults');
+        if (__DEV__) console.warn('Outfit analysis returned non-JSON, using defaults');
         return { detections: [], overallStyle: undefined, occasion: undefined };
     }
 }
@@ -318,7 +318,7 @@ Return ONLY valid JSON:
         return parseJSON<{ description: string; body_type: string; style_tips: string }>(content);
     } catch {
         // Vision model refused or returned non-JSON — use sensible defaults
-        console.warn('Vision model did not return JSON, using defaults. Raw:', content.slice(0, 200));
+        if (__DEV__) console.warn('Vision model did not return JSON, using defaults. Raw:', content.slice(0, 200));
         return {
             description: `Person with ${hairColor} hair and ${skinColor} skin tone.${additionalDetails ? ` ${additionalDetails}` : ''}`,
             body_type: 'average',
@@ -347,7 +347,11 @@ async function generateTwinImage(
         broad: 'a broad, wide-shouldered build',
     }[bodyType] || 'a proportionate build';
 
-    const prompt = `Transform this person into a full-body photograph from head to toe, standing on a seamless pure white background. Keep the exact same person, same face, same skin tone, same hair. The person has ${bodyDesc}. Show their entire body from head to shoes, accurately reflecting their body type and proportions. They are wearing a plain white oversized crew-neck t-shirt, blue straight-leg chino trousers, and white leather sneakers. Standing upright with arms relaxed at sides, facing the camera. Professional studio photography, soft diffused lighting, no harsh shadows, clean e-commerce product style.${additionalDetails ? ` ${additionalDetails}` : ''}`;
+    const outfitDesc = additionalDetails
+        ? `They are wearing: ${additionalDetails}.`
+        : 'They are wearing a plain white oversized crew-neck t-shirt, blue straight-leg chino trousers, and white leather sneakers.';
+
+    const prompt = `Transform this person into a full-body photograph from head to toe, standing on a seamless pure white background. Keep the exact same person, same face, same skin tone, same hair. The person has ${bodyDesc}. Show their entire body from head to shoes, accurately reflecting their body type and proportions. ${outfitDesc} Standing upright with arms relaxed at sides, facing the camera. Professional studio photography, soft diffused lighting, no harsh shadows, clean e-commerce product style.`;
 
     // FLUX.1-Kontext-dev accepts image + text prompt via /images/edits (multipart form)
     const formData = new FormData();

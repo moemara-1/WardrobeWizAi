@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { Heart } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 
@@ -30,7 +31,7 @@ function PinCardComponent({
       <Image
         source={{ uri: imageUrl }}
         style={[styles.image, { height }]}
-        resizeMode="cover"
+        contentFit="cover"
       />
       <View style={styles.footer}>
         <View style={styles.userRow}>

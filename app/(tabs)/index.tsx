@@ -1,7 +1,7 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
   Camera,
   ImageIcon,
@@ -13,7 +13,6 @@ import {
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Animated,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -22,6 +21,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type SubView = 'explore' | 'discover';
@@ -109,7 +109,7 @@ export default function CommunityScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as Href);
     }
   }, []);
 
@@ -121,7 +121,7 @@ export default function CommunityScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as Href);
     }
   }, []);
 
@@ -144,7 +144,7 @@ export default function CommunityScreen() {
   const handleShortcutPress = (shortcut: (typeof SHORTCUTS)[number]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (shortcut.route) {
-      router.push(shortcut.route as never);
+      router.push(shortcut.route as Href);
     } else if (shortcut.key === 'add') {
       openAddMenu();
     }
@@ -224,7 +224,7 @@ function ExploreView() {
               <Image
                 source={{ uri: photo.imageUrl }}
                 style={styles.masonryImage}
-                resizeMode="cover"
+                contentFit="cover"
               />
             </Pressable>
           ))}
@@ -235,7 +235,7 @@ function ExploreView() {
               <Image
                 source={{ uri: photo.imageUrl }}
                 style={styles.masonryImage}
-                resizeMode="cover"
+                contentFit="cover"
               />
             </Pressable>
           ))}
@@ -305,7 +305,7 @@ function DiscoverView({
           >
             {profile.items.map((item) => (
               <Pressable key={item.id} style={styles.profileItemThumb}>
-                <Image source={{ uri: item.imageUrl }} style={styles.profileItemImage} resizeMode="contain" />
+                <Image source={{ uri: item.imageUrl }} style={styles.profileItemImage} contentFit="contain" />
               </Pressable>
             ))}
           </ScrollView>

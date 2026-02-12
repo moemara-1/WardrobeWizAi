@@ -2,7 +2,7 @@ import { Colors, Radius, Typography } from '@/constants/Colors';
 import { ChatMessage, chatWithStylist } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
     CalendarDays,
     Cloud,
@@ -108,7 +108,7 @@ export default function StyleChatScreen() {
   const handleActionCard = (key: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (key === 'twin') {
-      router.push('/digital-twin' as never);
+      router.push('/digital-twin' as Href);
     } else if (key === 'event') {
       sendMessage('Help me pick an outfit for an event. What kind of event do you want to dress for?');
     } else if (key === 'style') {

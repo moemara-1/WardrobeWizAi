@@ -1,7 +1,8 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { X } from 'lucide-react-native';
 import React, { memo } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
 interface WornItemCardProps {
     imageUrl: string;
@@ -15,7 +16,7 @@ function WornItemCardComponent({ imageUrl, name, brand, badge, onRemove }: WornI
     return (
         <View style={styles.card}>
             <View style={styles.imageContainer}>
-                <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
+                <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" />
 
                 {badge && (
                     <View style={styles.badge}>

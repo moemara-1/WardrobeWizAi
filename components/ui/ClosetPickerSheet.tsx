@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import {
   Dimensions,
   FlatList,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Search, X, Check } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
@@ -177,7 +177,7 @@ export function ClosetPickerSheet({
                   <Image
                     source={{ uri: item.clean_image_url || item.image_url }}
                     style={styles.gridImage}
-                    resizeMode="contain"
+                    contentFit="contain"
                   />
                   <Text style={styles.gridName} numberOfLines={1}>{item.name}</Text>
                   {multiSelect && isSelected && (

@@ -3,6 +3,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+/** Generate a unique ID using timestamp + random suffix to avoid collisions */
+function generateId(prefix: string = 'item'): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  return `${prefix}_${timestamp}_${random}`;
+}
+
+export { generateId };
+
 interface ClosetState {
     // Items
     items: ClosetItem[];
@@ -126,12 +135,18 @@ export const useClosetStore = create<ClosetState>()(
     }),
     {
       name: 'closet-storage',
+      version: 1,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         items: state.items,
         outfits: state.outfits,
         digitalTwin: state.digitalTwin,
       }),
+      migrate: (persisted: unknown, _version: number) => {
+        // Future migrations go here
+        // if (_version === 0) { /* migrate v0 → v1 */ }
+        return persisted as Partial<ClosetState>;
+      },
     },
   ),
 );

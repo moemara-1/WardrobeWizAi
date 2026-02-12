@@ -1,7 +1,7 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
   ChevronRight,
   Grid3X3,
@@ -17,13 +17,13 @@ import React, { useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -109,7 +109,7 @@ export default function ProfileScreen() {
                 style={styles.twinCard}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push('/digital-twin' as never);
+                  router.push('/digital-twin' as Href);
                 }}
               >
                 <View style={styles.twinCardAvatar}>
@@ -126,7 +126,7 @@ export default function ProfileScreen() {
                 style={styles.twinCard}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push('/digital-twin' as never);
+                  router.push('/digital-twin' as Href);
                 }}
               >
                 <View style={styles.twinCardAvatar}>
@@ -169,13 +169,13 @@ export default function ProfileScreen() {
                 style={styles.gridTile}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push(`/item/${item.id}` as never);
+                  router.push(`/item/${item.id}` as Href);
                 }}
               >
                 <Image
                   source={{ uri: item.clean_image_url || item.image_url }}
                   style={styles.gridImage}
-                  resizeMode="cover"
+                  contentFit="cover"
                 />
               </Pressable>
             );
@@ -189,7 +189,7 @@ export default function ProfileScreen() {
                     <Image
                       source={{ uri: oi.clean_image_url || oi.image_url }}
                       style={styles.outfitThumbImage}
-                      resizeMode="contain"
+                      contentFit="contain"
                     />
                   </View>
                 ))}
