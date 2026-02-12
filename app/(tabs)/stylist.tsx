@@ -3,6 +3,7 @@ import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
+import { generateDigitalTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClothingCategory, ClosetItem, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -12,7 +13,6 @@ import {
     BookmarkCheck,
     Dices,
     Plus,
-    ScanLine,
     Send,
     SlidersHorizontal,
     Sparkles
@@ -21,8 +21,11 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
+    FlatList,
     Image,
     KeyboardAvoidingView,
+    Modal,
     PanResponder,
     Platform,
     Pressable,
@@ -51,6 +54,8 @@ export default function StylistScreen() {
   const [chatMessage, setChatMessage] = useState('');
   const [savedThisOutfit, setSavedThisOutfit] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedAccessories, setSelectedAccessories] = useState<ClosetItem[]>([]);
+  const [showFitsPicker, setShowFitsPicker] = useState(false);
 
   // Each slot tracks which item index is currently shown
   const [slotIndices, setSlotIndices] = useState<Record<GarmentSlot, number>>({
@@ -58,7 +63,12 @@ export default function StylistScreen() {
   });
 
   const items = useClosetStore((s) => s.items);
+  const outfits = useClosetStore((s) => s.outfits);
   const addOutfit = useClosetStore((s) => s.addOutfit);
+  const digitalTwin = useClosetStore((s) => s.digitalTwin);
+  const setTwinGenerating = useClosetStore((s) => s.setTwinGenerating);
+  const setTwinProgress = useClosetStore((s) => s.setTwinProgress);
+  const setDigitalTwin = useClosetStore((s) => s.setDigitalTwin);
 
   // Group closet items by garment slot
   const itemsBySlot = useMemo(() => {
@@ -80,17 +90,38 @@ export default function StylistScreen() {
     return slotItems[idx] || null;
   }, [itemsBySlot, slotIndices]);
 
-  // Swipe to next/prev item in a slot
+  // Swipe to next/prev item in a slot with animation
+  const swipeAnimValues = useRef<Record<string, Animated.Value>>(
+    Object.fromEntries(OUTFIT_SLOTS.map(({ slot }) => [slot, new Animated.Value(0)]))
+  ).current;
+
   const swipeSlot = useCallback((slot: GarmentSlot, direction: 1 | -1) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const count = itemsBySlot[slot].length;
     if (count === 0) return;
-    setSlotIndices((prev) => ({
-      ...prev,
-      [slot]: (prev[slot] + direction + count) % count,
-    }));
-    setSavedThisOutfit(false);
-  }, [itemsBySlot]);
+    const anim = swipeAnimValues[slot];
+    // Animate out
+    Animated.timing(anim, {
+      toValue: direction * -120,
+      duration: 120,
+      useNativeDriver: true,
+    }).start(() => {
+      // Switch item
+      setSlotIndices((prev) => ({
+        ...prev,
+        [slot]: (prev[slot] + direction + count) % count,
+      }));
+      setSavedThisOutfit(false);
+      // Reset to offscreen opposite side, then animate in
+      anim.setValue(direction * 120);
+      Animated.spring(anim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 120,
+        friction: 14,
+      }).start();
+    });
+  }, [itemsBySlot, swipeAnimValues]);
 
   // Pan responders for each slot to detect horizontal swipes
   const swipeSlotRef = useRef(swipeSlot);
@@ -184,26 +215,32 @@ export default function StylistScreen() {
   const handleAddMenuItem = useCallback((action: string) => {
     setShowAddMenu(false);
     if (action === 'pieces') {
+      // Add tops / bottoms / headwear / shoes to canvas
       setClosetPickerCategory(undefined);
       setClosetPickerTitle('Add Piece');
       setShowClosetPicker(true);
     } else if (action === 'accessories') {
+      // Add accessories (bags, jewelry, etc.) — tracked for AI, not on canvas
       setClosetPickerCategory('accessory' as ClothingCategory);
-      setClosetPickerTitle('Add Accessory');
+      setClosetPickerTitle('Select Accessories');
       setShowClosetPicker(true);
     } else if (action === 'fits') {
-      router.push('/import-fit-pic' as never);
+      // Show saved outfits picker
+      if (outfits.length === 0) {
+        Alert.alert('No saved fits', 'Save outfits from the canvas first to load them here.');
+        return;
+      }
+      setShowFitsPicker(true);
     }
-  }, []);
+  }, [outfits]);
 
-  // Handle closet picker selection — place item in matching slot
-  const handleClosetSelect = useCallback((selected: ClosetItem[]) => {
-    setShowClosetPicker(false);
-    if (selected.length === 0) return;
+  // Load a saved outfit onto the canvas
+  const handleLoadFit = useCallback((outfit: Outfit) => {
+    setShowFitsPicker(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSavedThisOutfit(false);
 
-    for (const item of selected) {
+    for (const item of outfit.items) {
       const slot = classifyGarmentSlot(item.category, item.garment_type || undefined);
       const slotItems = itemsBySlot[slot];
       const idx = slotItems.findIndex((si) => si.id === item.id);
@@ -213,12 +250,85 @@ export default function StylistScreen() {
     }
   }, [itemsBySlot]);
 
-  const handleSend = () => {
-    if (!chatMessage.trim()) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/style-chat' as never);
+  // Handle closet picker selection — place item in matching slot or track accessories
+  const handleClosetSelect = useCallback((selected: ClosetItem[]) => {
+    setShowClosetPicker(false);
+    if (selected.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSavedThisOutfit(false);
+
+    // If accessories mode, just track them for AI context
+    if (closetPickerCategory === ('accessory' as ClothingCategory)) {
+      setSelectedAccessories(selected);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return;
+    }
+
+    for (const item of selected) {
+      const slot = classifyGarmentSlot(item.category, item.garment_type || undefined);
+      const slotItems = itemsBySlot[slot];
+      const idx = slotItems.findIndex((si) => si.id === item.id);
+      if (idx >= 0) {
+        setSlotIndices((prev) => ({ ...prev, [slot]: idx }));
+      }
+    }
+  }, [itemsBySlot, closetPickerCategory]);
+
+  const handleSend = useCallback(async () => {
+    if (!chatMessage.trim() && currentOutfitItems.length === 0) return;
+    if (!digitalTwin?.selfie_url) {
+      Alert.alert('Set up twin first', 'Go to your profile and add a selfie photo before generating an AI twin.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Set Up', onPress: () => router.push('/digital-twin' as never) },
+      ]);
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Build outfit description for the twin
+    const outfitDesc = currentOutfitItems.map(i => `${i.name} (${i.category})`).join(', ');
+    const accessoryDesc = selectedAccessories.length > 0
+      ? ' with accessories: ' + selectedAccessories.map(a => a.name).join(', ')
+      : '';
+    const scenePrompt = chatMessage.trim();
+    const fullDetails = [
+      outfitDesc ? `Wearing: ${outfitDesc}${accessoryDesc}` : '',
+      scenePrompt ? `Scene: ${scenePrompt}` : '',
+    ].filter(Boolean).join('. ');
+
     setChatMessage('');
-  };
+
+    // Generate in background
+    setTwinGenerating(true);
+    setTwinProgress('Building your AI twin with this fit...');
+
+    try {
+      const result = await generateDigitalTwin(
+        digitalTwin.selfie_url,
+        digitalTwin.skin_color || '#C48C5C',
+        digitalTwin.hair_color || '#2C1A0E',
+        fullDetails,
+        digitalTwin.body_url,
+      );
+
+      setDigitalTwin({
+        ...digitalTwin,
+        ai_description: result.ai_description,
+        body_type: result.body_type || digitalTwin.body_type || '',
+        style_recommendations: result.style_recommendations,
+        twin_image_url: result.twin_image_url,
+        updated_at: new Date().toISOString(),
+      });
+      setTwinProgress('Twin generated!');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => setTwinGenerating(false), 2000);
+    } catch (e: any) {
+      setTwinGenerating(false);
+      setTwinProgress(null);
+      Alert.alert('Generation failed', e?.message || 'Something went wrong');
+    }
+  }, [chatMessage, currentOutfitItems, selectedAccessories, digitalTwin, setTwinGenerating, setTwinProgress, setDigitalTwin]);
 
   const handleOpenStyleChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -227,6 +337,9 @@ export default function StylistScreen() {
 
   const twinGenerating = useClosetStore((s) => s.twinGenerating);
   const twinProgress = useClosetStore((s) => s.twinProgress);
+
+  // Accessory indicator for canvas/chat (shows which accessories are selected for AI)
+  const accessoryCount = selectedAccessories.length;
 
   return (
     <KeyboardAvoidingView
@@ -269,45 +382,35 @@ export default function StylistScreen() {
       )}
 
       {/* Outfit Canvas — vertical board layout */}
-      <ScrollView style={styles.canvasScroll} contentContainerStyle={styles.canvasScrollContent}>
+      <View style={styles.canvasArea}>
         <View style={styles.canvas}>
           {hasAnyItems ? (
             <View style={styles.slotsColumn}>
               {OUTFIT_SLOTS.map(({ slot, label, heightRatio, category }) => {
                 const slotItems = itemsBySlot[slot];
                 const currentItem = getSlotItem(slot);
-                const count = slotItems.length;
-                const currentIdx = count > 0 ? (slotIndices[slot] % count) : 0;
 
                 return (
                   <View key={slot} style={[styles.slotRow, { flex: heightRatio }]} {...slotPanResponders[slot].panHandlers}>
                     <View style={styles.slotCenter}>
                       {currentItem ? (
-                        <Pressable
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            router.push(`/item/${currentItem.id}` as never);
-                          }}
-                          style={styles.slotImageWrapper}
-                        >
-                          <Image
-                            source={{ uri: currentItem.clean_image_url || currentItem.image_url }}
-                            style={styles.slotImage}
-                            resizeMode="contain"
-                          />
-                        </Pressable>
+                        <Animated.View style={[styles.slotImageWrapper, { transform: [{ translateX: swipeAnimValues[slot] }] }]}>
+                          <Pressable
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              router.push(`/item/${currentItem.id}` as never);
+                            }}
+                            style={styles.slotImagePressable}
+                          >
+                            <Image
+                              source={{ uri: currentItem.clean_image_url || currentItem.image_url }}
+                              style={styles.slotImage}
+                              resizeMode="contain"
+                            />
+                          </Pressable>
+                        </Animated.View>
                       ) : (
-                        <Pressable
-                          style={styles.slotEmpty}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setClosetPickerCategory(category);
-                            setClosetPickerTitle(`Add ${label}`);
-                            setShowClosetPicker(true);
-                          }}
-                        >
-                          <Plus size={20} color="#ccc" />
-                        </Pressable>
+                        <View style={styles.slotEmptySpace} />
                       )}
                     </View>
                   </View>
@@ -324,7 +427,7 @@ export default function StylistScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+      </View>
 
       {/* FABs on right side */}
       <View style={styles.fabColumn}>
@@ -343,12 +446,6 @@ export default function StylistScreen() {
           disabled={isGenerating}
         >
           <Dices size={20} color={Colors.textPrimary} />
-        </Pressable>
-        <Pressable style={[styles.fab, styles.fabScan]} onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/virtual-try-on' as never);
-        }}>
-          <ScanLine size={20} color={Colors.textPrimary} />
         </Pressable>
         <Pressable style={[styles.fab, savedThisOutfit && styles.fabSaved]} onPress={handleSave}>
           {savedThisOutfit
@@ -399,7 +496,39 @@ export default function StylistScreen() {
         onSelect={handleClosetSelect}
         filterCategory={closetPickerCategory}
         title={closetPickerTitle}
+        multiSelect={closetPickerCategory === ('accessory' as ClothingCategory)}
       />
+
+      {/* Saved Fits Picker */}
+      <Modal visible={showFitsPicker} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.fitsPickerContainer} edges={['top']}>
+          <View style={styles.fitsPickerHeader}>
+            <Pressable onPress={() => setShowFitsPicker(false)} style={styles.fitsPickerClose}>
+              <Text style={styles.fitsPickerCloseText}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.fitsPickerTitle}>Load Saved Fit</Text>
+            <View style={{ width: 64 }} />
+          </View>
+          <FlatList
+            data={outfits}
+            keyExtractor={(o) => o.id}
+            contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+            renderItem={({ item: outfit }) => (
+              <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fitsPickerItems}>
+                  {outfit.items.slice(0, 5).map((piece) => (
+                    <View key={piece.id} style={styles.fitsPickerThumb}>
+                      <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} resizeMode="contain" />
+                    </View>
+                  ))}
+                </ScrollView>
+                <Text style={styles.fitsPickerName}>{outfit.name}</Text>
+                <Text style={styles.fitsPickerSub}>{outfit.items.length} pieces</Text>
+              </Pressable>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -414,26 +543,37 @@ const styles = StyleSheet.create({
   avatarText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textSecondary },
   twinBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
   twinBannerText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
-  canvasScroll: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
-  canvasScrollContent: { flexGrow: 1 },
+  canvasArea: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
   canvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden', minHeight: 500 },
   canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: Colors.textTertiary },
   canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary, textAlign: 'center' },
-  slotsColumn: { flex: 1, paddingVertical: 20, paddingHorizontal: 16, gap: 8 },
-  slotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 60 },
+  slotsColumn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8 },
+  slotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   slotCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  slotImageWrapper: { width: '75%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+  slotImageWrapper: { width: '65%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  slotImagePressable: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   slotImage: { width: '100%', height: '100%' },
-  slotEmpty: { alignItems: 'center', justifyContent: 'center', width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: '#E0E0E0', borderStyle: 'dashed' },
+  slotEmptySpace: { width: 40, height: 40 },
   fabColumn: { position: 'absolute', right: 28, bottom: 170, gap: 12 },
   fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#32D583', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   fabSaved: { borderColor: Colors.accentGreen },
-  fabScan: {},
   chatBarWrapper: { paddingHorizontal: 16, paddingBottom: 100, paddingTop: 4 },
   chatBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 6, gap: 8, borderWidth: 1, borderColor: Colors.border },
   chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurface, alignItems: 'center', justifyContent: 'center' },
   chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textPrimary, paddingVertical: 0 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
+  // Saved fits picker
+  fitsPickerContainer: { flex: 1, backgroundColor: Colors.background },
+  fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
+  fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textSecondary },
+  fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
+  fitsPickerCard: { marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
+  fitsPickerItems: { flexDirection: 'row', marginBottom: 10 },
+  fitsPickerThumb: { width: 60, height: 60, marginRight: 8, backgroundColor: '#FFFFFF', borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  fitsPickerImage: { width: '90%', height: '90%' },
+  fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
+  fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 });

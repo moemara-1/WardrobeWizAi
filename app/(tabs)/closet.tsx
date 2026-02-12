@@ -261,6 +261,13 @@ export default function ClosetScreen() {
             <FlatList data={outfits} keyExtractor={(o) => o.id}
               renderItem={({ item: outfit }) => (
                 <View style={styles.fitCard}>
+                  <View style={styles.fitCardItems}>
+                    {outfit.items.slice(0, 5).map((piece) => (
+                      <View key={piece.id} style={styles.fitCardThumb}>
+                        <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitCardImage} resizeMode="contain" />
+                      </View>
+                    ))}
+                  </View>
                   <Text style={styles.fitCardTitle}>{outfit.name}</Text>
                   <Text style={styles.fitCardSubtitle}>{outfit.items.length} pieces · {outfit.occasion || 'casual'}</Text>
                 </View>
@@ -419,7 +426,10 @@ const styles = StyleSheet.create({
   emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen, marginTop: 8 },
   emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
   fitsContainer: { flex: 1 },
-  fitCard: { marginHorizontal: 16, marginBottom: 12, padding: 16, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
+  fitCard: { marginHorizontal: 16, marginBottom: 12, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
+  fitCardItems: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 },
+  fitCardThumb: { width: 72, height: 72, backgroundColor: '#FFFFFF', borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  fitCardImage: { width: '90%', height: '90%' },
   fitCardTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
   fitCardSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, marginTop: 4, textTransform: 'capitalize' },
 });
