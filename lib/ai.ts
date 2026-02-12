@@ -1,5 +1,5 @@
-import * as FileSystem from 'expo-file-system/legacy';
 import { ClothingCategory } from '@/types';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const DEEPINFRA_BASE = 'https://api.deepinfra.com/v1/openai';
 const VISION_MODEL = 'meta-llama/Llama-3.2-11B-Vision-Instruct';
@@ -44,8 +44,14 @@ async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
 }
 
 function parseJSON<T>(text: string): T {
+    // Try to extract JSON from markdown code blocks first
+    const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlock) {
+        return JSON.parse(codeBlock[1].trim());
+    }
+    // Then try raw JSON object
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No JSON found in response');
+    if (!match) throw new Error(`No JSON found in response: ${text.slice(0, 200)}`);
     return JSON.parse(match[0]);
 }
 
@@ -177,11 +183,135 @@ export interface DigitalTwinAnalysis {
     ai_description: string;
     body_type: string;
     style_recommendations: string;
+    twin_image_url: string;
 }
 
 /**
- * Generate a digital twin profile by analyzing the user's selfie
- * and combining it with their provided skin/hair colors + details.
+ * Step 1: Analyze the selfie to get a text description + styling info.
+ */
+async function describeAppearance(
+    selfieBase64: string,
+    skinColor: string,
+    hairColor: string,
+    additionalDetails: string,
+): Promise<{ description: string; body_type: string; style_tips: string }> {
+    const content = await callDeepInfra({
+        model: VISION_MODEL,
+        messages: [{
+            role: 'user',
+            content: [
+                {
+                    type: 'text',
+                    text: `Analyze this person's appearance for a fashion styling profile.
+
+User info:
+- Skin tone hex: ${skinColor}
+- Hair color hex: ${hairColor}
+${additionalDetails ? `- Extra details: ${additionalDetails}` : ''}
+
+Return ONLY valid JSON:
+{
+  "description": "2-3 sentence physical description: gender, skin tone, face shape, hair style/color, approximate age, build. Third person neutral tone.",
+  "body_type": "One of: petite, slim, athletic, average, curvy, tall, broad",
+  "style_tips": "2-3 personalized styling tips based on their coloring and build"
+}`,
+                },
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${selfieBase64}` },
+                },
+            ],
+        }],
+        max_tokens: 512,
+        temperature: 0.3,
+    });
+
+    try {
+        return parseJSON<{ description: string; body_type: string; style_tips: string }>(content);
+    } catch {
+        // Vision model refused or returned non-JSON — use sensible defaults
+        console.warn('Vision model did not return JSON, using defaults. Raw:', content.slice(0, 200));
+        return {
+            description: `Person with ${hairColor} hair and ${skinColor} skin tone.${additionalDetails ? ` ${additionalDetails}` : ''}`,
+            body_type: 'average',
+            style_tips: 'Experiment with complementary colors and well-fitted silhouettes.',
+        };
+    }
+}
+
+/**
+ * Generate a full-body digital twin image using FLUX.1-Kontext-dev.
+ * This model takes BOTH a reference image (selfie/body photo) AND a text prompt,
+ * preserving the person's face and identity while transforming into a full-body shot.
+ */
+async function generateTwinImage(
+    imageBase64: string,
+    bodyType: string,
+    additionalDetails: string,
+): Promise<string> {
+    const bodyDesc = {
+        petite: 'a petite, slender build with a shorter frame',
+        slim: 'a slim, lean build',
+        athletic: 'an athletic, toned build with defined muscles',
+        average: 'an average, proportionate build',
+        curvy: 'a curvy build with fuller proportions',
+        tall: 'a tall, elongated frame',
+        broad: 'a broad, wide-shouldered build',
+    }[bodyType] || 'a proportionate build';
+
+    const prompt = `Transform this person into a full-body photograph from head to toe, standing on a seamless pure white background. Keep the exact same person, same face, same skin tone, same hair. The person has ${bodyDesc}. Show their entire body from head to shoes, accurately reflecting their body type and proportions. They are wearing a plain white oversized crew-neck t-shirt, blue straight-leg chino trousers, and white leather sneakers. Standing upright with arms relaxed at sides, facing the camera. Professional studio photography, soft diffused lighting, no harsh shadows, clean e-commerce product style.${additionalDetails ? ` ${additionalDetails}` : ''}`;
+
+    // FLUX.1-Kontext-dev accepts image + text prompt via /images/edits (multipart form)
+    const formData = new FormData();
+    formData.append('model', 'black-forest-labs/FLUX.1-Kontext-dev');
+    formData.append('prompt', prompt);
+    formData.append('n', '1');
+    formData.append('size', '768x1024');
+
+    // React Native FormData: pass file-like object for the reference image
+    formData.append('image', {
+        uri: `data:image/jpeg;base64,${imageBase64}`,
+        type: 'image/jpeg',
+        name: 'selfie.jpg',
+    } as unknown as Blob);
+
+    const response = await fetch(`${DEEPINFRA_BASE}/images/edits`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${getApiKey()}`,
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`FLUX Kontext API error: ${response.status} ${errText}`);
+    }
+
+    const data = await response.json();
+    const b64 = data.data?.[0]?.b64_json;
+    if (!b64) throw new Error('No image data in response');
+    return b64;
+}
+
+/**
+ * Save a base64-encoded image to the local filesystem.
+ */
+async function saveBase64Image(b64: string): Promise<string> {
+    const fileName = `twin_${Date.now()}.jpg`;
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(fileUri, b64, {
+        encoding: FileSystem.EncodingType.Base64,
+    });
+    return fileUri;
+}
+
+/**
+ * Generate a digital twin:
+ * 1. Read selfie (and optional body photo) as base64
+ * 2. Analyze selfie with vision model for text profile + style tips
+ * 3. Use FLUX.1-Kontext-dev to transform the photo into a full-body image
+ *    on a white background, preserving the person's face and identity
  */
 export async function generateDigitalTwin(
     selfieUri: string,
@@ -194,39 +324,30 @@ export async function generateDigitalTwin(
         encoding: FileSystem.EncodingType.Base64,
     });
 
-    const imageContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
-        {
-            type: 'text',
-            text: `You are a fashion & styling AI. Analyze this person's selfie photo and create a digital twin profile.
+    let base64Body: string | null = null;
+    if (bodyPhotoUri) {
+        base64Body = await FileSystem.readAsStringAsync(bodyPhotoUri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+    }
 
-User-provided info:
-- Skin tone: ${skinColor}
-- Hair color: ${hairColor}
-${additionalDetails ? `- Additional details: ${additionalDetails}` : ''}
+    // Step 1: Analyze selfie to get body type + appearance description
+    const appearance = await describeAppearance(base64Selfie, skinColor, hairColor, additionalDetails);
 
-Create a comprehensive profile for virtual styling purposes. Return ONLY valid JSON:
+    // Step 2: Generate full-body image using body type from analysis
+    // Use body photo as reference if available (already full-body), otherwise selfie
+    const imageB64 = await generateTwinImage(
+        base64Body ?? base64Selfie,
+        appearance.body_type,
+        additionalDetails,
+    );
 
-{
-  "ai_description": "A detailed 2-3 sentence description of the person's appearance — face shape, complexion, build (if visible), distinguishing features. Write in third person neutral tone.",
-  "body_type": "One of: petite, slim, athletic, average, curvy, tall, broad — pick the best match based on what's visible",
-  "style_recommendations": "2-3 personalized styling tips based on their skin tone, hair color, and overall look — e.g. colors that complement them, silhouettes that would work well"
-}`,
-        },
-        {
-            type: 'image_url',
-            image_url: { url: `data:image/jpeg;base64,${base64Selfie}` },
-        },
-    ];
+    const twinImageUrl = await saveBase64Image(imageB64);
 
-    const content = await callDeepInfra({
-        model: VISION_MODEL,
-        messages: [{
-            role: 'user',
-            content: imageContent,
-        }],
-        max_tokens: 1024,
-        temperature: 0.4,
-    });
-
-    return parseJSON<DigitalTwinAnalysis>(content);
+    return {
+        ai_description: appearance.description,
+        body_type: appearance.body_type,
+        style_recommendations: appearance.style_tips,
+        twin_image_url: twinImageUrl,
+    };
 }

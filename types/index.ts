@@ -111,6 +111,7 @@ export interface DigitalTwin {
     ai_description: string;          // AI-generated appearance profile
     body_type?: string;              // AI-detected body type
     style_recommendations?: string;  // AI style tips based on appearance
+    twin_image_url: string;          // Generated full-body image
     created_at: string;
     updated_at: string;
 }
