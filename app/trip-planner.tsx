@@ -9,7 +9,7 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Bookmark,
@@ -116,7 +116,7 @@ export default function TripPlannerScreen() {
 
   const handleBuild = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/trip-result' as never);
+    router.push('/trip-result' as Href);
   };
 
   return (

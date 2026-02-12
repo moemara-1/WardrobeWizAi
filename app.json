@@ -5,6 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0B0E"
+    },
     "scheme": "wardrobewizai",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0B0B0E",
@@ -12,6 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wardrobewizai.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "WardrobeWizAi needs camera access to photograph your clothing items for analysis.",
         "NSPhotoLibraryUsageDescription": "WardrobeWizAi needs photo library access to import your clothing photos."
@@ -23,6 +29,7 @@
         "backgroundColor": "#0B0B0E"
       },
       "package": "com.wardrobewizai.app",
+      "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE"

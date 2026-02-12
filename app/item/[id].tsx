@@ -1,15 +1,15 @@
 import React from 'react';
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Bookmark, Share2, Sparkles, X } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
@@ -54,12 +54,12 @@ export default function ItemDetailScreen() {
 
   const handleCreateFit = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/(tabs)/stylist' as never);
+    router.push('/(tabs)/stylist' as Href);
   };
 
   const handleTryOn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/virtual-try-on' as never);
+    router.push('/virtual-try-on' as Href);
   };
 
   const metadata: MetadataRow[] = [
@@ -98,7 +98,7 @@ export default function ItemDetailScreen() {
           <Image
             source={{ uri: item.clean_image_url || item.image_url }}
             style={styles.productImage}
-            resizeMode="contain"
+            contentFit="contain"
           />
         </View>
 

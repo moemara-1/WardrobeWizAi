@@ -4,14 +4,13 @@ import { useClosetStore } from '@/stores/closetStore';
 import { ClothingCategory, ClosetItem } from '@/types';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { ChevronDown, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
   FlatList,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -20,6 +19,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -96,21 +96,21 @@ export default function ClosetScreen() {
     if (!permission.granted) return;
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as Href);
     }
   }, []);
 
   const pickFromLibrary = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as never);
+      router.push({ pathname: '/analyze', params: { imageUri: result.assets[0].uri } } as Href);
     }
   }, []);
 
   const handleAddSheetAction = (action: string) => {
     setShowAddSheet(false);
-    if (action === 'search') router.push('/search-to-add' as never);
-    else if (action === 'import') router.push('/import-fit-pic' as never);
+    if (action === 'search') router.push('/search-to-add' as Href);
+    else if (action === 'import') router.push('/import-fit-pic' as Href);
     else if (action === 'camera') pickFromCamera();
     else if (action === 'library') pickFromLibrary();
   };
@@ -235,10 +235,10 @@ export default function ClosetScreen() {
               numColumns={NUM_COLUMNS}
               renderItem={({ item }) => (
                 <Pressable style={styles.gridItem}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/item/${item.id}` as never); }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/item/${item.id}` as Href); }}
                   onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); setEditingItem(item); }}
                 >
-                  <Image source={{ uri: item.clean_image_url || item.image_url }} style={styles.gridImage} resizeMode="contain" />
+                  <Image source={{ uri: item.clean_image_url || item.image_url }} style={styles.gridImage} contentFit="contain" />
                 </Pressable>
               )}
               contentContainerStyle={styles.gridContent}
@@ -264,7 +264,7 @@ export default function ClosetScreen() {
                   <View style={styles.fitCardItems}>
                     {outfit.items.slice(0, 5).map((piece) => (
                       <View key={piece.id} style={styles.fitCardThumb}>
-                        <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitCardImage} resizeMode="contain" />
+                        <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitCardImage} contentFit="contain" />
                       </View>
                     ))}
                   </View>
@@ -335,7 +335,7 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
           </View>
           <ScrollView showsVerticalScrollIndicator={false} style={editStyles.body}>
             <View style={editStyles.imagePreview}>
-              <Image source={{ uri: item.clean_image_url || item.image_url }} style={editStyles.previewImage} resizeMode="contain" />
+              <Image source={{ uri: item.clean_image_url || item.image_url }} style={editStyles.previewImage} contentFit="contain" />
             </View>
 
             <Text style={editStyles.fieldLabel}>Name</Text>

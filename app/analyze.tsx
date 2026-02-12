@@ -10,7 +10,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
-    Image,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -18,6 +17,7 @@ import {
     TextInput,
     View
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Mode: 'single' = add one item, 'fitpic' = multi-item from outfit photo ───
@@ -324,7 +324,7 @@ export default function AnalyzeScreen() {
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Outfit photo */}
           <View style={styles.imageArea}>
-            <Image source={{ uri: imageUri }} style={styles.itemImage} resizeMode="contain" />
+            <Image source={{ uri: imageUri }} style={styles.itemImage} contentFit="contain" />
             {isLoading && (
               <View style={styles.loadingOverlay}>
                 <ActivityIndicator size="large" color={Colors.accentGreen} />
@@ -432,7 +432,7 @@ export default function AnalyzeScreen() {
           <Image
             source={{ uri: cleanImageUri || imageUri }}
             style={styles.itemImage}
-            resizeMode="contain"
+            contentFit="contain"
           />
           {isLoading && (
             <View style={styles.loadingOverlay}>

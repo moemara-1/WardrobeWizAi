@@ -1,7 +1,7 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { ArrowLeft, Camera, ImageIcon, Sparkles } from 'lucide-react-native';
 import React from 'react';
 import {
@@ -19,7 +19,7 @@ export default function ImportFitPicScreen() {
     if (!permission.granted) return;
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as never);
+      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as Href);
     }
   };
 
@@ -27,7 +27,7 @@ export default function ImportFitPicScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as never);
+      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as Href);
     }
   };
 

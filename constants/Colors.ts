@@ -3,7 +3,7 @@ export const Colors = {
   cardSurface: '#16161A',
   cardSurfaceAlt: '#1A1A1E',
   textPrimary: '#FAFAF9',
-  textSecondary: '#6B6B70',
+  textSecondary: '#8E8E93',
   textTertiary: '#4A4A50',
   border: '#2A2A2E',
   borderLight: '#3A3A40',

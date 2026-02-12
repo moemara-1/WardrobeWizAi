@@ -1,18 +1,18 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { ArrowLeft, RefreshCw, Sparkles, User } from 'lucide-react-native';
 import React from 'react';
 import {
     Dimensions,
-    Image,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -28,12 +28,12 @@ export default function DigitalTwinPreviewScreen() {
 
   const handleGetStarted = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/digital-twin' as never);
+    router.push('/digital-twin' as Href);
   };
 
   const handleTryOn = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/virtual-try-on' as never);
+    router.push('/virtual-try-on' as Href);
   };
 
   // If twin exists, show the profile view
@@ -51,12 +51,12 @@ export default function DigitalTwinPreviewScreen() {
         <ScrollView contentContainerStyle={styles.twinScrollContent} showsVerticalScrollIndicator={false}>
           {/* Generated Twin Image */}
           <View style={styles.twinImageWrapper}>
-            <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinFullImage} resizeMode="contain" />
+            <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinFullImage} contentFit="contain" />
           </View>
 
           {/* Selfie comparison + Color Badges */}
           <View style={styles.twinProfileRow}>
-            <Image source={{ uri: digitalTwin.selfie_url }} style={styles.twinSelfie} resizeMode="cover" />
+            <Image source={{ uri: digitalTwin.selfie_url }} style={styles.twinSelfie} contentFit="cover" />
             <View style={styles.twinMeta}>
               <View style={styles.colorBadgeRow}>
                 <View style={[styles.colorDot, { backgroundColor: digitalTwin.skin_color }]} />

@@ -2,7 +2,8 @@ import { Colors, Radius, Typography } from '@/constants/Colors';
 import { ClosetItem } from '@/types';
 import { Link } from 'expo-router';
 import React, { memo } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
 interface ClosetItemCardProps {
     item: ClosetItem;
@@ -26,7 +27,7 @@ function ClosetItemCardComponent({ item, onPress, showBrandInfo = true }: Closet
                     <Image
                         source={{ uri: imageUrl }}
                         style={styles.image}
-                        resizeMode="contain"
+                        contentFit="contain"
                     />
 
                     {/* Brand confidence indicator */}

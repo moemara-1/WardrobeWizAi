@@ -3,13 +3,13 @@ import {
   View,
   Text,
   Pressable,
-  Image,
   ScrollView,
   StyleSheet,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
@@ -34,7 +34,7 @@ export default function VirtualTryOnScreen() {
 
   const handleTryOn = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/virtual-try-on-result' as never);
+    router.push('/virtual-try-on-result' as Href);
   };
 
   return (
@@ -67,7 +67,7 @@ export default function VirtualTryOnScreen() {
                       style={[styles.thumb, selected[cat] === item.id && styles.thumbSelected]}
                       onPress={() => toggleItem(item.id, cat)}
                     >
-                      <Image source={{ uri: item.image_url }} style={styles.thumbImage} resizeMode="contain" />
+                      <Image source={{ uri: item.image_url }} style={styles.thumbImage} contentFit="contain" />
                     </Pressable>
                   ))}
                 </ScrollView>

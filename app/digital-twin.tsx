@@ -3,7 +3,7 @@ import { generateDigitalTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
     ArrowLeft,
     Camera,
@@ -18,7 +18,6 @@ import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Image,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -26,6 +25,7 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const DEFAULT_SKIN_COLORS = ['#FDDBB4', '#E8B889', '#C48C5C', '#8D5524', '#3B1F0B'];
@@ -167,7 +167,7 @@ export default function DigitalTwinScreen() {
       setTwinProgress(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
-      console.error('Digital twin generation failed:', err);
+      if (__DEV__) console.error('Digital twin generation failed:', err);
       setTwinProgress(null);
       Alert.alert(
         'Generation Failed',
@@ -191,8 +191,8 @@ export default function DigitalTwinScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Existing Twin Preview or Empty State */}
         {digitalTwin?.twin_image_url ? (
-          <Pressable style={styles.twinPreview} onPress={() => router.push('/digital-twin-preview' as never)}>
-            <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinPreviewImage} resizeMode="contain" />
+          <Pressable style={styles.twinPreview} onPress={() => router.push('/digital-twin-preview' as Href)}>
+            <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinPreviewImage} contentFit="contain" />
             <View style={styles.twinPreviewBadge}>
               <Text style={styles.twinPreviewBadgeText}>My Digital Twin</Text>
             </View>
@@ -212,7 +212,7 @@ export default function DigitalTwinScreen() {
         {/* Selfie Card */}
         <View style={styles.uploadCard}>
           {selfieUri ? (
-            <Image source={{ uri: selfieUri }} style={styles.uploadPreview} resizeMode="cover" />
+            <Image source={{ uri: selfieUri }} style={styles.uploadPreview} contentFit="cover" />
           ) : (
             <Camera size={24} color={Colors.textSecondary} />
           )}
@@ -230,7 +230,7 @@ export default function DigitalTwinScreen() {
         {/* Body Type Card */}
         <View style={styles.uploadCard}>
           {bodyUri ? (
-            <Image source={{ uri: bodyUri }} style={styles.uploadPreview} resizeMode="cover" />
+            <Image source={{ uri: bodyUri }} style={styles.uploadPreview} contentFit="cover" />
           ) : (
             <Scan size={24} color={Colors.textSecondary} />
           )}
