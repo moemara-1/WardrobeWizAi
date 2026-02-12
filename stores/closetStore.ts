@@ -21,6 +21,8 @@ interface ClosetState {
 
     // Digital Twin
     digitalTwin: DigitalTwin | null;
+    twinGenerating: boolean;
+    twinProgress: string | null;
 
     // Actions
     setItems: (items: ClosetItem[]) => void;
@@ -36,6 +38,8 @@ interface ClosetState {
 
     setDigitalTwin: (twin: DigitalTwin) => void;
     clearDigitalTwin: () => void;
+    setTwinGenerating: (generating: boolean) => void;
+    setTwinProgress: (progress: string | null) => void;
 
     setSearchQuery: (query: string) => void;
     setCategoryFilter: (category: ClothingCategory | null) => void;
@@ -60,6 +64,8 @@ export const useClosetStore = create<ClosetState>()(
     outfits: [],
     selectedOutfit: null,
     digitalTwin: null,
+    twinGenerating: false,
+    twinProgress: null,
 
     // Item actions
     setItems: (items) => set({ items }),
@@ -100,6 +106,8 @@ export const useClosetStore = create<ClosetState>()(
     // Digital Twin actions
     setDigitalTwin: (twin) => set({ digitalTwin: twin }),
     clearDigitalTwin: () => set({ digitalTwin: null }),
+    setTwinGenerating: (generating) => set({ twinGenerating: generating }),
+    setTwinProgress: (progress) => set({ twinProgress: progress }),
 
     // Filter actions
     setSearchQuery: (query) => set({ searchQuery: query }),

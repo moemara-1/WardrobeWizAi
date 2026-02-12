@@ -1,7 +1,6 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
-import { analyzeClothingImage, ClothingAnalysis, ItemResearch, researchClothingItem } from '@/lib/ai';
-import { removeBackground } from '@/lib/backgroundRemoval';
-import { analyzeOutfit, ClothingDetection } from '@/lib/gemini';
+import { analyzeClothingImage, analyzeOutfitImage, ClothingAnalysis, identifyProduct, ItemResearch, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
+import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -80,6 +79,7 @@ export default function AnalyzeScreen() {
   const [garmentType, setGarmentType] = useState('');
   const [layerType, setLayerType] = useState<string>('');
   const [confidence, setConfidence] = useState(0);
+  const [garmentSlot, setGarmentSlot] = useState<GarmentSlot>('unknown');
 
   // ─── Multi-item state ───
   const [detectedPieces, setDetectedPieces] = useState<DetectedPiece[]>([]);
@@ -91,42 +91,72 @@ export default function AnalyzeScreen() {
     setStage('analyzing');
     setErrorMsg(null);
 
-    const bgPromise = removeBackground(uri).then((r) => {
-      if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
-    }).catch(() => {});
-
+    // Step 1: Identify product (like Google Lens) + basic vision analysis in parallel
+    let product: ProductIdentification | null = null;
     let analysis: ClothingAnalysis;
+
     try {
-      analysis = await analyzeClothingImage(uri);
-      setName(analysis.name);
-      setCategory(analysis.category);
-      setBrand(analysis.brand || '');
-      setColors(analysis.colors);
+      const [productResult, analysisResult] = await Promise.allSettled([
+        identifyProduct(uri),
+        analyzeClothingImage(uri),
+      ]);
+
+      if (analysisResult.status === 'fulfilled') {
+        analysis = analysisResult.value;
+      } else {
+        throw new Error('Vision analysis failed');
+      }
+
+      if (productResult.status === 'fulfilled') {
+        product = productResult.value;
+      }
+
+      // Merge product identification with analysis (product ID takes priority for name/brand)
+      setName(product?.name || analysis.name);
+      setCategory(product?.category || analysis.category);
+      setBrand(product?.brand || analysis.brand || '');
+      setColors(product?.colors || analysis.colors);
       setConfidence(analysis.confidence);
-      setGarmentType(analysis.garment_type || '');
+      setGarmentType(product?.garment_type || analysis.garment_type || '');
       setLayerType(analysis.layer_type || '');
+
+      const resolvedCategory = product?.category || analysis.category;
+      const resolvedGarmentType = product?.garment_type || analysis.garment_type || undefined;
+      setGarmentSlot(classifyGarmentSlot(resolvedCategory, resolvedGarmentType));
     } catch (err) {
       setStage('error');
       setErrorMsg(err instanceof Error ? err.message : 'Vision analysis failed');
       return;
     }
 
+    // Step 2: Research + clean image regeneration in parallel
     setStage('researching');
-    try {
-      const research: ItemResearch = await researchClothingItem(
-        analysis.name,
-        analysis.brand,
-        analysis.category,
-      );
+
+    const researchPromise = researchClothingItem(
+      product?.name || name || analysis!.name,
+      product?.brand || analysis!.brand,
+      product?.category || analysis!.category,
+    ).then((research: ItemResearch) => {
       if (research.estimated_value) setEstimatedValue(String(research.estimated_value));
-      if (research.brand && !analysis.brand) setBrand(research.brand);
+      if (research.brand && !brand) setBrand(research.brand);
       if (research.tags.length > 0) setTags(research.tags);
       if (research.subcategory) setGarmentType(research.subcategory);
-    } catch {
-      // research is best-effort
-    }
+    }).catch(() => {});
 
-    await bgPromise;
+    // Generate clean product image using FLUX if we have product info
+    const cleanImagePromise = (product
+      ? regenerateCleanImage(uri, product)
+      : removeBackground(uri).then((r) => r.success && r.cleanImageUri ? r.cleanImageUri : null)
+    ).then((cleanUri) => {
+      if (cleanUri) setCleanImageUri(cleanUri);
+    }).catch(() => {
+      // Fallback: try simple background removal
+      removeBackground(uri).then((r) => {
+        if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
+      }).catch(() => {});
+    });
+
+    await Promise.allSettled([researchPromise, cleanImagePromise]);
     setStage('done');
   }, []);
 
@@ -136,7 +166,7 @@ export default function AnalyzeScreen() {
     setErrorMsg(null);
 
     try {
-      const result = await analyzeOutfit(uri);
+      const result = await analyzeOutfitImage(uri);
       setOverallStyle(result.overallStyle);
       setOccasion(result.occasion);
 
@@ -146,7 +176,7 @@ export default function AnalyzeScreen() {
         return;
       }
 
-      const pieces: DetectedPiece[] = result.detections.map((det: ClothingDetection, idx: number) => ({
+      const pieces: DetectedPiece[] = result.detections.map((det, idx: number) => ({
         id: `piece-${Date.now()}-${idx}`,
         name: det.name,
         category: (CATEGORIES.includes(det.category as ClothingCategory) ? det.category : 'other') as ClothingCategory,
@@ -422,11 +452,18 @@ export default function AnalyzeScreen() {
         )}
 
         {confidence > 0 && (
-          <View style={styles.confidenceBadge}>
-            <Sparkles size={14} color={Colors.accentGreen} />
-            <Text style={styles.confidenceText}>
-              {Math.round(confidence * 100)}% confident
-            </Text>
+          <View style={styles.badgeRow}>
+            <View style={styles.confidenceBadge}>
+              <Sparkles size={14} color={Colors.accentGreen} />
+              <Text style={styles.confidenceText}>
+                {Math.round(confidence * 100)}% confident
+              </Text>
+            </View>
+            {garmentSlot !== 'unknown' && (
+              <View style={styles.slotBadge}>
+                <Text style={styles.slotBadgeText}>{garmentSlot}</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -546,8 +583,11 @@ const styles = StyleSheet.create({
   errorBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: Radius.md, backgroundColor: 'rgba(232, 90, 79, 0.15)' },
   errorBannerText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.accentCoral, flex: 1 },
   retryText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.accentCoral, marginLeft: 12 },
-  confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', marginBottom: 16, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt },
+  confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt },
   confidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.accentGreen },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
+  slotBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
+  slotBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textSecondary, textTransform: 'capitalize' },
   formSection: { paddingHorizontal: 16, gap: 4 },
   fieldLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textSecondary, marginTop: 12, marginBottom: 4 },
   fieldInput: { fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, backgroundColor: Colors.cardSurface, borderRadius: Radius.input, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },

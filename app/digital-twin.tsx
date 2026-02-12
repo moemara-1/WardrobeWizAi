@@ -47,7 +47,7 @@ async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
 }
 
 export default function DigitalTwinScreen() {
-  const { digitalTwin, setDigitalTwin } = useClosetStore();
+  const { digitalTwin, setDigitalTwin, twinGenerating, setTwinGenerating, setTwinProgress, twinProgress } = useClosetStore();
   const [selfieUri, setSelfieUri] = useState<string | null>(digitalTwin?.selfie_url ?? null);
   const [bodyUri, setBodyUri] = useState<string | null>(digitalTwin?.body_url ?? null);
   const [skinColor, setSkinColor] = useState<string | null>(digitalTwin?.skin_color ?? null);
@@ -55,7 +55,6 @@ export default function DigitalTwinScreen() {
   const [additionalDetails, setAdditionalDetails] = useState(digitalTwin?.additional_details ?? '');
   const [isDetectingSkin, setIsDetectingSkin] = useState(false);
   const [isDetectingHair, setIsDetectingHair] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const pickImage = async (setter: (uri: string | null) => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -131,9 +130,15 @@ export default function DigitalTwinScreen() {
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setIsGenerating(true);
+    setTwinGenerating(true);
+    setTwinProgress('Analyzing appearance...');
 
+    // Navigate back immediately — generation runs in background
+    router.back();
+
+    // Run generation in background
     try {
+      setTwinProgress('Generating full-body image...');
       const analysis = await generateDigitalTwin(
         selfieUri,
         skinColor,
@@ -159,15 +164,17 @@ export default function DigitalTwinScreen() {
       };
 
       setDigitalTwin(twin);
-      router.replace('/digital-twin-preview' as never);
+      setTwinProgress(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('Digital twin generation failed:', err);
+      setTwinProgress(null);
       Alert.alert(
         'Generation Failed',
         `Could not create your digital twin: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
       );
     } finally {
-      setIsGenerating(false);
+      setTwinGenerating(false);
     }
   };
 
@@ -324,14 +331,14 @@ export default function DigitalTwinScreen() {
 
       <SafeAreaView edges={['bottom']} style={styles.ctaWrapper}>
         <Pressable
-          style={[styles.saveBtn, (!canGenerate || isGenerating) && styles.saveBtnDisabled]}
+          style={[styles.saveBtn, (!canGenerate || twinGenerating) && styles.saveBtnDisabled]}
           onPress={handleGenerate}
-          disabled={!canGenerate || isGenerating}
+          disabled={!canGenerate || twinGenerating}
         >
-          {isGenerating ? (
+          {twinGenerating ? (
             <View style={styles.generatingRow}>
               <ActivityIndicator size="small" color={Colors.background} />
-              <Text style={styles.saveBtnText}>Generating…</Text>
+              <Text style={styles.saveBtnText}>{twinProgress || 'Generating…'}</Text>
             </View>
           ) : (
             <Text style={styles.saveBtnText}>

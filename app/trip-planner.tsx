@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -15,6 +16,7 @@ import {
   Briefcase,
   ChevronRight,
   Heart,
+  MapPin,
   Minus,
   PartyPopper,
   Plane,
@@ -25,6 +27,44 @@ import {
   UserCircle,
 } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
+
+// World cities dataset (200+ popular destinations)
+const WORLD_CITIES = [
+  'New York, USA', 'Los Angeles, USA', 'Chicago, USA', 'Miami, USA', 'San Francisco, USA',
+  'Las Vegas, USA', 'Seattle, USA', 'Boston, USA', 'Washington DC, USA', 'Austin, USA',
+  'Nashville, USA', 'Denver, USA', 'Portland, USA', 'Dallas, USA', 'Houston, USA',
+  'Atlanta, USA', 'Orlando, USA', 'San Diego, USA', 'Honolulu, USA', 'New Orleans, USA',
+  'Philadelphia, USA', 'Phoenix, USA', 'Minneapolis, USA', 'Detroit, USA', 'Charlotte, USA',
+  'London, UK', 'Manchester, UK', 'Edinburgh, UK', 'Birmingham, UK', 'Liverpool, UK',
+  'Paris, France', 'Nice, France', 'Lyon, France', 'Marseille, France', 'Bordeaux, France',
+  'Rome, Italy', 'Milan, Italy', 'Florence, Italy', 'Venice, Italy', 'Naples, Italy',
+  'Barcelona, Spain', 'Madrid, Spain', 'Seville, Spain', 'Valencia, Spain', 'Malaga, Spain',
+  'Berlin, Germany', 'Munich, Germany', 'Hamburg, Germany', 'Frankfurt, Germany', 'Cologne, Germany',
+  'Amsterdam, Netherlands', 'Rotterdam, Netherlands', 'The Hague, Netherlands',
+  'Brussels, Belgium', 'Antwerp, Belgium', 'Zurich, Switzerland', 'Geneva, Switzerland',
+  'Vienna, Austria', 'Salzburg, Austria', 'Prague, Czech Republic', 'Budapest, Hungary',
+  'Warsaw, Poland', 'Krakow, Poland', 'Copenhagen, Denmark', 'Stockholm, Sweden',
+  'Oslo, Norway', 'Helsinki, Finland', 'Dublin, Ireland', 'Lisbon, Portugal', 'Porto, Portugal',
+  'Athens, Greece', 'Santorini, Greece', 'Istanbul, Turkey', 'Antalya, Turkey',
+  'Dubai, UAE', 'Abu Dhabi, UAE', 'Doha, Qatar', 'Riyadh, Saudi Arabia', 'Jeddah, Saudi Arabia',
+  'Tokyo, Japan', 'Osaka, Japan', 'Kyoto, Japan', 'Seoul, South Korea', 'Busan, South Korea',
+  'Beijing, China', 'Shanghai, China', 'Hong Kong, China', 'Shenzhen, China', 'Guangzhou, China',
+  'Taipei, Taiwan', 'Singapore', 'Kuala Lumpur, Malaysia', 'Jakarta, Indonesia', 'Bali, Indonesia',
+  'Bangkok, Thailand', 'Phuket, Thailand', 'Chiang Mai, Thailand', 'Ho Chi Minh City, Vietnam',
+  'Hanoi, Vietnam', 'Manila, Philippines', 'Mumbai, India', 'Delhi, India', 'Bangalore, India',
+  'Goa, India', 'Jaipur, India',
+  'Sydney, Australia', 'Melbourne, Australia', 'Brisbane, Australia', 'Perth, Australia',
+  'Auckland, New Zealand', 'Queenstown, New Zealand',
+  'Cairo, Egypt', 'Marrakech, Morocco', 'Cape Town, South Africa', 'Johannesburg, South Africa',
+  'Nairobi, Kenya', 'Lagos, Nigeria', 'Accra, Ghana', 'Addis Ababa, Ethiopia',
+  'São Paulo, Brazil', 'Rio de Janeiro, Brazil', 'Buenos Aires, Argentina', 'Lima, Peru',
+  'Bogotá, Colombia', 'Medellín, Colombia', 'Santiago, Chile', 'Mexico City, Mexico',
+  'Cancún, Mexico', 'Havana, Cuba', 'San Juan, Puerto Rico', 'Cartagena, Colombia',
+  'Toronto, Canada', 'Vancouver, Canada', 'Montreal, Canada', 'Calgary, Canada',
+  'Moscow, Russia', 'St. Petersburg, Russia', 'Reykjavik, Iceland',
+  'Dubrovnik, Croatia', 'Split, Croatia', 'Tallinn, Estonia', 'Riga, Latvia',
+  'Bucharest, Romania', 'Sofia, Bulgaria', 'Belgrade, Serbia',
+];
 
 type Occasion = 'business' | 'fun' | 'romantic' | 'casual' | 'formal';
 
@@ -41,9 +81,28 @@ export default function TripPlannerScreen() {
   const [destinations, setDestinations] = useState<string[]>(['']);
   const [occasion, setOccasion] = useState<Occasion>('fun');
   const [multiCity, setMultiCity] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
+
+  const filteredCities = useMemo(() => {
+    if (activeSearchIndex === null) return [];
+    const query = destinations[activeSearchIndex]?.toLowerCase().trim();
+    if (!query || query.length < 1) return [];
+    return WORLD_CITIES.filter((city) =>
+      city.toLowerCase().includes(query)
+    ).slice(0, 8);
+  }, [activeSearchIndex, destinations]);
 
   const updateDestination = (index: number, value: string) => {
     setDestinations((prev) => prev.map((d, i) => (i === index ? value : d)));
+    setActiveSearchIndex(index);
+  };
+
+  const selectCity = (city: string) => {
+    if (activeSearchIndex !== null) {
+      Haptics.selectionAsync();
+      setDestinations((prev) => prev.map((d, i) => (i === activeSearchIndex ? city : d)));
+      setActiveSearchIndex(null);
+    }
   };
 
   const addDestination = () => {
@@ -104,19 +163,43 @@ export default function TripPlannerScreen() {
         {/* Destinations */}
         <Text style={styles.sectionLabel}>{multiCity ? 'Cities' : 'Destination'}</Text>
         {destinations.map((dest, index) => (
-          <View key={index} style={styles.destinationRow}>
-            <Search size={16} color={Colors.textSecondary} />
-            <TextInput
-              style={styles.destInput}
-              placeholder={multiCity ? `City ${index + 1}...` : 'Search for a city...'}
-              placeholderTextColor={Colors.textTertiary}
-              value={dest}
-              onChangeText={(v) => updateDestination(index, v)}
-            />
-            {multiCity && destinations.length > 1 && (
-              <Pressable onPress={() => removeDestination(index)}>
-                <Minus size={16} color={Colors.textSecondary} />
-              </Pressable>
+          <View key={index} style={{ zIndex: activeSearchIndex === index ? 100 : 1 }}>
+            <View style={styles.destinationRow}>
+              <Search size={16} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.destInput}
+                placeholder={multiCity ? `City ${index + 1}...` : 'Search for a city...'}
+                placeholderTextColor={Colors.textTertiary}
+                value={dest}
+                onChangeText={(v) => updateDestination(index, v)}
+                onFocus={() => setActiveSearchIndex(index)}
+                onBlur={() => setTimeout(() => setActiveSearchIndex(null), 200)}
+              />
+              {dest.length > 0 && (
+                <Pressable onPress={() => { updateDestination(index, ''); setActiveSearchIndex(index); }}>
+                  <Minus size={16} color={Colors.textSecondary} />
+                </Pressable>
+              )}
+              {multiCity && destinations.length > 1 && (
+                <Pressable onPress={() => removeDestination(index)}>
+                  <Minus size={16} color={Colors.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+            {/* City dropdown */}
+            {activeSearchIndex === index && filteredCities.length > 0 && (
+              <View style={styles.cityDropdown}>
+                {filteredCities.map((city) => (
+                  <Pressable
+                    key={city}
+                    style={styles.cityDropdownItem}
+                    onPress={() => selectCity(city)}
+                  >
+                    <MapPin size={14} color={Colors.textTertiary} />
+                    <Text style={styles.cityDropdownText}>{city}</Text>
+                  </Pressable>
+                ))}
+              </View>
             )}
           </View>
         ))}
@@ -181,8 +264,11 @@ const styles = StyleSheet.create({
   durationCenter: { alignItems: 'center' },
   durationNum: { fontFamily: Typography.bodyFamilyBold, fontSize: 36, color: Colors.textPrimary },
   durationLabel: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary },
-  destinationRow: { flexDirection: 'row', alignItems: 'center', width: '100%', backgroundColor: Colors.cardSurface, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 14, gap: 8, marginBottom: 24 },
+  destinationRow: { flexDirection: 'row', alignItems: 'center', width: '100%', backgroundColor: Colors.cardSurface, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 14, gap: 8, marginBottom: 4 },
   destInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, padding: 0 },
+  cityDropdown: { width: '100%', backgroundColor: Colors.cardSurface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, marginBottom: 16, overflow: 'hidden' },
+  cityDropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  cityDropdownText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary },
   occasionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   occasionRow: { gap: 12, marginBottom: 24, paddingHorizontal: 4 },
   occasionChip: { alignItems: 'center', gap: 6, width: 72 },
