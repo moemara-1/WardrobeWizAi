@@ -45,7 +45,7 @@ const SHORTCUTS = [
   { key: 'add', label: 'Add Piece', icon: Camera, route: null },
 ] as const;
 
-// Discover profiles — each user has items displayed as a horizontal row
+// Discover profiles — each user has closet items displayed as a horizontal row
 const DISCOVER_PROFILES = [
   {
     id: 'u1',
@@ -55,10 +55,10 @@ const DISCOVER_PROFILES = [
     reactions: 0,
     avatarColor: '#32D583',
     items: [
-      { id: 'u1i1', imageUrl: 'https://images.unsplash.com/photo-1632340751148-c7a5df9b34e7?w=300' },
-      { id: 'u1i2', imageUrl: 'https://images.unsplash.com/photo-1656166229825-8bb5c3214111?w=300' },
-      { id: 'u1i3', imageUrl: 'https://images.unsplash.com/photo-1546367564-ade1880f8921?w=300' },
-      { id: 'u1i4', imageUrl: 'https://images.unsplash.com/photo-1585501955045-4168cfa18739?w=300' },
+      { id: 'u1i1', imageUrl: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=300' },
+      { id: 'u1i2', imageUrl: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=300' },
+      { id: 'u1i3', imageUrl: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=300' },
+      { id: 'u1i4', imageUrl: 'https://images.unsplash.com/photo-1556306535-0f09a537f0a3?w=300' },
     ],
   },
   {
@@ -69,10 +69,10 @@ const DISCOVER_PROFILES = [
     reactions: undefined,
     avatarColor: '#3B82F6',
     items: [
-      { id: 'u2i1', imageUrl: 'https://images.unsplash.com/photo-1602706874532-8e3e14d778a1?w=300' },
-      { id: 'u2i2', imageUrl: 'https://images.unsplash.com/photo-1510170363464-2c4b4a90ab57?w=300' },
-      { id: 'u2i3', imageUrl: 'https://images.unsplash.com/photo-1651047532215-a9dfed5d2cef?w=300' },
-      { id: 'u2i4', imageUrl: 'https://images.unsplash.com/photo-1602092298339-4a8fbd4a03fc?w=300' },
+      { id: 'u2i1', imageUrl: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=300' },
+      { id: 'u2i2', imageUrl: 'https://images.unsplash.com/photo-1434389677669-e08b4cda3a71?w=300' },
+      { id: 'u2i3', imageUrl: 'https://images.unsplash.com/photo-1560243563-062bfc001d68?w=300' },
+      { id: 'u2i4', imageUrl: 'https://images.unsplash.com/photo-1539185441755-769473a23570?w=300' },
     ],
   },
   {
@@ -83,10 +83,10 @@ const DISCOVER_PROFILES = [
     reactions: 45,
     avatarColor: '#A855F7',
     items: [
-      { id: 'u3i1', imageUrl: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=300' },
-      { id: 'u3i2', imageUrl: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=300' },
-      { id: 'u3i3', imageUrl: 'https://images.unsplash.com/photo-1544441893-675973e31985?w=300' },
-      { id: 'u3i4', imageUrl: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=300' },
+      { id: 'u3i1', imageUrl: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=300' },
+      { id: 'u3i2', imageUrl: 'https://images.unsplash.com/photo-1578681994506-b8f463449011?w=300' },
+      { id: 'u3i3', imageUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300' },
+      { id: 'u3i4', imageUrl: 'https://images.unsplash.com/photo-1603252109303-2751441dd157?w=300' },
     ],
   },
 ];
@@ -305,7 +305,7 @@ function DiscoverView({
           >
             {profile.items.map((item) => (
               <Pressable key={item.id} style={styles.profileItemThumb}>
-                <Image source={{ uri: item.imageUrl }} style={styles.profileItemImage} />
+                <Image source={{ uri: item.imageUrl }} style={styles.profileItemImage} resizeMode="contain" />
               </Pressable>
             ))}
           </ScrollView>
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   // Profile-based discover
   profileCard: { marginHorizontal: 16, marginBottom: 20, gap: 10 },
   profileItemsRow: { gap: 8 },
-  profileItemThumb: { width: 85, height: 85, borderRadius: 12, overflow: 'hidden', backgroundColor: Colors.cardSurfaceAlt },
+  profileItemThumb: { width: 85, height: 85, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: Colors.border },
   profileItemImage: { width: '100%', height: '100%' },
   profileInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   profileLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },

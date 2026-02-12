@@ -5,6 +5,7 @@ import {
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -138,14 +139,14 @@ export function ClosetPickerSheet({
         </View>
 
         {/* Category pills */}
-        <FlatList
+        <ScrollView
           horizontal
-          data={CATEGORY_FILTERS}
-          keyExtractor={(i) => i.key}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillRow}
-          renderItem={({ item: cat }) => (
+        >
+          {CATEGORY_FILTERS.map((cat) => (
             <Pressable
+              key={cat.key}
               style={[styles.pill, activeCat === cat.key && styles.pillActive]}
               onPress={() => { Haptics.selectionAsync(); setActiveCat(cat.key); }}
             >
@@ -153,8 +154,8 @@ export function ClosetPickerSheet({
                 {cat.label}
               </Text>
             </Pressable>
-          )}
-        />
+          ))}
+        </ScrollView>
 
         {/* Grid */}
         {filtered.length === 0 ? (
@@ -205,8 +206,8 @@ const styles = StyleSheet.create({
   doneTextDisabled: { color: Colors.textTertiary },
   searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.input, gap: 8, borderWidth: 1, borderColor: Colors.border },
   searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, padding: 0 },
-  pillRow: { paddingHorizontal: 16, gap: 6, paddingBottom: 12 },
-  pill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
+  pillRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 6, paddingBottom: 12 },
+  pill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
   pillActive: { backgroundColor: Colors.textPrimary, borderColor: Colors.textPrimary },
   pillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textSecondary },
   pillTextActive: { color: Colors.background },

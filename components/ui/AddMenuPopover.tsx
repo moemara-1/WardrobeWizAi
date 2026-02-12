@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gem, Shirt, Puzzle } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 
@@ -9,14 +9,14 @@ interface AddMenuPopoverProps {
 }
 
 const MENU_ITEMS = [
-  { key: 'accessories', label: 'Add Accessories', icon: Gem },
-  { key: 'fits', label: 'Add Fits', icon: Shirt },
   { key: 'pieces', label: 'Add Pieces', icon: Puzzle },
+  { key: 'accessories', label: 'Add Accessories', icon: Gem },
+  { key: 'fits', label: 'Load Saved Fit', icon: Shirt },
 ] as const;
 
 export function AddMenuPopover({ onClose, onSelect }: AddMenuPopoverProps) {
   return (
-    <>
+    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.menu}>
         {MENU_ITEMS.map(({ key, label, icon: Icon }) => (
@@ -25,42 +25,52 @@ export function AddMenuPopover({ onClose, onSelect }: AddMenuPopoverProps) {
             style={styles.menuItem}
             onPress={() => onSelect(key)}
           >
-            <Icon size={18} color={Colors.textPrimary} />
+            <View style={styles.menuIconCircle}>
+              <Icon size={16} color={Colors.textPrimary} />
+            </View>
             <Text style={styles.menuLabel}>{label}</Text>
           </Pressable>
         ))}
       </View>
-    </>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
   menu: {
     position: 'absolute',
-    left: 16,
-    bottom: 160,
+    left: 20,
+    bottom: 180,
     backgroundColor: Colors.cardSurface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingVertical: 4,
-    minWidth: 170,
+    paddingVertical: 6,
+    minWidth: 185,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
+  },
+  menuIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.cardSurfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   menuLabel: {
     fontFamily: Typography.bodyFamilyMedium,
