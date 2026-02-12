@@ -1,8 +1,9 @@
 import { AddToClosetSheet } from '@/components/ui/AddToClosetSheet';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
-import { ClothingCategory, ClosetItem } from '@/types';
+import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
 import { ChevronDown, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react-native';
@@ -19,7 +20,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

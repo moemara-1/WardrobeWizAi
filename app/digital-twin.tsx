@@ -2,6 +2,7 @@ import { Colors, Radius, Typography } from '@/constants/Colors';
 import { generateDigitalTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
 import {
@@ -25,7 +26,6 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const DEFAULT_SKIN_COLORS = ['#FDDBB4', '#E8B889', '#C48C5C', '#8D5524', '#3B1F0B'];

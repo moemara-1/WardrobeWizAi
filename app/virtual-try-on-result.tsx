@@ -1,23 +1,23 @@
+import { Colors, Radius, Typography } from '@/constants/Colors';
+import { generateDigitalTwin } from '@/lib/ai';
+import { useClosetStore } from '@/stores/closetStore';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import { ArrowLeft, Clock, Sparkles } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Dimensions,
-  Alert,
-  ActivityIndicator,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Clock, Sparkles } from 'lucide-react-native';
-import { Colors, Radius, Typography } from '@/constants/Colors';
-import { useClosetStore } from '@/stores/closetStore';
-import { generateDigitalTwin } from '@/lib/ai';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

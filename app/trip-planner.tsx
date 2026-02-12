@@ -1,32 +1,30 @@
-import React, { useState, useMemo, useRef } from 'react';
+import { Colors, Radius, Typography } from '@/constants/Colors';
+import * as Haptics from 'expo-haptics';
+import { router, type Href } from 'expo-router';
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  FlatList,
+    Bookmark,
+    Briefcase,
+    Heart,
+    MapPin,
+    Minus,
+    PartyPopper,
+    Plane,
+    Plus,
+    Search,
+    Shirt,
+    Sparkles,
+    UserCircle
+} from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
+import {
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, type Href } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import {
-  Bookmark,
-  Briefcase,
-  ChevronRight,
-  Heart,
-  MapPin,
-  Minus,
-  PartyPopper,
-  Plane,
-  Plus,
-  Search,
-  Shirt,
-  Sparkles,
-  UserCircle,
-} from 'lucide-react-native';
-import { Colors, Radius, Typography } from '@/constants/Colors';
 
 // World cities dataset (200+ popular destinations)
 const WORLD_CITIES = [

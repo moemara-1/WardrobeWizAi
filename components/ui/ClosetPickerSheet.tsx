@@ -1,4 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import { Colors, Radius, Typography } from '@/constants/Colors';
+import { useClosetStore } from '@/stores/closetStore';
+import { ClosetItem, ClothingCategory } from '@/types';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { Check, Search, X } from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -10,12 +16,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { Search, X, Check } from 'lucide-react-native';
-import { Colors, Radius, Typography } from '@/constants/Colors';
-import { useClosetStore } from '@/stores/closetStore';
-import { ClothingCategory, ClosetItem } from '@/types';
-import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

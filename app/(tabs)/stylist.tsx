@@ -2,11 +2,12 @@ import { AddMenuPopover } from '@/components/ui/AddMenuPopover';
 import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
 import { Colors, Radius, Typography } from '@/constants/Colors';
-import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
 import { generateDigitalTwin } from '@/lib/ai';
+import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
-import { ClothingCategory, ClosetItem, Outfit } from '@/types';
+import { ClosetItem, ClothingCategory, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import {
     Bookmark,
@@ -34,7 +35,6 @@ import {
     TextInput,
     View
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Slot definitions in vertical order (top to bottom on the board)

@@ -1,18 +1,18 @@
-import React from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { Bookmark, Share2, Sparkles, X } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { Bookmark, Share2, Sparkles, X } from 'lucide-react-native';
+import React from 'react';
+import {
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface MetadataRow {
   label: string;

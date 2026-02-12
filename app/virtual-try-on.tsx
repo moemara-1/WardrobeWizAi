@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, type Href } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useClosetStore } from '@/stores/closetStore';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { router, type Href } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Dimensions,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const THUMB_SIZE = (SCREEN_WIDTH - 64 - 36) / 4;

@@ -1,11 +1,9 @@
 import { ClothingCategory } from '@/types';
 import * as FileSystem from 'expo-file-system/legacy';
+import { supabase } from '@/lib/supabase';
 
-const DEEPINFRA_BASE = 'https://api.deepinfra.com/v1/openai';
 const VISION_MODEL = 'meta-llama/Llama-3.2-11B-Vision-Instruct';
 const TEXT_MODEL = 'meta-llama/Meta-Llama-3.1-70B-Instruct';
-
-const getApiKey = () => process.env.EXPO_PUBLIC_DEEPINFRA_KEY || '';
 
 export interface ClothingAnalysis {
     name: string;
@@ -26,20 +24,8 @@ export interface ItemResearch {
 }
 
 async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
-    const response = await fetch(`${DEEPINFRA_BASE}/chat/completions`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-        throw new Error(`DeepInfra API error: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const { data, error } = await supabase.functions.invoke('ai-analyze', { body });
+    if (error) throw new Error(`AI API error: ${error.message}`);
     return data.choices?.[0]?.message?.content || '';
 }
 
@@ -353,34 +339,15 @@ async function generateTwinImage(
 
     const prompt = `Transform this person into a full-body photograph from head to toe, standing on a seamless pure white background. Keep the exact same person, same face, same skin tone, same hair. The person has ${bodyDesc}. Show their entire body from head to shoes, accurately reflecting their body type and proportions. ${outfitDesc} Standing upright with arms relaxed at sides, facing the camera. Professional studio photography, soft diffused lighting, no harsh shadows, clean e-commerce product style.`;
 
-    // FLUX.1-Kontext-dev accepts image + text prompt via /images/edits (multipart form)
-    const formData = new FormData();
-    formData.append('model', 'black-forest-labs/FLUX.1-Kontext-dev');
-    formData.append('prompt', prompt);
-    formData.append('n', '1');
-    formData.append('size', '768x1024');
-
-    // React Native FormData: pass file-like object for the reference image
-    formData.append('image', {
-        uri: `data:image/jpeg;base64,${imageBase64}`,
-        type: 'image/jpeg',
-        name: 'selfie.jpg',
-    } as unknown as Blob);
-
-    const response = await fetch(`${DEEPINFRA_BASE}/images/edits`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
+    const { data, error } = await supabase.functions.invoke('ai-image', {
+        body: {
+            prompt,
+            imageBase64,
+            model: 'black-forest-labs/FLUX.1-Kontext-dev',
+            size: '768x1024',
         },
-        body: formData,
     });
-
-    if (!response.ok) {
-        const errText = await response.text().catch(() => '');
-        throw new Error(`FLUX Kontext API error: ${response.status} ${errText}`);
-    }
-
-    const data = await response.json();
+    if (error) throw new Error(`Image generation error: ${error.message}`);
     const b64 = data.data?.[0]?.b64_json;
     if (!b64) throw new Error('No image data in response');
     return b64;
@@ -537,36 +504,18 @@ export async function regenerateCleanImage(
 
     const prompt = `Transform this into a clean e-commerce product photograph. Show ONLY the ${brandStr}${product.description || product.name} — a ${colorStr}${materialStr} ${product.garment_type || product.category}. Remove all backgrounds, people, and distractions. Place the item flat-lay or floating on a pure seamless white background. Professional product photography, studio lighting, sharp detail, no wrinkles, no mannequin, clean isolated product shot like on a shopping website.`;
 
-    const formData = new FormData();
-    formData.append('model', 'black-forest-labs/FLUX.1-Kontext-dev');
-    formData.append('prompt', prompt);
-    formData.append('n', '1');
-    formData.append('size', '768x768');
-
-    formData.append('image', {
-        uri: `data:image/jpeg;base64,${base64}`,
-        type: 'image/jpeg',
-        name: 'product.jpg',
-    } as unknown as Blob);
-
-    const response = await fetch(`${DEEPINFRA_BASE}/images/edits`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
+    const { data, error } = await supabase.functions.invoke('ai-image', {
+        body: {
+            prompt,
+            imageBase64: base64,
+            model: 'black-forest-labs/FLUX.1-Kontext-dev',
+            size: '768x768',
         },
-        body: formData,
     });
-
-    if (!response.ok) {
-        const errText = await response.text().catch(() => '');
-        throw new Error(`FLUX product regen error: ${response.status} ${errText}`);
-    }
-
-    const data = await response.json();
+    if (error) throw new Error(`Image generation error: ${error.message}`);
     const b64 = data.data?.[0]?.b64_json;
     if (!b64) throw new Error('No image data in response');
 
-    // Save to local filesystem
     const fileName = `clean_${Date.now()}.jpg`;
     const fileUri = `${FileSystem.documentDirectory}${fileName}`;
     await FileSystem.writeAsStringAsync(fileUri, b64, {
