@@ -1,19 +1,18 @@
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Dimensions,
-  FlatList,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { Check, List, Pencil } from 'lucide-react-native';
 import { Colors, Radius, Typography } from '@/constants/Colors';
-import { useClosetStore } from '@/stores/closetStore';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import { Check, List, Pencil } from 'lucide-react-native';
+import React, { useRef, useState } from 'react';
+import {
+    Dimensions,
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

@@ -4,6 +4,7 @@ import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgr
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, Sparkles, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -17,7 +18,6 @@ import {
     TextInput,
     View
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Mode: 'single' = add one item, 'fitpic' = multi-item from outfit photo ───

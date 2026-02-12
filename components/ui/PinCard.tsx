@@ -1,8 +1,8 @@
-import React, { memo } from 'react';
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { Colors, Radius, Typography } from '@/constants/Colors';
 import { Image } from 'expo-image';
 import { Heart } from 'lucide-react-native';
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import React, { memo } from 'react';
+import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;

@@ -1,4 +1,4 @@
-import { useClosetStore, useFilteredItems, generateId } from '@/stores/closetStore';
+import { generateId, useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, Outfit } from '@/types';
 import { act } from '@testing-library/react-native';
 

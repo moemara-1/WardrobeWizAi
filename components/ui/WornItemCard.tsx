@@ -1,8 +1,8 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Image } from 'expo-image';
 import { X } from 'lucide-react-native';
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
 
 interface WornItemCardProps {
     imageUrl: string;

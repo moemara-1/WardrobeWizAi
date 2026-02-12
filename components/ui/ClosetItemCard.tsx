@@ -1,9 +1,9 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { ClosetItem } from '@/types';
+import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
 
 interface ClosetItemCardProps {
     item: ClosetItem;

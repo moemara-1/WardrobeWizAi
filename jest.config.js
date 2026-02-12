@@ -6,6 +6,7 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^react-native-url-polyfill/dist/setup$': '<rootDir>/__mocks__/empty.js',
   },
   setupFiles: ['./jest.setup.ts'],
 };

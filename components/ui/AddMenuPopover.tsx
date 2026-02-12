@@ -1,7 +1,7 @@
+import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Gem, Puzzle, Shirt } from 'lucide-react-native';
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Gem, Shirt, Puzzle } from 'lucide-react-native';
-import { Colors, Radius, Typography } from '@/constants/Colors';
 
 interface AddMenuPopoverProps {
   onClose: () => void;

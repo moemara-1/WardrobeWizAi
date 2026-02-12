@@ -1,14 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-
-const REMOVEBG_API_URL = 'https://api.remove.bg/v1.0/removebg';
-
-const getApiKey = () => {
-    const key = process.env.EXPO_PUBLIC_REMOVEBG_API_KEY;
-    if (!key) {
-        return null;
-    }
-    return key;
-};
+import { supabase } from '@/lib/supabase';
 
 export type GarmentSlot = 'headwear' | 'top' | 'bottom' | 'footwear' | 'accessory' | 'full-body' | 'unknown';
 
@@ -60,48 +51,31 @@ export function classifyGarmentSlot(category: string, garmentType?: string): Gar
 }
 
 /**
- * Remove background from an image using remove.bg API
+ * Remove background from an image using Supabase Edge Function
  * Returns a new image with white background
  */
 export async function removeBackground(imageUri: string): Promise<BackgroundRemovalResult> {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        return { success: false, error: 'Remove.bg API key not configured' };
-    }
-
     try {
-        // Read image as base64
         const base64 = await FileSystem.readAsStringAsync(imageUri, {
             encoding: FileSystem.EncodingType.Base64,
         });
 
-        // Call remove.bg API
-        const response = await fetch(REMOVEBG_API_URL, {
-            method: 'POST',
-            headers: {
-                'X-Api-Key': apiKey,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                image_file_b64: base64,
-                size: 'regular',
-                type: 'product',
-                bg_color: 'FFFFFF', // White background
-                format: 'png',
-            }),
+        const { data, error } = await supabase.functions.invoke('remove-bg', {
+            body: { imageBase64: base64 },
         });
 
-        if (!response.ok) {
-            return { success: false, error: `API error: ${response.status}` };
+        if (error) {
+            return { success: false, error: `API error: ${error.message}` };
         }
 
-        const resultBuffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(resultBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
+        if (data.error) {
+            return { success: false, error: data.error };
         }
-        const resultBase64 = btoa(binary);
+
+        const resultBase64 = data.resultBase64;
+        if (!resultBase64) {
+            return { success: false, error: 'No image data in response' };
+        }
 
         const filename = `clean_${Date.now()}.png`;
         const cacheDir = FileSystem.cacheDirectory || '';
@@ -115,7 +89,7 @@ export async function removeBackground(imageUri: string): Promise<BackgroundRemo
     } catch (error) {
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : 'Unknown error',
         };
     }
 }

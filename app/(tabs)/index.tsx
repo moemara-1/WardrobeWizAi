@@ -1,27 +1,25 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
 import {
-  Camera,
-  ImageIcon,
-  Plane,
-  Plus,
-  ScanLine,
-  Search,
+    Camera,
+    ImageIcon,
+    Plane,
+    ScanLine,
+    Search
 } from 'lucide-react-native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  Animated,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Animated,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type SubView = 'explore' | 'discover';
