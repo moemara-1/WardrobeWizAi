@@ -42,9 +42,10 @@ const ACTION_CARDS = [
 ] as const;
 
 const SUGGESTION_CHIPS = [
-  "What's a cozy\nlate night look?",
-  "Layer me up\nit's freezing outside",
-  "What's a good\ncasual Friday look?",
+  "What should I wear today?",
+  "Cozy late night outfit",
+  "Help me layer for cold weather",
+  "Casual Friday look",
 ];
 
 export default function StyleChatScreen() {
@@ -197,24 +198,20 @@ export default function StyleChatScreen() {
       </ScrollView>
 
       {!hasMessages && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-        >
+        <View style={styles.chipColumn}>
           {SUGGESTION_CHIPS.map((chip) => (
             <Pressable
               key={chip}
               style={styles.chip}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                sendMessage(chip.replace('\n', ' '));
+                sendMessage(chip);
               }}
             >
               <Text style={styles.chipText}>{chip}</Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </View>
       )}
 
       <View style={styles.inputRow}>
@@ -263,9 +260,9 @@ const styles = StyleSheet.create({
   actionIconCircle: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   actionTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
   actionDesc: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary },
-  chipRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },
-  chip: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 10 },
-  chipText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textPrimary, lineHeight: 18 },
+  chipColumn: { paddingHorizontal: 16, gap: 8, paddingBottom: 12 },
+  chip: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
+  chipText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary },
   inputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
   inputPlus: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
   inputBar: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 16, paddingVertical: 10, gap: 8 },

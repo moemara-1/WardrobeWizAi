@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     left: 16,
-    bottom: 140,
+    bottom: 160,
     backgroundColor: Colors.cardSurface,
     borderRadius: Radius.md,
     borderWidth: 1,

@@ -177,6 +177,94 @@ ${closetContext}`,
     return content;
 }
 
+/* ─── Outfit Analysis (Fit Pic) ─── */
+
+export interface OutfitDetection {
+    name: string;
+    category: string;
+    brand: string;
+    brandConfidence: number;
+    modelName: string;
+    estimatedValue: number | null;
+    colors: string[];
+    confidence: number;
+}
+
+export interface OutfitAnalysis {
+    detections: OutfitDetection[];
+    overallStyle?: string;
+    occasion?: string;
+}
+
+export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalysis> {
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const content = await callDeepInfra({
+        model: VISION_MODEL,
+        messages: [{
+            role: 'user',
+            content: [
+                {
+                    type: 'text',
+                    text: `Analyze this outfit image and identify each clothing item visible.
+
+For EACH clothing piece, provide:
+1. Name/description
+2. Category (top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other)
+3. Brand guess (be specific)
+4. How confident you are about the brand (0-1)
+5. Specific model name if identifiable
+6. Estimated retail value in USD
+7. Main colors (color names, not hex)
+8. Overall confidence in the detection (0-1)
+
+Also identify:
+- Overall style (streetwear, casual, formal, sporty, etc.)
+- Suggested occasion (everyday, work, date night, gym, etc.)
+
+Return ONLY valid JSON:
+{
+  "detections": [
+    {
+      "name": "Air Force 1 Low",
+      "category": "shoe",
+      "brand": "Nike",
+      "brandConfidence": 0.95,
+      "modelName": "Air Force 1 07",
+      "estimatedValue": 110,
+      "colors": ["white"],
+      "confidence": 0.98
+    }
+  ],
+  "overallStyle": "streetwear",
+  "occasion": "casual"
+}`,
+                },
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${base64}` },
+                },
+            ],
+        }],
+        max_tokens: 1500,
+        temperature: 0.3,
+    });
+
+    try {
+        const parsed = parseJSON<OutfitAnalysis>(content);
+        return {
+            detections: parsed.detections || [],
+            overallStyle: parsed.overallStyle,
+            occasion: parsed.occasion,
+        };
+    } catch {
+        console.warn('Outfit analysis returned non-JSON, using defaults');
+        return { detections: [], overallStyle: undefined, occasion: undefined };
+    }
+}
+
 /* ─── Digital Twin Generation ─── */
 
 export interface DigitalTwinAnalysis {
@@ -350,4 +438,135 @@ export async function generateDigitalTwin(
         style_recommendations: appearance.style_tips,
         twin_image_url: twinImageUrl,
     };
+}
+
+/* ─── Clean Product Image Regeneration ─── */
+
+export interface ProductIdentification {
+    name: string;
+    brand: string | null;
+    category: ClothingCategory;
+    garment_type: string | null;
+    colors: string[];
+    material: string | null;
+    description: string;
+}
+
+/**
+ * Step 1: Identify the product using vision model.
+ * This acts like a "Google Lens" — identifies what the clothing item is,
+ * its brand, specific model, colors, and material.
+ */
+export async function identifyProduct(imageUri: string): Promise<ProductIdentification> {
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const content = await callDeepInfra({
+        model: VISION_MODEL,
+        messages: [{
+            role: 'user',
+            content: [
+                {
+                    type: 'text',
+                    text: `You are a fashion product identification expert. Identify this clothing item as precisely as possible, like a reverse image search engine.
+
+Provide:
+1. Full product name (e.g. "Nike Air Max 90", "Levi's 501 Original Fit Jeans")
+2. Brand (be specific or null)
+3. Category: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other
+4. Garment type (e.g. "bomber jacket", "cargo pants", "chelsea boots")
+5. Main colors
+6. Primary material (cotton, leather, polyester, denim, etc.)
+7. A concise product description for generating a clean product image
+
+Return ONLY valid JSON:
+{
+  "name": "product name",
+  "brand": "brand or null",
+  "category": "category",
+  "garment_type": "specific garment type",
+  "colors": ["color1", "color2"],
+  "material": "primary material or null",
+  "description": "A concise 1-sentence description of the item's appearance for image generation"
+}`,
+                },
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${base64}` },
+                },
+            ],
+        }],
+        max_tokens: 512,
+        temperature: 0.2,
+    });
+
+    const parsed = parseJSON<ProductIdentification>(content);
+
+    const validCategories: ClothingCategory[] = [
+        'top', 'bottom', 'outerwear', 'dress', 'shoe',
+        'accessory', 'bag', 'hat', 'jewelry', 'other',
+    ];
+    if (!validCategories.includes(parsed.category)) {
+        parsed.category = 'other';
+    }
+
+    return parsed;
+}
+
+/**
+ * Step 2: Regenerate a clean product image using FLUX.1-Kontext-dev.
+ * Takes the original photo and transforms it into a clean product shot
+ * on a white background, like an e-commerce listing.
+ */
+export async function regenerateCleanImage(
+    imageUri: string,
+    product: ProductIdentification,
+): Promise<string> {
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const colorStr = product.colors.join(' and ');
+    const materialStr = product.material ? `, ${product.material}` : '';
+    const brandStr = product.brand ? `${product.brand} ` : '';
+
+    const prompt = `Transform this into a clean e-commerce product photograph. Show ONLY the ${brandStr}${product.description || product.name} — a ${colorStr}${materialStr} ${product.garment_type || product.category}. Remove all backgrounds, people, and distractions. Place the item flat-lay or floating on a pure seamless white background. Professional product photography, studio lighting, sharp detail, no wrinkles, no mannequin, clean isolated product shot like on a shopping website.`;
+
+    const formData = new FormData();
+    formData.append('model', 'black-forest-labs/FLUX.1-Kontext-dev');
+    formData.append('prompt', prompt);
+    formData.append('n', '1');
+    formData.append('size', '768x768');
+
+    formData.append('image', {
+        uri: `data:image/jpeg;base64,${base64}`,
+        type: 'image/jpeg',
+        name: 'product.jpg',
+    } as unknown as Blob);
+
+    const response = await fetch(`${DEEPINFRA_BASE}/images/edits`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${getApiKey()}`,
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`FLUX product regen error: ${response.status} ${errText}`);
+    }
+
+    const data = await response.json();
+    const b64 = data.data?.[0]?.b64_json;
+    if (!b64) throw new Error('No image data in response');
+
+    // Save to local filesystem
+    const fileName = `clean_${Date.now()}.jpg`;
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(fileUri, b64, {
+        encoding: FileSystem.EncodingType.Base64,
+    });
+    return fileUri;
 }
