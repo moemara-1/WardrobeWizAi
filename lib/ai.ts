@@ -1,5 +1,6 @@
 import { ClothingCategory } from '@/types';
 import * as FileSystem from 'expo-file-system/legacy';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { supabase } from '@/lib/supabase';
 
 const VISION_MODEL = 'meta-llama/Llama-3.2-11B-Vision-Instruct';
@@ -261,99 +262,6 @@ export interface DigitalTwinAnalysis {
 }
 
 /**
- * Step 1: Analyze the selfie to get a text description + styling info.
- */
-async function describeAppearance(
-    selfieBase64: string,
-    skinColor: string,
-    hairColor: string,
-    additionalDetails: string,
-): Promise<{ description: string; body_type: string; style_tips: string }> {
-    const content = await callDeepInfra({
-        model: VISION_MODEL,
-        messages: [{
-            role: 'user',
-            content: [
-                {
-                    type: 'text',
-                    text: `Analyze this person's appearance for a fashion styling profile.
-
-User info:
-- Skin tone hex: ${skinColor}
-- Hair color hex: ${hairColor}
-${additionalDetails ? `- Extra details: ${additionalDetails}` : ''}
-
-Return ONLY valid JSON:
-{
-  "description": "2-3 sentence physical description: gender, skin tone, face shape, hair style/color, approximate age, build. Third person neutral tone.",
-  "body_type": "One of: petite, slim, athletic, average, curvy, tall, broad",
-  "style_tips": "2-3 personalized styling tips based on their coloring and build"
-}`,
-                },
-                {
-                    type: 'image_url',
-                    image_url: { url: `data:image/jpeg;base64,${selfieBase64}` },
-                },
-            ],
-        }],
-        max_tokens: 512,
-        temperature: 0.3,
-    });
-
-    try {
-        return parseJSON<{ description: string; body_type: string; style_tips: string }>(content);
-    } catch {
-        // Vision model refused or returned non-JSON — use sensible defaults
-        if (__DEV__) console.warn('Vision model did not return JSON, using defaults. Raw:', content.slice(0, 200));
-        return {
-            description: `Person with ${hairColor} hair and ${skinColor} skin tone.${additionalDetails ? ` ${additionalDetails}` : ''}`,
-            body_type: 'average',
-            style_tips: 'Experiment with complementary colors and well-fitted silhouettes.',
-        };
-    }
-}
-
-/**
- * Generate a full-body digital twin image using FLUX.1-Kontext-dev.
- * This model takes BOTH a reference image (selfie/body photo) AND a text prompt,
- * preserving the person's face and identity while transforming into a full-body shot.
- */
-async function generateTwinImage(
-    imageBase64: string,
-    bodyType: string,
-    additionalDetails: string,
-): Promise<string> {
-    const bodyDesc = {
-        petite: 'a petite, slender build with a shorter frame',
-        slim: 'a slim, lean build',
-        athletic: 'an athletic, toned build with defined muscles',
-        average: 'an average, proportionate build',
-        curvy: 'a curvy build with fuller proportions',
-        tall: 'a tall, elongated frame',
-        broad: 'a broad, wide-shouldered build',
-    }[bodyType] || 'a proportionate build';
-
-    const outfitDesc = additionalDetails
-        ? `They are wearing: ${additionalDetails}.`
-        : 'They are wearing a plain white oversized crew-neck t-shirt, blue straight-leg chino trousers, and white leather sneakers.';
-
-    const prompt = `Transform this person into a full-body photograph from head to toe, standing on a seamless pure white background. Keep the exact same person, same face, same skin tone, same hair. The person has ${bodyDesc}. Show their entire body from head to shoes, accurately reflecting their body type and proportions. ${outfitDesc} Standing upright with arms relaxed at sides, facing the camera. Professional studio photography, soft diffused lighting, no harsh shadows, clean e-commerce product style.`;
-
-    const { data, error } = await supabase.functions.invoke('ai-image', {
-        body: {
-            prompt,
-            imageBase64,
-            model: 'black-forest-labs/FLUX.1-Kontext-dev',
-            size: '768x1024',
-        },
-    });
-    if (error) throw new Error(`Image generation error: ${error.message}`);
-    const b64 = data.data?.[0]?.b64_json;
-    if (!b64) throw new Error('No image data in response');
-    return b64;
-}
-
-/**
  * Save a base64-encoded image to the local filesystem.
  */
 async function saveBase64Image(b64: string): Promise<string> {
@@ -366,11 +274,8 @@ async function saveBase64Image(b64: string): Promise<string> {
 }
 
 /**
- * Generate a digital twin:
- * 1. Read selfie (and optional body photo) as base64
- * 2. Analyze selfie with vision model for text profile + style tips
- * 3. Use FLUX.1-Kontext-dev to transform the photo into a full-body image
- *    on a white background, preserving the person's face and identity
+ * Generate a digital twin using Nano Banana + cdingram/face-swap pipeline.
+ * No vision model needed — uses user-provided selfie, skin color, hair color directly.
  */
 export async function generateDigitalTwin(
     selfieUri: string,
@@ -383,30 +288,41 @@ export async function generateDigitalTwin(
         encoding: FileSystem.EncodingType.Base64,
     });
 
-    let base64Body: string | null = null;
+    let bodyBase64: string | undefined;
     if (bodyPhotoUri) {
-        base64Body = await FileSystem.readAsStringAsync(bodyPhotoUri, {
+        bodyBase64 = await FileSystem.readAsStringAsync(bodyPhotoUri, {
             encoding: FileSystem.EncodingType.Base64,
         });
     }
 
-    // Step 1: Analyze selfie to get body type + appearance description
-    const appearance = await describeAppearance(base64Selfie, skinColor, hairColor, additionalDetails);
+    // Call edge function with Nano Banana + face-swap pipeline
+    const { data, error } = await supabase.functions.invoke('ai-image', {
+        body: {
+            mode: 'twin',
+            imageBase64: base64Selfie,
+            selfieBase64: base64Selfie,
+            bodyBase64,
+            skinColor,
+            hairColor,
+            additionalDetails,
+        },
+    });
 
-    // Step 2: Generate full-body image using body type from analysis
-    // Use body photo as reference if available (already full-body), otherwise selfie
-    const imageB64 = await generateTwinImage(
-        base64Body ?? base64Selfie,
-        appearance.body_type,
-        additionalDetails,
-    );
+    if (error) {
+        throw new Error(`Twin generation failed: ${error.message}`);
+    }
+    if (data?.error) {
+        throw new Error(data.error);
+    }
+    const b64 = data?.data?.[0]?.b64_json;
+    if (!b64) throw new Error('No image data in twin generation response');
 
-    const twinImageUrl = await saveBase64Image(imageB64);
+    const twinImageUrl = await saveBase64Image(b64);
 
     return {
-        ai_description: appearance.description,
-        body_type: appearance.body_type,
-        style_recommendations: appearance.style_tips,
+        ai_description: `Person with ${skinColor} skin tone and ${hairColor} hair color.${additionalDetails ? ` ${additionalDetails}` : ''}`,
+        body_type: 'average',
+        style_recommendations: 'Experiment with complementary colors and well-fitted silhouettes.',
         twin_image_url: twinImageUrl,
     };
 }
@@ -486,6 +402,201 @@ Return ONLY valid JSON:
 }
 
 /**
+ * Generate an outfit try-on image using the digital twin.
+ *
+ * Strategy:
+ *   1. PRIMARY — google/nano-banana (Gemini 2.5 Flash Image) via Replicate
+ *      Sends person image + ALL garment images in a single call.
+ *      Supports ALL categories: top, bottom, outerwear, dress, shoes, accessories, etc.
+ *   2. FALLBACK — FLUX Kontext with collage (if Replicate is unavailable)
+ */
+export interface OutfitTwinItem {
+    name: string;
+    category: string;
+    imageUri: string;
+}
+
+export async function generateOutfitTwin(
+    twinImageUrl: string,
+    outfitItems: OutfitTwinItem[],
+    textPrompt?: string,
+    selfieUrl?: string,
+): Promise<string> {
+    // Read the twin base image (handle both local and remote URLs)
+    let twinBase64: string;
+    if (twinImageUrl.startsWith('http://') || twinImageUrl.startsWith('https://')) {
+        // Remote URL — download to a temp file first
+        const tmpPath = `${FileSystem.cacheDirectory}tmp_twin_${Date.now()}.jpg`;
+        const downloadResult = await FileSystem.downloadAsync(twinImageUrl, tmpPath);
+        twinBase64 = await FileSystem.readAsStringAsync(downloadResult.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+    } else {
+        twinBase64 = await FileSystem.readAsStringAsync(twinImageUrl, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+    }
+
+    // Resize all clothing images and convert to base64
+    const clothingImages: { base64: string; name: string; category: string }[] = [];
+    for (const item of outfitItems) {
+        try {
+            let sourceUri = item.imageUri;
+            // Handle remote URLs — download first
+            if (sourceUri.startsWith('http://') || sourceUri.startsWith('https://')) {
+                const tmpPath = `${FileSystem.cacheDirectory}tmp_garment_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+                const dl = await FileSystem.downloadAsync(sourceUri, tmpPath);
+                sourceUri = dl.uri;
+            }
+            const resized = await manipulateAsync(
+                sourceUri,
+                [{ resize: { width: 256 } }],
+                { format: SaveFormat.JPEG, compress: 0.7 },
+            );
+            const b64 = await FileSystem.readAsStringAsync(resized.uri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            clothingImages.push({ base64: b64, name: item.name, category: item.category });
+            if (__DEV__) console.log(`[VTON] Loaded garment: ${item.name} (${item.category}), b64 len: ${b64.length}`);
+        } catch (e) {
+            if (__DEV__) console.warn(`[VTON] Failed to load garment ${item.name}:`, e);
+        }
+    }
+
+    if (clothingImages.length === 0) {
+        throw new Error('No clothing images could be loaded.');
+    }
+
+    // ─── Strategy 1: google/nano-banana via Replicate (all categories) ───
+    try {
+        // Resize twin image to reduce payload (VTON doesn't need huge images)
+        const twinResized = await manipulateAsync(
+            twinImageUrl.startsWith('http') ? twinImageUrl : twinImageUrl,
+            [{ resize: { width: 384 } }],
+            { format: SaveFormat.JPEG, compress: 0.7 },
+        );
+        const twinB64ForVton = await FileSystem.readAsStringAsync(twinResized.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+
+        const totalPayloadChars = twinB64ForVton.length + clothingImages.reduce((s, g) => s + g.base64.length, 0);
+
+        // Read the selfie photo for face-swap if provided
+        // Fall back to using the twin image URL if no selfie is available
+        let selfieB64: string | undefined;
+        const effectiveSelfieUrl = selfieUrl || twinImageUrl;
+        if (__DEV__) console.log(`[VTON] selfieUrl param: ${selfieUrl ? selfieUrl.slice(0, 80) + '...' : 'NOT PROVIDED'}`);
+        if (__DEV__) console.log(`[VTON] effectiveSelfieUrl: ${effectiveSelfieUrl.slice(0, 80)}...`);
+        if (effectiveSelfieUrl) {
+            try {
+                let selfieSourceUri = effectiveSelfieUrl;
+                if (selfieSourceUri.startsWith('http://') || selfieSourceUri.startsWith('https://')) {
+                    const tmpPath = `${FileSystem.cacheDirectory}tmp_selfie_${Date.now()}.jpg`;
+                    const dl = await FileSystem.downloadAsync(selfieSourceUri, tmpPath);
+                    selfieSourceUri = dl.uri;
+                }
+                const selfieResized = await manipulateAsync(
+                    selfieSourceUri,
+                    [{ resize: { width: 512 } }],
+                    { format: SaveFormat.JPEG, compress: 0.8 },
+                );
+                selfieB64 = await FileSystem.readAsStringAsync(selfieResized.uri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+                if (__DEV__) console.log(`[VTON] Selfie loaded for face-swap, b64 len: ${selfieB64.length}`);
+            } catch (e) {
+                if (__DEV__) console.warn('[VTON] Failed to load selfie for face-swap:', e);
+            }
+        }
+
+        if (__DEV__) {
+            console.log(`[VTON] Twin base64 length: ${twinB64ForVton.length}`);
+            console.log(`[VTON] Total payload ~${Math.round(totalPayloadChars / 1024)}KB`);
+            console.log(`[VTON] Sending ${clothingImages.length} garments:`, clothingImages.map(g => `${g.name}(${g.category})`));
+        }
+
+        const resp = await supabase.functions.invoke('ai-image', {
+            body: {
+                mode: 'vton',
+                imageBase64: twinB64ForVton,
+                selfieBase64: selfieB64,
+                garments: clothingImages.map(img => ({
+                    base64: img.base64,
+                    category: img.category,
+                    name: img.name,
+                })),
+            },
+        });
+
+        if (__DEV__) {
+            console.log('[VTON] Edge function response:', {
+                hasError: !!resp.error,
+                errorMsg: resp.error?.message,
+                dataKeys: resp.data ? Object.keys(resp.data) : 'null',
+                dataError: resp.data?.error,
+            });
+        }
+
+        // supabase.functions.invoke puts response body in `data` even on non-2xx
+        // The `error` is a generic wrapper — actual error details are in data.error
+        if (resp.data?.error) {
+            throw new Error(`VTON server: ${resp.data.error}`);
+        }
+        if (resp.error && !resp.data?.data) {
+            throw new Error(`Edge function: ${resp.error.message || JSON.stringify(resp.error)}`);
+        }
+        if (resp.data?.data?.[0]?.b64_json) {
+            return await saveBase64Image(resp.data.data[0].b64_json);
+        }
+        throw new Error(`VTON returned unexpected response: ${JSON.stringify(resp.data).slice(0, 200)}`);
+    } catch (e) {
+        if (__DEV__) console.warn('Nano Banana try-on failed, falling back to FLUX collage:', e);
+    }
+
+    // ─── Strategy 2 (Fallback): FLUX Kontext with collage ───
+    const itemDescriptions = clothingImages
+        .map((img, i) => `${i + 1}. ${img.name} (${img.category})`)
+        .join('\n');
+    const sceneDesc = textPrompt ? `\nScene/setting: ${textPrompt}` : '';
+
+    const prompt = `The image is a reference collage. The LEFT side shows a person. The RIGHT side shows the specific clothing items they should wear.
+
+Generate a NEW full-body photograph showing ONLY the person from the left side, now wearing EXACTLY the clothing items shown on the right side. Output a single photo of the dressed person, NOT a collage.
+
+Clothing items shown on the right (top to bottom):
+${itemDescriptions}
+
+CRITICAL RULES:
+- The person must remain IDENTICAL: same face, same skin tone, same hair, same body proportions, same pose
+- Each clothing item must EXACTLY match what is shown on the right side of the reference
+- Do NOT generate a collage — output a single photo of the fully dressed person
+- Full-body shot, head to toe, standing pose
+- Professional studio photography, clean neutral background, good lighting${sceneDesc}`;
+
+    try {
+        const { data, error } = await supabase.functions.invoke('ai-image', {
+            body: {
+                prompt,
+                imageBase64: twinBase64,
+                clothingImages: clothingImages.map(img => ({ base64: img.base64 })),
+                model: 'black-forest-labs/FLUX.1-Kontext-dev',
+                size: '768x1024',
+            },
+        });
+        if (!error && data?.data?.[0]?.b64_json) {
+            return await saveBase64Image(data.data[0].b64_json);
+        }
+        if (data?.error) {
+            throw new Error(data.error);
+        }
+    } catch (e) {
+        if (__DEV__) console.warn('FLUX collage try-on also failed:', e);
+    }
+
+    throw new Error('Virtual try-on failed. Please try again.');
+}
+
+/**
  * Step 2: Regenerate a clean product image using FLUX.1-Kontext-dev.
  * Takes the original photo and transforms it into a clean product shot
  * on a white background, like an e-commerce listing.
@@ -494,7 +605,14 @@ export async function regenerateCleanImage(
     imageUri: string,
     product: ProductIdentification,
 ): Promise<string> {
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+
+    // Resize image to max 512x512 for faster upload/inference
+    const { uri: resizedUri } = await manipulateAsync(
+        imageUri,
+        [{ resize: { width: 512, height: 512 } }],
+        { compress: 0.9, format: SaveFormat.JPEG }
+    );
+    const base64 = await FileSystem.readAsStringAsync(resizedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -502,14 +620,20 @@ export async function regenerateCleanImage(
     const materialStr = product.material ? `, ${product.material}` : '';
     const brandStr = product.brand ? `${product.brand} ` : '';
 
-    const prompt = `Transform this into a clean e-commerce product photograph. Show ONLY the ${brandStr}${product.description || product.name} — a ${colorStr}${materialStr} ${product.garment_type || product.category}. Remove all backgrounds, people, and distractions. Place the item flat-lay or floating on a pure seamless white background. Professional product photography, studio lighting, sharp detail, no wrinkles, no mannequin, clean isolated product shot like on a shopping website.`;
+    const prompt = `Transform this into a clean e-commerce product photograph. Show ONLY the ${brandStr}${product.description || product.name} — a ${colorStr}${materialStr} ${product.garment_type || product.category}.
+
+CRITICAL RULES:
+- Remove ALL backgrounds, people, mannequins, shadows, reflections, and distractions.
+- The item must be perfectly isolated, with NO visible background, NO shadows, NO artifacts, NO person, NO mannequin, NO floor, NO props, NO color cast.
+- Place the item flat-lay or floating on a 100% pure seamless WHITE (#FFFFFF) background, edge-to-edge, with no gradient, no texture, no drop shadow, no border, no floor, no horizon, no corners, no surface, no context.
+- The result must look like a shopping website product photo: sharp, well-lit, no wrinkles, no background at all, just the item on pure white.`;
 
     const { data, error } = await supabase.functions.invoke('ai-image', {
         body: {
             prompt,
             imageBase64: base64,
             model: 'black-forest-labs/FLUX.1-Kontext-dev',
-            size: '768x768',
+            size: '512x512', // Lower resolution for speed
         },
     });
     if (error) throw new Error(`Image generation error: ${error.message}`);
