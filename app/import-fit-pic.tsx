@@ -1,18 +1,22 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
 import { ArrowLeft, Camera, ImageIcon, Sparkles } from 'lucide-react-native';
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ImportFitPicScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
+
   const handleTakePhoto = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -81,23 +85,25 @@ export default function ImportFitPicScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary, textAlign: 'center' },
-  headerSpacer: { width: 40 },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },
-  iconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  title: { fontFamily: Typography.serifFamilyBold, fontSize: 24, color: Colors.textPrimary },
-  desc: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  tipRow: { backgroundColor: Colors.cardSurface, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 12 },
-  tipText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary },
-  actions: { paddingHorizontal: 24, paddingBottom: 32, gap: 10 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.textPrimary },
-  primaryBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
-  secondaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt },
-  secondaryBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
-  creditRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 },
-  creditText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textTertiary },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12 },
+    backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { flex: 1, fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary, textAlign: 'center' },
+    headerSpacer: { width: 40 },
+    content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },
+    iconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+    title: { fontFamily: Typography.serifFamilyBold, fontSize: 24, color: C.textPrimary },
+    desc: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
+    tipRow: { backgroundColor: C.cardSurface, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 12 },
+    tipText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary },
+    actions: { paddingHorizontal: 24, paddingBottom: 32, gap: 10 },
+    primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: C.textPrimary },
+    primaryBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.background },
+    secondaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt },
+    secondaryBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary },
+    creditRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 },
+    creditText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textTertiary },
+  });
+}

@@ -1,4 +1,4 @@
-export const Colors = {
+export const DarkColors = {
   background: '#0B0B0E',
   cardSurface: '#16161A',
   cardSurfaceAlt: '#1A1A1E',
@@ -14,6 +14,43 @@ export const Colors = {
   tabBar: '#1A1A1E',
   overlay: 'rgba(11, 11, 14, 0.85)',
 } as const;
+
+export const LightColors = {
+  background: '#FAFAFA',
+  cardSurface: '#FFFFFF',
+  cardSurfaceAlt: '#F2F2F5',
+  textPrimary: '#1A1A1A',
+  textSecondary: '#6B6B70',
+  textTertiary: '#A0A0A5',
+  border: '#E5E5E8',
+  borderLight: '#D0D0D5',
+  accentGreen: '#32D583',
+  accentCoral: '#E85A4F',
+  accentBlue: '#3B82F6',
+  white: '#FFFFFF',
+  tabBar: '#FFFFFF',
+  overlay: 'rgba(250, 250, 250, 0.85)',
+} as const;
+
+export type ColorTheme = {
+  readonly background: string;
+  readonly cardSurface: string;
+  readonly cardSurfaceAlt: string;
+  readonly textPrimary: string;
+  readonly textSecondary: string;
+  readonly textTertiary: string;
+  readonly border: string;
+  readonly borderLight: string;
+  readonly accentGreen: string;
+  readonly accentCoral: string;
+  readonly accentBlue: string;
+  readonly white: string;
+  readonly tabBar: string;
+  readonly overlay: string;
+};
+
+/** Default export — used as fallback outside React tree */
+export const Colors = DarkColors;
 
 export const Spacing = {
   xs: 4,

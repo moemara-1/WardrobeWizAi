@@ -1,25 +1,30 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
-import { ArrowLeft, RefreshCw, Sparkles, User } from 'lucide-react-native';
-import React from 'react';
+import { ArrowLeft, RefreshCw, Sparkles, Trash2, User } from 'lucide-react-native';
+import React, { useMemo } from 'react';
 import {
-    Dimensions,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PREVIEW_WIDTH = (SCREEN_WIDTH - 48 - 12) / 2;
+const FIT_CARD_SIZE = 140;
 
 export default function DigitalTwinPreviewScreen() {
-  const { digitalTwin } = useClosetStore();
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const { digitalTwin, savedFits, deleteSavedFit } = useClosetStore();
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -91,6 +96,42 @@ export default function DigitalTwinPreviewScreen() {
                 <Text style={styles.twinCardTitle}>Style Tips</Text>
               </View>
               <Text style={styles.twinCardBody}>{digitalTwin.style_recommendations}</Text>
+            </View>
+          )}
+
+          {/* Saved Fits Gallery */}
+          {savedFits.length > 0 && (
+            <View style={styles.savedFitsSection}>
+              <Text style={styles.savedFitsTitle}>Saved Fits</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.savedFitsRow}
+              >
+                {savedFits.map((fit) => (
+                  <View key={fit.id} style={styles.savedFitCard}>
+                    <Image
+                      source={{ uri: fit.image_url }}
+                      style={styles.savedFitImage}
+                      contentFit="cover"
+                    />
+                    <View style={styles.savedFitOverlay}>
+                      <Text style={styles.savedFitScene}>{fit.scene}</Text>
+                      <Pressable
+                        style={styles.savedFitDeleteBtn}
+                        onPress={() => {
+                          Alert.alert('Delete Fit', 'Remove this saved fit?', [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => deleteSavedFit(fit.id) },
+                          ]);
+                        }}
+                      >
+                        <Trash2 size={14} color="#FF6B6B" />
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
           )}
         </ScrollView>
@@ -166,141 +207,58 @@ export default function DigitalTwinPreviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.cardSurfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  headerTitle: {
-    flex: 1,
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 18,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-    gap: 24,
-  },
-  beforeAfterRow: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-  },
-  previewCard: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  previewPlaceholder: {
-    width: PREVIEW_WIDTH,
-    height: PREVIEW_WIDTH * 1.2,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.cardSurface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewPlaceholderAlt: {
-    borderColor: Colors.accentGreen,
-    borderWidth: 2,
-  },
-  previewPlaceholderText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 14,
-    color: Colors.textTertiary,
-  },
-  previewLabel: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  heading: {
-    fontFamily: Typography.serifFamilyBold,
-    fontSize: 24,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: 32,
-  },
-  subheading: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: -8,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  demoCard: {
-    flex: 1,
-    height: 140,
-    borderRadius: Radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  demoText: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  ctaWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  ctaBtn: {
-    backgroundColor: Colors.accentGreen,
-    borderRadius: Radius.pill,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  ctaText: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 16,
-    color: Colors.background,
-  },
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+    backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+    headerTitle: { flex: 1, fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary, textAlign: 'center' },
+    headerSpacer: { width: 40 },
+    content: { flex: 1, padding: 24, gap: 24 },
+    beforeAfterRow: { flexDirection: 'row', gap: 12, justifyContent: 'center' },
+    previewCard: { alignItems: 'center', gap: 8 },
+    previewPlaceholder: { width: PREVIEW_WIDTH, height: PREVIEW_WIDTH * 1.2, borderRadius: Radius.lg, backgroundColor: C.cardSurface, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+    previewPlaceholderAlt: { borderColor: C.accentGreen, borderWidth: 2 },
+    previewPlaceholderText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textTertiary },
+    previewLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textSecondary },
+    heading: { fontFamily: Typography.serifFamilyBold, fontSize: 24, color: C.textPrimary, textAlign: 'center', lineHeight: 32 },
+    subheading: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, textAlign: 'center', marginTop: -8 },
+    previewRow: { flexDirection: 'row', gap: 12 },
+    demoCard: { flex: 1, height: 140, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
+    demoText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary },
+    ctaWrapper: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+    ctaBtn: { backgroundColor: C.accentGreen, borderRadius: Radius.pill, paddingVertical: 16, alignItems: 'center' },
+    ctaText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.background },
 
-  /* ─── Twin Profile Styles ─── */
-  twinScrollContent: { padding: 16, paddingBottom: 140 },
-  twinImageWrapper: { alignItems: 'center', marginBottom: 20, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
-  twinFullImage: { width: '100%', height: 420 },
-  twinProfileRow: { flexDirection: 'row', gap: 16, marginBottom: 20 },
-  twinSelfie: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: Colors.accentGreen },
-  twinMeta: { justifyContent: 'center', gap: 8, flex: 1 },
-  colorBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
-  colorBadgeLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
-  bodyBadge: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: Colors.border },
-  bodyBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textPrimary, textTransform: 'capitalize' },
-  twinCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: 16, gap: 8, marginBottom: 12 },
-  twinCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  twinCardTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
-  twinCardBody: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
-  twinCtaWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: Colors.background, gap: 8 },
-  tryOnCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.accentGreen, borderRadius: Radius.pill, paddingVertical: 16 },
-  tryOnCtaText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
-  regenCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10 },
-  regenCtaText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.textSecondary },
-});
+    /* Twin Profile Styles */
+    twinScrollContent: { padding: 16, paddingBottom: 140 },
+    twinImageWrapper: { alignItems: 'center', marginBottom: 20, backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+    twinFullImage: { width: '100%', height: 420 },
+    twinProfileRow: { flexDirection: 'row', gap: 16, marginBottom: 20 },
+    twinSelfie: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: C.accentGreen },
+    twinMeta: { justifyContent: 'center', gap: 8, flex: 1 },
+    colorBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    colorDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+    colorBadgeLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
+    bodyBadge: { backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: C.border },
+    bodyBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textPrimary, textTransform: 'capitalize' },
+    twinCard: { backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, padding: 16, gap: 8, marginBottom: 12 },
+    twinCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    twinCardTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
+    twinCardBody: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, lineHeight: 20 },
+    twinCtaWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: C.background, gap: 8 },
+    tryOnCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.accentGreen, borderRadius: Radius.pill, paddingVertical: 16 },
+    tryOnCtaText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
+    regenCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10 },
+    regenCtaText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textSecondary },
+    // Saved Fits
+    savedFitsSection: { marginTop: 8, marginBottom: 16 },
+    savedFitsTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary, marginBottom: 12 },
+    savedFitsRow: { gap: 12 },
+    savedFitCard: { width: FIT_CARD_SIZE, height: FIT_CARD_SIZE * 1.4, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    savedFitImage: { width: '100%', height: '100%' },
+    savedFitOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, backgroundColor: 'rgba(0,0,0,0.6)' },
+    savedFitScene: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF', textTransform: 'capitalize' },
+    savedFitDeleteBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  });
+}

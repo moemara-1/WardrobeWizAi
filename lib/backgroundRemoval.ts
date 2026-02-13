@@ -72,7 +72,7 @@ export async function removeBackground(imageUri: string): Promise<BackgroundRemo
             return { success: false, error: data.error };
         }
 
-        const resultBase64 = data.resultBase64;
+        const resultBase64 = data.imageBase64;
         if (!resultBase64) {
             return { success: false, error: 'No image data in response' };
         }

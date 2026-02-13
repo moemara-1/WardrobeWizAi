@@ -1,16 +1,17 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-    Dimensions,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,6 +25,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function VirtualTryOnScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { items } = useClosetStore();
   const [selected, setSelected] = useState<Record<string, string>>({});
 
@@ -33,8 +36,10 @@ export default function VirtualTryOnScreen() {
   };
 
   const handleTryOn = () => {
+    const selectedIds = Object.values(selected).filter(Boolean);
+    if (selectedIds.length === 0) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/virtual-try-on-result' as Href);
+    router.push(`/virtual-try-on-result?selectedItems=${selectedIds.join(',')}` as Href);
   };
 
   return (
@@ -80,22 +85,23 @@ export default function VirtualTryOnScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
-  cancelBtn: { paddingHorizontal: 16, paddingVertical: 8 },
-  cancelText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textSecondary },
-  headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: Colors.textPrimary },
-  tryOnBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.accentBlue },
-  tryOnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: '#FFF' },
-  subtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginBottom: 16 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 40 },
-  categorySection: { marginBottom: 20 },
-  categoryTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, marginBottom: 8 },
-  emptyCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 24, borderWidth: 1, borderColor: Colors.border },
-  emptyText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary },
-  thumbRow: { gap: 12 },
-  thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: Radius.sm, backgroundColor: Colors.cardSurface, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
-  thumbSelected: { borderColor: Colors.accentGreen },
-  thumbImage: { width: '100%', height: '100%' },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+    cancelBtn: { paddingHorizontal: 16, paddingVertical: 8 },
+    cancelText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textSecondary },
+    headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: C.textPrimary },
+    tryOnBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.accentBlue },
+    tryOnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: '#FFF' },
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 40 },
+    categorySection: { marginBottom: 20 },
+    categoryTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary, marginBottom: 8 },
+    emptyCard: { backgroundColor: C.cardSurface, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 24, borderWidth: 1, borderColor: C.border },
+    emptyText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary },
+    thumbRow: { gap: 12 },
+    thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: Radius.sm, backgroundColor: C.cardSurface, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
+    thumbSelected: { borderColor: C.accentGreen },
+    thumbImage: { width: '100%', height: '100%' },
+  });
+}

@@ -1,4 +1,5 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { analyzeClothingImage, analyzeOutfitImage, ClothingAnalysis, identifyProduct, ItemResearch, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
@@ -7,16 +8,16 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, Sparkles, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -60,6 +61,8 @@ interface DetectedPiece {
 }
 
 export default function AnalyzeScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { imageUri, mode: modeParam } = useLocalSearchParams<{ imageUri: string; mode?: string }>();
   const addItem = useClosetStore((s) => s.addItem);
 
@@ -141,20 +144,29 @@ export default function AnalyzeScreen() {
       if (research.brand && !brand) setBrand(research.brand);
       if (research.tags.length > 0) setTags(research.tags);
       if (research.subcategory) setGarmentType(research.subcategory);
-    }).catch(() => {});
+    }).catch(() => { });
 
-    // Generate clean product image using FLUX if we have product info
-    const cleanImagePromise = (product
-      ? regenerateCleanImage(uri, product)
-      : removeBackground(uri).then((r) => r.success && r.cleanImageUri ? r.cleanImageUri : null)
-    ).then((cleanUri) => {
-      if (cleanUri) setCleanImageUri(cleanUri);
-    }).catch(() => {
-      // Fallback: try simple background removal
-      removeBackground(uri).then((r) => {
-        if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
-      }).catch(() => {});
-    });
+    // Generate clean product image using FLUX (product-only, no person)
+    // If identifyProduct succeeded, use its data; otherwise build from basic analysis
+    const effectiveProduct: ProductIdentification = product || {
+      name: analysis!.name,
+      brand: analysis!.brand,
+      category: analysis!.category,
+      garment_type: analysis!.garment_type,
+      colors: analysis!.colors,
+      material: null,
+      description: analysis!.name,
+    };
+
+    const cleanImagePromise = regenerateCleanImage(uri, effectiveProduct)
+      .then((cleanUri) => {
+        if (cleanUri) setCleanImageUri(cleanUri);
+      }).catch(() => {
+        // Fallback: try simple background removal
+        removeBackground(uri).then((r) => {
+          if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
+        }).catch(() => { });
+      });
 
     await Promise.allSettled([researchPromise, cleanImagePromise]);
     setStage('done');
@@ -562,61 +574,63 @@ export default function AnalyzeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  topTitle: { fontFamily: Typography.bodyFamilyMedium, fontSize: 16, color: Colors.textPrimary },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen },
-  saveBtnDisabled: { backgroundColor: Colors.cardSurfaceAlt },
-  saveText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
-  saveTextDisabled: { color: Colors.textTertiary },
-  scroll: { flex: 1 },
-  imageArea: { marginHorizontal: 16, marginBottom: 12, borderRadius: Radius.xl, overflow: 'hidden', backgroundColor: '#FFFFFF', height: 300, alignItems: 'center', justifyContent: 'center' },
-  itemImage: { width: '80%', height: '80%' },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 11, 14, 0.6)', alignItems: 'center', justifyContent: 'center', borderRadius: Radius.xl },
-  loadingText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.textPrimary, marginTop: 12 },
-  errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
-  errorText: { fontFamily: Typography.bodyFamily, fontSize: 16, color: Colors.textSecondary },
-  backBtn: { padding: 12 },
-  backBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.accentGreen },
-  errorBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: Radius.md, backgroundColor: 'rgba(232, 90, 79, 0.15)' },
-  errorBannerText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.accentCoral, flex: 1 },
-  retryText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.accentCoral, marginLeft: 12 },
-  confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt },
-  confidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.accentGreen },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
-  slotBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-  slotBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textSecondary, textTransform: 'capitalize' },
-  formSection: { paddingHorizontal: 16, gap: 4 },
-  fieldLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textSecondary, marginTop: 12, marginBottom: 4 },
-  fieldInput: { fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, backgroundColor: Colors.cardSurface, borderRadius: Radius.input, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
-  row: { flexDirection: 'row', gap: 12 },
-  halfField: { flex: 1 },
-  categoryRow: { gap: 8, paddingVertical: 4 },
-  categoryPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-  categoryPillActive: { backgroundColor: Colors.accentGreen, borderColor: Colors.accentGreen },
-  categoryPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, textTransform: 'capitalize' },
-  categoryPillTextActive: { color: Colors.background },
-  colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 },
-  colorChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-  colorChipText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textPrimary, textTransform: 'capitalize' },
-  // ─── Multi-item (fit pic) styles ───
-  outfitMeta: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12, flexWrap: 'wrap' },
-  metaPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-  metaPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textSecondary, textTransform: 'capitalize' },
-  piecesSection: { paddingHorizontal: 16, gap: 10 },
-  piecesSectionTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary, marginBottom: 4 },
-  pieceCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.border, gap: 8 },
-  pieceCardDeselected: { opacity: 0.45, borderColor: Colors.border },
-  pieceCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pieceCheckbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: Colors.textTertiary, alignItems: 'center', justifyContent: 'center' },
-  pieceCheckboxActive: { backgroundColor: Colors.accentGreen, borderColor: Colors.accentGreen },
-  pieceInfo: { flex: 1, gap: 2 },
-  pieceName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
-  pieceCategory: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary, textTransform: 'capitalize' },
-  pieceConfidence: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt },
-  pieceConfidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: Colors.accentGreen },
-  pieceColors: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pieceValue: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+    closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
+    topTitle: { fontFamily: Typography.bodyFamilyMedium, fontSize: 16, color: C.textPrimary },
+    saveBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.accentGreen },
+    saveBtnDisabled: { backgroundColor: C.cardSurfaceAlt },
+    saveText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.background },
+    saveTextDisabled: { color: C.textTertiary },
+    scroll: { flex: 1 },
+    imageArea: { marginHorizontal: 16, marginBottom: 12, borderRadius: Radius.xl, overflow: 'hidden', backgroundColor: '#FFFFFF', height: 300, alignItems: 'center', justifyContent: 'center' },
+    itemImage: { width: '80%', height: '80%' },
+    loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11, 11, 14, 0.6)', alignItems: 'center', justifyContent: 'center', borderRadius: Radius.xl },
+    loadingText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textPrimary, marginTop: 12 },
+    errorContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
+    errorText: { fontFamily: Typography.bodyFamily, fontSize: 16, color: C.textSecondary },
+    backBtn: { padding: 12 },
+    backBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentGreen },
+    errorBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: Radius.md, backgroundColor: 'rgba(232, 90, 79, 0.15)' },
+    errorBannerText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.accentCoral, flex: 1 },
+    retryText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.accentCoral, marginLeft: 12 },
+    confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt },
+    confidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.accentGreen },
+    badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
+    slotBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    slotBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
+    formSection: { paddingHorizontal: 16, gap: 4 },
+    fieldLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.textSecondary, marginTop: 12, marginBottom: 4 },
+    fieldInput: { fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, backgroundColor: C.cardSurface, borderRadius: Radius.input, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border },
+    row: { flexDirection: 'row', gap: 12 },
+    halfField: { flex: 1 },
+    categoryRow: { gap: 8, paddingVertical: 4 },
+    categoryPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    categoryPillActive: { backgroundColor: C.accentGreen, borderColor: C.accentGreen },
+    categoryPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, textTransform: 'capitalize' },
+    categoryPillTextActive: { color: C.background },
+    colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 },
+    colorChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    colorChipText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textPrimary, textTransform: 'capitalize' },
+    // ─── Multi-item (fit pic) styles ───
+    outfitMeta: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12, flexWrap: 'wrap' },
+    metaPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    metaPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
+    piecesSection: { paddingHorizontal: 16, gap: 10 },
+    piecesSectionTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary, marginBottom: 4 },
+    pieceCard: { backgroundColor: C.cardSurface, borderRadius: Radius.lg, padding: 14, borderWidth: 1, borderColor: C.border, gap: 8 },
+    pieceCardDeselected: { opacity: 0.45, borderColor: C.border },
+    pieceCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    pieceCheckbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: C.textTertiary, alignItems: 'center', justifyContent: 'center' },
+    pieceCheckboxActive: { backgroundColor: C.accentGreen, borderColor: C.accentGreen },
+    pieceInfo: { flex: 1, gap: 2 },
+    pieceName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
+    pieceCategory: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
+    pieceConfidence: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt },
+    pieceConfidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: C.accentGreen },
+    pieceColors: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    pieceValue: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
+  });
+}

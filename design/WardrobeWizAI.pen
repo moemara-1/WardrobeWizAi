@@ -3127,7 +3127,8 @@
                               "fill": "#6B6B70",
                               "content": "@blanco · 609 pieces · 0 reactions",
                               "fontFamily": "DM Sans",
-                              "fontSize": 11
+                              "fontSize": 11,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3316,7 +3317,8 @@
                               "fill": "#6B6B70",
                               "content": "@tate.brunelle · 372 pieces",
                               "fontFamily": "DM Sans",
-                              "fontSize": 11
+                              "fontSize": 11,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3776,7 +3778,8 @@
                   "fill": "#6B6B70",
                   "content": "Fitted Value",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -3832,7 +3835,8 @@
                   "fill": "#6B6B70",
                   "content": "Brand",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -3888,7 +3892,8 @@
                   "fill": "#6B6B70",
                   "content": "Type",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -3944,7 +3949,8 @@
                   "fill": "#6B6B70",
                   "content": "Size",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -4000,7 +4006,8 @@
                   "fill": "#6B6B70",
                   "content": "Garment Type",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -4056,7 +4063,8 @@
                   "fill": "#6B6B70",
                   "content": "Layer Type",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -4522,7 +4530,8 @@
                   "fill": "#4A4A50",
                   "content": "Describe a scene or use 'Studio'...",
                   "fontFamily": "DM Sans",
-                  "fontSize": 13
+                  "fontSize": 13,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -4858,7 +4867,8 @@
               "content": "Generate Virtual Try On images to see them here",
               "textAlign": "center",
               "fontFamily": "DM Sans",
-              "fontSize": 14
+              "fontSize": 14,
+              "fontWeight": "normal"
             }
           ]
         },
@@ -4961,7 +4971,8 @@
                       "fill": "#6B6B70",
                       "content": "Should show your face",
                       "fontFamily": "DM Sans",
-                      "fontSize": 13
+                      "fontSize": 13,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -5041,7 +5052,8 @@
                       "fill": "#6B6B70",
                       "content": "5'10\" · 185 lbs",
                       "fontFamily": "DM Sans",
-                      "fontSize": 13
+                      "fontSize": 13,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -5088,7 +5100,8 @@
                   "fill": "#4A4A50",
                   "content": "Fair skin, dark curly hair...",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -5099,7 +5112,8 @@
               "fill": "#6B6B70",
               "content": "Additional details (optional)",
               "fontFamily": "DM Sans",
-              "fontSize": 13
+              "fontSize": 13,
+              "fontWeight": "normal"
             },
             {
               "type": "frame",
@@ -5122,7 +5136,8 @@
                   "fill": "#4A4A50",
                   "content": "Any other details...",
                   "fontFamily": "DM Sans",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 }
               ]
             }
@@ -6448,7 +6463,8 @@
                   "fill": "#4A4A50",
                   "content": "Describe a scene or use 'Studio'...",
                   "fontFamily": "DM Sans",
-                  "fontSize": 13
+                  "fontSize": 13,
+                  "fontWeight": "normal"
                 }
               ]
             },
