@@ -1,9 +1,10 @@
-import { Colors, Radius } from '@/constants/Colors';
+import { Radius } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Compass, Sparkles, Shirt, User } from 'lucide-react-native';
-import React from 'react';
+import { Compass, Shirt, Sparkles, User } from 'lucide-react-native';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,6 +12,8 @@ const TAB_ICONS = [Compass, Sparkles, Shirt, User] as const;
 
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     const insets = useSafeAreaInsets();
+    const Colors = useThemeColors();
+    const styles = useMemo(() => createStyles(Colors), [Colors]);
 
     return (
         <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 16) }]}>
@@ -60,43 +63,45 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     );
 }
 
-const styles = StyleSheet.create({
-    wrapper: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-        paddingBottom: 16,
-    },
-    fadeOverlay: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 120,
-    },
-    container: {
-        flexDirection: 'row',
-        backgroundColor: Colors.tabBar,
-        borderRadius: Radius.tabBar,
-        paddingHorizontal: 8,
-        paddingVertical: 12,
-        alignItems: 'center',
-        width: 240,
-        justifyContent: 'space-around',
-        borderWidth: 1,
-        borderColor: Colors.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 24,
-        elevation: 10,
-    },
-    tab: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-    },
-});
+function createStyles(C: any) {
+    return StyleSheet.create({
+        wrapper: {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            alignItems: 'center',
+            paddingBottom: 16,
+        },
+        fadeOverlay: {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 120,
+        },
+        container: {
+            flexDirection: 'row',
+            backgroundColor: C.tabBar,
+            borderRadius: Radius.tabBar,
+            paddingHorizontal: 8,
+            paddingVertical: 12,
+            alignItems: 'center',
+            width: 240,
+            justifyContent: 'space-around',
+            borderWidth: 1,
+            borderColor: C.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 24,
+            elevation: 10,
+        },
+        tab: {
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 12,
+            paddingVertical: 4,
+        },
+    });
+}

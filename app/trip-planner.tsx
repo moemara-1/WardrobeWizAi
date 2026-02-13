@@ -1,28 +1,29 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { router, type Href } from 'expo-router';
 import {
-    Bookmark,
-    Briefcase,
-    Heart,
-    MapPin,
-    Minus,
-    PartyPopper,
-    Plane,
-    Plus,
-    Search,
-    Shirt,
-    Sparkles,
-    UserCircle
+  Bookmark,
+  Briefcase,
+  Heart,
+  MapPin,
+  Minus,
+  PartyPopper,
+  Plane,
+  Plus,
+  Search,
+  Shirt,
+  Sparkles,
+  UserCircle
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -75,6 +76,8 @@ const OCCASIONS: { key: Occasion; label: string; icon: React.ComponentType<{ siz
 ];
 
 export default function TripPlannerScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const [days, setDays] = useState(3);
   const [destinations, setDestinations] = useState<string[]>(['']);
   const [occasion, setOccasion] = useState<Occasion>('fun');
@@ -242,43 +245,45 @@ export default function TripPlannerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  cancelBtn: { paddingHorizontal: 24, paddingVertical: 8 },
-  cancelText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textPrimary },
-  scrollContent: { padding: 24, alignItems: 'center' },
-  iconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.accentBlue, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  title: { fontFamily: Typography.bodyFamilyBold, fontSize: 24, color: Colors.textPrimary, marginBottom: 4 },
-  subtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, marginBottom: 24 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', backgroundColor: Colors.cardSurface, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 20 },
-  toggleLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
-  toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: Colors.border, justifyContent: 'center', paddingHorizontal: 3 },
-  toggleActive: { backgroundColor: Colors.accentBlue },
-  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.textPrimary },
-  toggleThumbActive: { alignSelf: 'flex-end' },
-  sectionLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary, marginBottom: 8, alignSelf: 'center' },
-  durationRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-  durationBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  durationCenter: { alignItems: 'center' },
-  durationNum: { fontFamily: Typography.bodyFamilyBold, fontSize: 36, color: Colors.textPrimary },
-  durationLabel: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary },
-  destinationRow: { flexDirection: 'row', alignItems: 'center', width: '100%', backgroundColor: Colors.cardSurface, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 14, gap: 8, marginBottom: 4 },
-  destInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, padding: 0 },
-  cityDropdown: { width: '100%', backgroundColor: Colors.cardSurface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, marginBottom: 16, overflow: 'hidden' },
-  cityDropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  cityDropdownText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary },
-  occasionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  occasionRow: { gap: 12, marginBottom: 24, paddingHorizontal: 4 },
-  occasionChip: { alignItems: 'center', gap: 6, width: 72 },
-  occasionChipActive: {},
-  occasionIcon: { width: 52, height: 52, borderRadius: 16, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  occasionIconActive: { backgroundColor: Colors.cardSurface, borderWidth: 2, borderColor: Colors.accentBlue },
-  occasionLabel: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary },
-  occasionLabelActive: { fontFamily: Typography.bodyFamilyBold, color: Colors.accentBlue },
-  buildBtn: { width: '100%', paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen, alignItems: 'center', marginBottom: 10 },
-  buildBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
-  savedBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', paddingVertical: 14, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-  savedBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.accentBlue },
-  addCityBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', paddingVertical: 12, borderRadius: Radius.md, backgroundColor: Colors.cardSurfaceAlt, marginBottom: 24, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
-  addCityText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.accentBlue },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    cancelBtn: { paddingHorizontal: 24, paddingVertical: 8 },
+    cancelText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textPrimary },
+    scrollContent: { padding: 24, alignItems: 'center' },
+    iconCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.accentBlue, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    title: { fontFamily: Typography.bodyFamilyBold, fontSize: 24, color: C.textPrimary, marginBottom: 4 },
+    subtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, marginBottom: 24 },
+    toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', backgroundColor: C.cardSurface, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 20 },
+    toggleLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
+    toggle: { width: 48, height: 28, borderRadius: 14, backgroundColor: C.border, justifyContent: 'center', paddingHorizontal: 3 },
+    toggleActive: { backgroundColor: C.accentBlue },
+    toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.textPrimary },
+    toggleThumbActive: { alignSelf: 'flex-end' },
+    sectionLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary, marginBottom: 8, alignSelf: 'center' },
+    durationRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
+    durationBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
+    durationCenter: { alignItems: 'center' },
+    durationNum: { fontFamily: Typography.bodyFamilyBold, fontSize: 36, color: C.textPrimary },
+    durationLabel: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary },
+    destinationRow: { flexDirection: 'row', alignItems: 'center', width: '100%', backgroundColor: C.cardSurface, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 14, gap: 8, marginBottom: 4 },
+    destInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, padding: 0 },
+    cityDropdown: { width: '100%', backgroundColor: C.cardSurface, borderRadius: Radius.md, borderWidth: 1, borderColor: C.border, marginBottom: 16, overflow: 'hidden' },
+    cityDropdownItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    cityDropdownText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textPrimary },
+    occasionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    occasionRow: { gap: 12, marginBottom: 24, paddingHorizontal: 4 },
+    occasionChip: { alignItems: 'center', gap: 6, width: 72 },
+    occasionChipActive: {},
+    occasionIcon: { width: 52, height: 52, borderRadius: 16, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
+    occasionIconActive: { backgroundColor: C.cardSurface, borderWidth: 2, borderColor: C.accentBlue },
+    occasionLabel: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary },
+    occasionLabelActive: { fontFamily: Typography.bodyFamilyBold, color: C.accentBlue },
+    buildBtn: { width: '100%', paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: C.accentGreen, alignItems: 'center', marginBottom: 10 },
+    buildBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.background },
+    savedBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', paddingVertical: 14, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    savedBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.accentBlue },
+    addCityBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', paddingVertical: 12, borderRadius: Radius.md, backgroundColor: C.cardSurfaceAlt, marginBottom: 24, borderWidth: 1, borderColor: C.border, borderStyle: 'dashed' },
+    addCityText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentBlue },
+  });
+}

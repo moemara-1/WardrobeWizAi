@@ -1,6 +1,7 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { Gem, Puzzle, Shirt } from 'lucide-react-native';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface AddMenuPopoverProps {
@@ -15,6 +16,8 @@ const MENU_ITEMS = [
 ] as const;
 
 export function AddMenuPopover({ onClose, onSelect }: AddMenuPopoverProps) {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -36,45 +39,47 @@ export function AddMenuPopover({ onClose, onSelect }: AddMenuPopoverProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-  },
-  menu: {
-    position: 'absolute',
-    left: 20,
-    bottom: 180,
-    backgroundColor: Colors.cardSurface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: 6,
-    minWidth: 185,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-  },
-  menuIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.cardSurfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuLabel: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 14,
-    color: Colors.textPrimary,
-  },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.25)',
+    },
+    menu: {
+      position: 'absolute',
+      left: 20,
+      bottom: 180,
+      backgroundColor: C.cardSurface,
+      borderRadius: Radius.lg,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingVertical: 6,
+      minWidth: 185,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 12,
+    },
+    menuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+    },
+    menuIconCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: C.cardSurfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    menuLabel: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 14,
+      color: C.textPrimary,
+    },
+  });
+}

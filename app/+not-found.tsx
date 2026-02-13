@@ -1,8 +1,12 @@
+import { Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { Link, Stack } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors, Typography } from '@/constants/Colors';
+import { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function NotFoundScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
@@ -16,26 +20,11 @@ export default function NotFoundScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: Colors.background,
-  },
-  title: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 20,
-    color: Colors.textPrimary,
-  },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
-  },
-  linkText: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 14,
-    color: Colors.accentBlue,
-  },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: C.background },
+    title: { fontFamily: Typography.bodyFamilyMedium, fontSize: 20, color: C.textPrimary },
+    link: { marginTop: 15, paddingVertical: 15 },
+    linkText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.accentBlue },
+  });
+}

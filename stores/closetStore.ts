@@ -1,17 +1,16 @@
-import { ClosetItem, ClothingCategory, DigitalTwin, Outfit } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { ClosetItem, ClothingCategory, DigitalTwin, Outfit, SavedFit } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 /** Generate a unique ID using timestamp + random suffix to avoid collisions */
-function generateId(prefix: string = 'item'): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
-  return `${prefix}_${timestamp}_${random}`;
+export function generateId(prefix: string = 'item'): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    return `${prefix}_${timestamp}_${random}`;
 }
 
-export { generateId };
 
 interface ClosetState {
     // Auth
@@ -36,6 +35,17 @@ interface ClosetState {
     digitalTwin: DigitalTwin | null;
     twinGenerating: boolean;
     twinProgress: string | null;
+
+    // Saved Fits
+    savedFits: SavedFit[];
+
+    // Canvas pass-through (item detail -> stylist)
+    canvasItem: { slot: string; item: ClosetItem } | null;
+    setCanvasItem: (slot: string, item: ClosetItem) => void;
+    clearCanvasItem: () => void;
+    canvasOutfit: Outfit | null;
+    setCanvasOutfit: (outfit: Outfit) => void;
+    clearCanvasOutfit: () => void;
 
     // Actions
     setUserId: (id: string | null) => void;
@@ -62,6 +72,9 @@ interface ClosetState {
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     clearFilters: () => void;
+
+    addSavedFit: (fit: SavedFit) => void;
+    deleteSavedFit: (id: string) => void;
 }
 
 // ─── Supabase Sync (fire-and-forget, offline-first) ───
@@ -133,7 +146,12 @@ const syncToSupabase = {
             await supabase.from('digital_twins').upsert({
                 id: twin.id || `twin_${userId}`,
                 user_id: userId,
-                image_url: twin.twin_image_url,
+                selfie_url: twin.selfie_url || '',
+                body_url: twin.body_url || null,
+                twin_image_url: twin.twin_image_url,
+                skin_color: twin.skin_color || null,
+                hair_color: twin.hair_color || null,
+                additional_details: twin.additional_details || null,
                 ai_description: twin.ai_description || null,
                 body_type: twin.body_type || null,
                 style_recommendations: twin.style_recommendations || null,
@@ -145,121 +163,134 @@ const syncToSupabase = {
 };
 
 export const useClosetStore = create<ClosetState>()(
-  persist(
-    (set, get) => ({
-    // Initial state
-    userId: null,
-    items: [],
-    selectedItem: null,
-    isLoading: false,
-    error: null,
-    searchQuery: '',
-    categoryFilter: null,
-    colorFilter: null,
-    outfits: [],
-    selectedOutfit: null,
-    digitalTwin: null,
-    twinGenerating: false,
-    twinProgress: null,
+    persist(
+        (set, get) => ({
+            // Initial state
+            userId: null,
+            items: [],
+            selectedItem: null,
+            isLoading: false,
+            error: null,
+            searchQuery: '',
+            categoryFilter: null,
+            colorFilter: null,
+            outfits: [],
+            selectedOutfit: null,
+            digitalTwin: null,
+            twinGenerating: false,
+            twinProgress: null,
+            canvasItem: null,
+            canvasOutfit: null,
+            savedFits: [],
 
-    // Auth actions
-    setUserId: (id) => set({ userId: id }),
+            // Auth actions
+            setUserId: (id) => set({ userId: id }),
 
-    // Item actions
-    setItems: (items) => set({ items }),
+            // Item actions
+            setItems: (items) => set({ items }),
 
-    addItem: (item) => {
-        set((state) => ({ items: [item, ...state.items] }));
-        const userId = get().userId;
-        if (userId) syncToSupabase.upsertItem(item, userId);
-    },
+            addItem: (item) => {
+                set((state) => ({ items: [item, ...state.items] }));
+                const userId = get().userId;
+                if (userId) syncToSupabase.upsertItem(item, userId);
+            },
 
-    updateItem: (id, updates) => {
-        set((state) => ({
-            items: state.items.map((item) =>
-                item.id === id ? { ...item, ...updates, updated_at: new Date().toISOString() } : item
-            ),
-            selectedItem: state.selectedItem?.id === id
-                ? { ...state.selectedItem, ...updates }
-                : state.selectedItem,
-        }));
-        const state = get();
-        const userId = state.userId;
-        const updated = state.items.find(i => i.id === id);
-        if (userId && updated) syncToSupabase.upsertItem(updated, userId);
-    },
+            updateItem: (id, updates) => {
+                set((state) => ({
+                    items: state.items.map((item) =>
+                        item.id === id ? { ...item, ...updates, updated_at: new Date().toISOString() } : item
+                    ),
+                    selectedItem: state.selectedItem?.id === id
+                        ? { ...state.selectedItem, ...updates }
+                        : state.selectedItem,
+                }));
+                const state = get();
+                const userId = state.userId;
+                const updated = state.items.find(i => i.id === id);
+                if (userId && updated) syncToSupabase.upsertItem(updated, userId);
+            },
 
-    deleteItem: (id) => {
-        set((state) => ({
-            items: state.items.filter((item) => item.id !== id),
-            selectedItem: state.selectedItem?.id === id ? null : state.selectedItem,
-        }));
-        const userId = get().userId;
-        if (userId) syncToSupabase.deleteItem(id);
-    },
+            deleteItem: (id) => {
+                set((state) => ({
+                    items: state.items.filter((item) => item.id !== id),
+                    selectedItem: state.selectedItem?.id === id ? null : state.selectedItem,
+                }));
+                const userId = get().userId;
+                if (userId) syncToSupabase.deleteItem(id);
+            },
 
-    selectItem: (item) => set({ selectedItem: item }),
+            selectItem: (item) => set({ selectedItem: item }),
 
-    // Outfit actions
-    setOutfits: (outfits) => set({ outfits }),
+            // Outfit actions
+            setOutfits: (outfits) => set({ outfits }),
 
-    addOutfit: (outfit) => {
-        set((state) => ({ outfits: [outfit, ...state.outfits] }));
-        const userId = get().userId;
-        if (userId) syncToSupabase.upsertOutfit(outfit, userId);
-    },
+            addOutfit: (outfit) => {
+                set((state) => ({ outfits: [outfit, ...state.outfits] }));
+                const userId = get().userId;
+                if (userId) syncToSupabase.upsertOutfit(outfit, userId);
+            },
 
-    deleteOutfit: (id) => {
-        set((state) => ({
-            outfits: state.outfits.filter((outfit) => outfit.id !== id),
-        }));
-        const userId = get().userId;
-        if (userId) syncToSupabase.deleteOutfit(id);
-    },
+            deleteOutfit: (id) => {
+                set((state) => ({
+                    outfits: state.outfits.filter((outfit) => outfit.id !== id),
+                }));
+                const userId = get().userId;
+                if (userId) syncToSupabase.deleteOutfit(id);
+            },
 
-    selectOutfit: (outfit) => set({ selectedOutfit: outfit }),
+            selectOutfit: (outfit) => set({ selectedOutfit: outfit }),
 
-    // Digital Twin actions
-    setDigitalTwin: (twin) => {
-        set({ digitalTwin: twin });
-        const userId = get().userId;
-        if (userId) syncToSupabase.upsertDigitalTwin(twin, userId);
-    },
-    clearDigitalTwin: () => set({ digitalTwin: null }),
-    setTwinGenerating: (generating) => set({ twinGenerating: generating }),
-    setTwinProgress: (progress) => set({ twinProgress: progress }),
+            // Digital Twin actions
+            setDigitalTwin: (twin) => {
+                set({ digitalTwin: twin });
+                const userId = get().userId;
+                if (userId) syncToSupabase.upsertDigitalTwin(twin, userId);
+            },
+            clearDigitalTwin: () => set({ digitalTwin: null }),
+            setTwinGenerating: (generating) => set({ twinGenerating: generating }),
+            setTwinProgress: (progress) => set({ twinProgress: progress }),
 
-    // Filter actions
-    setSearchQuery: (query) => set({ searchQuery: query }),
-    setCategoryFilter: (category) => set({ categoryFilter: category }),
-    setColorFilter: (color) => set({ colorFilter: color }),
+            // Canvas pass-through
+            setCanvasItem: (slot, item) => set({ canvasItem: { slot, item } }),
+            clearCanvasItem: () => set({ canvasItem: null }),
+            setCanvasOutfit: (outfit) => set({ canvasOutfit: outfit }),
+            clearCanvasOutfit: () => set({ canvasOutfit: null }),
 
-    clearFilters: () => set({
-        searchQuery: '',
-        categoryFilter: null,
-        colorFilter: null
-    }),
+            // Filter actions
+            setSearchQuery: (query) => set({ searchQuery: query }),
+            setCategoryFilter: (category) => set({ categoryFilter: category }),
+            setColorFilter: (color) => set({ colorFilter: color }),
 
-    // UI state
-    setLoading: (loading) => set({ isLoading: loading }),
-    setError: (error) => set({ error }),
-    }),
-    {
-      name: 'closet-storage',
-      version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        items: state.items,
-        outfits: state.outfits,
-        digitalTwin: state.digitalTwin,
-      }),
-      migrate: (persisted: unknown, _version: number) => {
-        // Future migrations go here
-        // if (_version === 0) { /* migrate v0 → v1 */ }
-        return persisted as Partial<ClosetState>;
-      },
-    },
-  ),
+            clearFilters: () => set({
+                searchQuery: '',
+                categoryFilter: null,
+                colorFilter: null
+            }),
+
+            setLoading: (loading) => set({ isLoading: loading }),
+            setError: (error) => set({ error }),
+
+            // Saved Fits
+            addSavedFit: (fit) => set((state) => ({ savedFits: [fit, ...state.savedFits] })),
+            deleteSavedFit: (id) => set((state) => ({ savedFits: state.savedFits.filter((f) => f.id !== id) })),
+        }),
+        {
+            name: 'closet-storage',
+            version: 1,
+            storage: createJSONStorage(() => AsyncStorage),
+            partialize: (state) => ({
+                items: state.items,
+                outfits: state.outfits,
+                digitalTwin: state.digitalTwin,
+                savedFits: state.savedFits,
+            }),
+            migrate: (persisted: unknown, _version: number) => {
+                // Future migrations go here
+                // if (_version === 0) { /* migrate v0 → v1 */ }
+                return persisted as Partial<ClosetState>;
+            },
+        },
+    ),
 );
 
 // ─── Hydrate from Supabase ───
@@ -320,16 +351,21 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
 
         if (twinRes.data) {
             const row = twinRes.data as any;
+            // Preserve the local selfie_url if DB doesn't have it
+            // (selfie may be a local file URI stored only in zustand persist)
+            const existingTwin = store.digitalTwin;
             store.setDigitalTwin({
                 id: row.id,
                 user_id: row.user_id,
-                selfie_url: '',
-                skin_color: '',
-                hair_color: '',
+                selfie_url: row.selfie_url || existingTwin?.selfie_url || '',
+                body_url: row.body_url || existingTwin?.body_url,
+                skin_color: row.skin_color || existingTwin?.skin_color || '',
+                hair_color: row.hair_color || existingTwin?.hair_color || '',
+                additional_details: row.additional_details,
                 ai_description: row.ai_description || '',
                 body_type: row.body_type,
                 style_recommendations: row.style_recommendations,
-                twin_image_url: row.image_url,
+                twin_image_url: row.twin_image_url || row.image_url || existingTwin?.twin_image_url || '',
                 created_at: row.created_at,
                 updated_at: row.updated_at,
             });

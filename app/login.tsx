@@ -1,28 +1,33 @@
-import React, { useState } from 'react';
+import { Radius, Typography } from '@/constants/Colors';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeColors } from '@/contexts/ThemeContext';
+import * as Haptics from 'expo-haptics';
+import { ArrowLeft, CheckCircle, Eye, EyeOff, Lock, Mail, Sparkles } from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import { Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react-native';
-import { Colors, Radius, Typography } from '@/constants/Colors';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { signInWithEmail, signUpWithEmail, signInWithApple, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const handleEmailAuth = async () => {
     if (!email.trim() || !password.trim()) {
@@ -41,8 +46,10 @@ export default function LoginScreen() {
       if (mode === 'login') {
         await signInWithEmail(email, password);
       } else {
-        await signUpWithEmail(email, password);
-        Alert.alert('Check Your Email', 'We sent a confirmation link to your email address.');
+        const { needsConfirmation } = await signUpWithEmail(email, password);
+        if (needsConfirmation) {
+          setConfirmationSent(true);
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Something went wrong.';
@@ -63,11 +70,64 @@ export default function LoginScreen() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Something went wrong.';
-      Alert.alert('Sign In Failed', message);
+      if (!message.includes('canceled') && !message.includes('cancelled') && !message.includes('dismiss')) {
+        Alert.alert('Sign In Failed', message);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // Confirmation email sent screen
+  if (confirmationSent) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.confirmationView}>
+            <View style={styles.confirmationIcon}>
+              <CheckCircle size={48} color={Colors.accentGreen} />
+            </View>
+            <Text style={styles.confirmationTitle}>Check your email</Text>
+            <Text style={styles.confirmationEmail}>{email}</Text>
+            <Text style={styles.confirmationDesc}>
+              We sent a confirmation link to your email.{'\n'}
+              Tap the link to verify your account, then come back here to sign in.
+            </Text>
+
+            <View style={styles.confirmationTips}>
+              <Text style={styles.tipHeader}>Can't find it?</Text>
+              <Text style={styles.tipText}>• Check your spam or junk folder</Text>
+              <Text style={styles.tipText}>• The email comes from noreply@mail.app.supabase.io</Text>
+              <Text style={styles.tipText}>• It may take a minute to arrive</Text>
+            </View>
+
+            <Pressable
+              style={styles.openMailBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL('message://');
+              }}
+            >
+              <Mail size={18} color={Colors.background} />
+              <Text style={styles.openMailText}>Open Mail App</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.backToLoginBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setConfirmationSent(false);
+                setMode('login');
+              }}
+            >
+              <ArrowLeft size={16} color={Colors.accentGreen} />
+              <Text style={styles.backToLoginText}>Back to Sign In</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -178,105 +238,51 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  safeArea: { flex: 1 },
-  keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    safeArea: { flex: 1 },
+    keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
 
-  header: { alignItems: 'center', marginBottom: 40 },
-  title: {
-    fontFamily: Typography.serifFamilyBold,
-    fontSize: 32,
-    color: Colors.textPrimary,
-    marginTop: 12,
-  },
-  subtitle: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 15,
-    color: Colors.textSecondary,
-    marginTop: 6,
-  },
+    header: { alignItems: 'center', marginBottom: 40 },
+    title: { fontFamily: Typography.serifFamilyBold, fontSize: 32, color: C.textPrimary, marginTop: 12 },
+    subtitle: { fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textSecondary, marginTop: 6 },
 
-  form: { gap: 12 },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.cardSurfaceAlt,
-    borderRadius: Radius.input,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 14,
-    height: 52,
-  },
-  inputIcon: { marginRight: 10 },
-  input: {
-    flex: 1,
-    fontFamily: Typography.bodyFamily,
-    fontSize: 15,
-    color: Colors.textPrimary,
-    padding: 0,
-  },
-  eyeBtn: { padding: 4 },
+    form: { gap: 12 },
+    inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.input, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, height: 52 },
+    inputIcon: { marginRight: 10 },
+    input: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, padding: 0 },
+    eyeBtn: { padding: 4 },
 
-  primaryBtn: {
-    height: 52,
-    borderRadius: Radius.pill,
-    backgroundColor: Colors.accentGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  btnDisabled: { opacity: 0.6 },
-  primaryBtnText: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 16,
-    color: '#FFF',
-  },
+    primaryBtn: { height: 52, borderRadius: Radius.pill, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+    btnDisabled: { opacity: 0.6 },
+    primaryBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
 
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  dividerText: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 13,
-    color: Colors.textTertiary,
-    marginHorizontal: 12,
-  },
+    dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: C.border },
+    dividerText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary, marginHorizontal: 12 },
 
-  socialRow: { flexDirection: 'row', gap: 12 },
-  socialBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 48,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.cardSurfaceAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 8,
-  },
-  socialBtnIcon: {
-    fontSize: 22,
-    color: Colors.textPrimary,
-  },
-  socialBtnText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
+    socialRow: { flexDirection: 'row', gap: 12 },
+    socialBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: Radius.lg, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border, gap: 8 },
+    socialBtnIcon: { fontSize: 22, color: C.textPrimary },
+    socialBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textPrimary },
 
-  toggleRow: { alignItems: 'center', marginTop: 24 },
-  toggleText: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  toggleLink: {
-    fontFamily: Typography.bodyFamilyBold,
-    color: Colors.accentGreen,
-  },
-});
+    toggleRow: { alignItems: 'center', marginTop: 24 },
+    toggleText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary },
+    toggleLink: { fontFamily: Typography.bodyFamilyBold, color: C.accentGreen },
+
+    // Confirmation screen
+    confirmationView: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+    confirmationIcon: { marginBottom: 20 },
+    confirmationTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 26, color: C.textPrimary, marginBottom: 8 },
+    confirmationEmail: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.accentGreen, marginBottom: 16 },
+    confirmationDesc: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+    confirmationTips: { width: '100%', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, padding: 16, gap: 6, marginBottom: 24 },
+    tipHeader: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.textPrimary, marginBottom: 4 },
+    tipText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary, lineHeight: 18 },
+    openMailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: Radius.pill, backgroundColor: C.accentGreen, width: '100%', marginBottom: 16 },
+    openMailText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.background },
+    backToLoginBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
+    backToLoginText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentGreen },
+  });
+}

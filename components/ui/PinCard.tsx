@@ -1,7 +1,8 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { Image } from 'expo-image';
 import { Heart } from 'lucide-react-native';
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -26,6 +27,8 @@ function PinCardComponent({
   height = 200,
   onPress,
 }: PinCardProps) {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   return (
     <Pressable style={[styles.card, { width: CARD_WIDTH }]} onPress={onPress}>
       <Image
@@ -40,9 +43,7 @@ function PinCardComponent({
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]} />
           )}
-          <Text style={styles.username} numberOfLines={1}>
-            {username}
-          </Text>
+          <Text style={styles.username} numberOfLines={1}>{username}</Text>
         </View>
         <View style={styles.likesRow}>
           <Heart size={12} color={Colors.textSecondary} strokeWidth={2} />
@@ -55,50 +56,16 @@ function PinCardComponent({
 
 export const PinCard = memo(PinCardComponent);
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.cardSurface,
-    borderRadius: Radius.md,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  image: {
-    width: '100%',
-  },
-  footer: {
-    padding: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 6,
-  },
-  avatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-  },
-  avatarPlaceholder: {
-    backgroundColor: Colors.borderLight,
-  },
-  username: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 12,
-    color: Colors.textSecondary,
-    flex: 1,
-  },
-  likesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  likesText: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    card: { backgroundColor: C.cardSurface, borderRadius: Radius.md, overflow: 'hidden', marginBottom: 12 },
+    image: { width: '100%' },
+    footer: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    userRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 },
+    avatar: { width: 20, height: 20, borderRadius: 10 },
+    avatarPlaceholder: { backgroundColor: C.borderLight },
+    username: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary, flex: 1 },
+    likesRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    likesText: { fontFamily: Typography.bodyFamily, fontSize: 11, color: C.textSecondary },
+  });
+}

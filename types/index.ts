@@ -130,3 +130,12 @@ export interface OutfitGenerationRequest {
     weather_temp?: number;
     exclude_items?: string[];
 }
+
+export interface SavedFit {
+    id: string;
+    image_url: string;
+    item_ids: string[];
+    scene: string;
+    prompt: string;
+    created_at: string;
+}

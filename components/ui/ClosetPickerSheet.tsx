@@ -1,4 +1,5 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -54,6 +55,9 @@ export function ClosetPickerSheet({
   multiSelect = false,
   title = 'Add from Closet',
 }: ClosetPickerSheetProps) {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
+
   const items = useClosetStore((s) => s.items);
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState<ClothingCategory | 'all'>(filterCategory || 'all');
@@ -195,28 +199,30 @@ export function ClosetPickerSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
-  doneBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen },
-  doneBtnDisabled: { backgroundColor: Colors.cardSurfaceAlt },
-  doneText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.background },
-  doneTextDisabled: { color: Colors.textTertiary },
-  searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.input, gap: 8, borderWidth: 1, borderColor: Colors.border },
-  searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, padding: 0 },
-  pillRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 6, paddingBottom: 12 },
-  pill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-  pillActive: { backgroundColor: Colors.textPrimary, borderColor: Colors.textPrimary },
-  pillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textSecondary },
-  pillTextActive: { color: Colors.background },
-  grid: { paddingHorizontal: 16, paddingBottom: 100 },
-  gridRow: { gap: GRID_GAP },
-  gridItem: { width: ITEM_SIZE, marginBottom: GRID_GAP, alignItems: 'center', position: 'relative' },
-  gridImage: { width: ITEM_SIZE, height: ITEM_SIZE, borderRadius: Radius.md, backgroundColor: '#FFFFFF' },
-  gridName: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
-  checkBadge: { position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textTertiary },
-});
+function createStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+    closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
+    title: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary },
+    doneBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.accentGreen },
+    doneBtnDisabled: { backgroundColor: C.cardSurfaceAlt },
+    doneText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.background },
+    doneTextDisabled: { color: C.textTertiary },
+    searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.input, gap: 8, borderWidth: 1, borderColor: C.border },
+    searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textPrimary, padding: 0 },
+    pillRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 6, paddingBottom: 12 },
+    pill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    pillActive: { backgroundColor: C.textPrimary, borderColor: C.textPrimary },
+    pillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textSecondary },
+    pillTextActive: { color: C.background },
+    grid: { paddingHorizontal: 16, paddingBottom: 100 },
+    gridRow: { gap: GRID_GAP },
+    gridItem: { width: ITEM_SIZE, marginBottom: GRID_GAP, alignItems: 'center', position: 'relative' },
+    gridImage: { width: ITEM_SIZE, height: ITEM_SIZE, borderRadius: Radius.md, backgroundColor: '#FFFFFF' },
+    gridName: { fontFamily: Typography.bodyFamily, fontSize: 11, color: C.textSecondary, marginTop: 2, textAlign: 'center' },
+    checkBadge: { position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center' },
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    emptyText: { fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textTertiary },
+  });
+}

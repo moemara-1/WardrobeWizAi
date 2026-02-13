@@ -1,8 +1,9 @@
 import { AddMenuPopover } from '@/components/ui/AddMenuPopover';
 import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
-import { Colors, Radius, Typography } from '@/constants/Colors';
-import { generateDigitalTwin } from '@/lib/ai';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
+import { generateOutfitTwin, OutfitTwinItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, Outfit } from '@/types';
@@ -10,30 +11,30 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import {
-    Bookmark,
-    BookmarkCheck,
-    Dices,
-    Plus,
-    Send,
-    SlidersHorizontal,
-    Sparkles
+  Bookmark,
+  BookmarkCheck,
+  Dices,
+  Plus,
+  Send,
+  SlidersHorizontal,
+  Sparkles
 } from 'lucide-react-native';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    PanResponder,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -46,8 +47,13 @@ const OUTFIT_SLOTS: { slot: GarmentSlot; label: string; heightRatio: number; cat
 ];
 
 export default function StylistScreen() {
+  const Colors = useThemeColors();
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [styleFilter, setStyleFilter] = useState<string[]>([]);
+  const [colorFilter, setColorFilter] = useState<string[]>([]);
+  const [weatherFilter, setWeatherFilter] = useState<string[]>([]);
+  const [layoutFilter, setLayoutFilter] = useState('4pieces');
   const [showClosetPicker, setShowClosetPicker] = useState(false);
   const [closetPickerCategory, setClosetPickerCategory] = useState<ClothingCategory | undefined>();
   const [closetPickerTitle, setClosetPickerTitle] = useState('Add from Closet');
@@ -69,6 +75,47 @@ export default function StylistScreen() {
   const setTwinGenerating = useClosetStore((s) => s.setTwinGenerating);
   const setTwinProgress = useClosetStore((s) => s.setTwinProgress);
   const setDigitalTwin = useClosetStore((s) => s.setDigitalTwin);
+  const canvasItem = useClosetStore((s) => s.canvasItem);
+  const clearCanvasItem = useClosetStore((s) => s.clearCanvasItem);
+  const canvasOutfit = useClosetStore((s) => s.canvasOutfit);
+  const clearCanvasOutfit = useClosetStore((s) => s.clearCanvasOutfit);
+
+  const styles = useMemo(() => createStylistStyles(Colors), [Colors]);
+
+  // Consume canvasItem passed from item detail "Try on Canvas"
+  useEffect(() => {
+    if (canvasItem) {
+      const { slot, item: passedItem } = canvasItem;
+      const slotItems = itemsBySlot[slot as GarmentSlot];
+      const idx = slotItems.findIndex((i) => i.id === passedItem.id);
+      if (idx >= 0) {
+        setSlotIndices((prev) => ({ ...prev, [slot]: idx }));
+      }
+      clearCanvasItem();
+    }
+  }, [canvasItem]);
+
+  // Consume canvasOutfit passed from closet fits "Load to Canvas"
+  useEffect(() => {
+    if (canvasOutfit) {
+      const resolvedItems = canvasOutfit.item_ids
+        .map((oid) => items.find((i) => i.id === oid))
+        .filter(Boolean) as ClosetItem[];
+
+      const newIndices = { ...slotIndices };
+      for (const piece of resolvedItems) {
+        const slot = classifyGarmentSlot(piece.category, piece.garment_type || undefined);
+        // Outfit slots by category
+        const slotItems = itemsBySlot[slot];
+        const idx = slotItems.findIndex((i) => i.id === piece.id);
+        if (idx >= 0) {
+          newIndices[slot] = idx;
+        }
+      }
+      setSlotIndices(newIndices);
+      clearCanvasOutfit();
+    }
+  }, [canvasOutfit]);
 
   // Group closet items by garment slot
   const itemsBySlot = useMemo(() => {
@@ -82,13 +129,94 @@ export default function StylistScreen() {
     return grouped;
   }, [items]);
 
+  // Multi-filter item scoring (style + color + weather)
+  const filteredItemsBySlot = useMemo(() => {
+    const hasFilters = styleFilter.length > 0 || colorFilter.length > 0 || weatherFilter.length > 0;
+    if (!hasFilters) return itemsBySlot;
+
+    // Style tags
+    const styleTags: Record<string, string[]> = {
+      casual: ['casual', 'everyday', 'relaxed', 'basic'],
+      streetwear: ['street', 'streetwear', 'urban', 'graphic', 'oversized'],
+      'smart-casual': ['smart', 'polished', 'chino', 'blazer', 'loafer'],
+      athleisure: ['athletic', 'sport', 'gym', 'jogger', 'sneaker', 'track'],
+      formal: ['formal', 'dress', 'suit', 'elegant', 'tailored'],
+      'going-out': ['going out', 'night', 'party', 'club', 'evening', 'glam'],
+    };
+
+    // Color palette families
+    const colorFamilies: Record<string, string[]> = {
+      light: ['white', 'cream', 'beige', 'ivory', 'light', 'pastel', 'lavender', 'pink', 'sky'],
+      dark: ['black', 'navy', 'charcoal', 'dark', 'deep', 'midnight'],
+      bright: ['red', 'orange', 'yellow', 'bright', 'neon', 'vivid', 'electric'],
+      monochrome: ['black', 'white', 'grey', 'gray', 'charcoal', 'silver'],
+      colorful: ['multicolor', 'pattern', 'print', 'colorful', 'stripe', 'plaid', 'floral'],
+    };
+
+    // Weather tags
+    const weatherTags: Record<string, string[]> = {
+      cold: ['winter', 'warm', 'cozy', 'wool', 'fleece', 'heavy'],
+      warm: ['spring', 'fall', 'light', 'layer', 'cotton'],
+      hot: ['summer', 'light', 'breathable', 'linen', 'short'],
+      snow: ['winter', 'waterproof', 'insulated', 'warm', 'heavy'],
+      rain: ['waterproof', 'rain', 'resistant'],
+      indoor: ['casual', 'comfort', 'lounge'],
+      transitional: ['layer', 'versatile', 'light'],
+    };
+
+    const activeStyleTags = styleFilter.flatMap(s => styleTags[s] || []);
+    const activeColorTags = colorFilter.flatMap(c => colorFamilies[c] || []);
+    const activeWeatherTags = weatherFilter.flatMap(w => weatherTags[w] || []);
+
+    const filtered: Record<GarmentSlot, ClosetItem[]> = {
+      headwear: [], top: [], bottom: [], footwear: [], accessory: [], 'full-body': [], unknown: [],
+    };
+
+    for (const [slot, slotItems] of Object.entries(itemsBySlot)) {
+      const scored = slotItems.map(item => {
+        const itemTags = [...(item.tags || []), item.category, item.garment_type || ''].map(t => t.toLowerCase());
+        const itemColors = (item.colors || []).map(c => c.toLowerCase());
+        const allSearchable = [...itemTags, ...itemColors, (item.name || '').toLowerCase()];
+
+        let score = 0;
+        if (activeStyleTags.length > 0)
+          score += activeStyleTags.filter(tag => allSearchable.some(s => s.includes(tag))).length;
+        if (activeColorTags.length > 0)
+          score += activeColorTags.filter(tag => allSearchable.some(s => s.includes(tag))).length;
+        if (activeWeatherTags.length > 0)
+          score += activeWeatherTags.filter(tag => allSearchable.some(s => s.includes(tag))).length;
+
+        return { item, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      filtered[slot as GarmentSlot] = scored.map(s => s.item);
+    }
+
+    return filtered;
+  }, [itemsBySlot, styleFilter, colorFilter, weatherFilter]);
+
+  // Determine visible slots based on layout filter
+  const visibleSlots = useMemo(() => {
+    switch (layoutFilter) {
+      case '3pieces':
+        return OUTFIT_SLOTS.filter(s => s.slot !== 'headwear');
+      case '2pieces':
+        return OUTFIT_SLOTS.filter(s => s.slot === 'top' || s.slot === 'bottom');
+      case 'full':
+        return [{ slot: 'full-body' as GarmentSlot, label: 'Full Outfit', heightRatio: 1.0, category: 'dress' as ClothingCategory }];
+      case '4pieces':
+      default:
+        return OUTFIT_SLOTS;
+    }
+  }, [layoutFilter]);
+
   // Get currently selected item for each slot
   const getSlotItem = useCallback((slot: GarmentSlot): ClosetItem | null => {
-    const slotItems = itemsBySlot[slot];
+    const slotItems = filteredItemsBySlot[slot];
     if (slotItems.length === 0) return null;
     const idx = slotIndices[slot] % slotItems.length;
     return slotItems[idx] || null;
-  }, [itemsBySlot, slotIndices]);
+  }, [filteredItemsBySlot, slotIndices]);
 
   // Swipe to next/prev item in a slot with animation
   const swipeAnimValues = useRef<Record<string, Animated.Value>>(
@@ -97,7 +225,7 @@ export default function StylistScreen() {
 
   const swipeSlot = useCallback((slot: GarmentSlot, direction: 1 | -1) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const count = itemsBySlot[slot].length;
+    const count = filteredItemsBySlot[slot].length;
     if (count === 0) return;
     const anim = swipeAnimValues[slot];
     // Animate out
@@ -121,13 +249,13 @@ export default function StylistScreen() {
         friction: 14,
       }).start();
     });
-  }, [itemsBySlot, swipeAnimValues]);
+  }, [filteredItemsBySlot, swipeAnimValues]);
 
   // Pan responders for each slot to detect horizontal swipes
   const swipeSlotRef = useRef(swipeSlot);
   swipeSlotRef.current = swipeSlot;
-  const itemsBySlotRef = useRef(itemsBySlot);
-  itemsBySlotRef.current = itemsBySlot;
+  const itemsBySlotRef = useRef(filteredItemsBySlot);
+  itemsBySlotRef.current = filteredItemsBySlot;
 
   const slotPanResponders = useMemo(() => {
     const responders: Record<string, ReturnType<typeof PanResponder.create>> = {};
@@ -160,8 +288,8 @@ export default function StylistScreen() {
   }, [getSlotItem]);
 
   const hasAnyItems = useMemo(() =>
-    OUTFIT_SLOTS.some(({ slot }) => itemsBySlot[slot].length > 0),
-    [itemsBySlot]
+    visibleSlots.some(({ slot }) => filteredItemsBySlot[slot].length > 0),
+    [filteredItemsBySlot, visibleSlots]
   );
 
   // Randomize: pick random index for each slot
@@ -176,15 +304,15 @@ export default function StylistScreen() {
 
     setIsGenerating(true);
     const newIndices = { ...slotIndices };
-    for (const { slot } of OUTFIT_SLOTS) {
-      const count = itemsBySlot[slot].length;
+    for (const { slot } of visibleSlots) {
+      const count = filteredItemsBySlot[slot].length;
       if (count > 0) {
         newIndices[slot] = Math.floor(Math.random() * count);
       }
     }
     setSlotIndices(newIndices);
     setTimeout(() => setIsGenerating(false), 300);
-  }, [hasAnyItems, itemsBySlot, slotIndices]);
+  }, [hasAnyItems, filteredItemsBySlot, visibleSlots, slotIndices]);
 
   // Save current outfit
   const handleSave = useCallback(() => {
@@ -276,51 +404,48 @@ export default function StylistScreen() {
 
   const handleSend = useCallback(async () => {
     if (!chatMessage.trim() && currentOutfitItems.length === 0) return;
-    if (!digitalTwin?.selfie_url) {
-      Alert.alert('Set up twin first', 'Go to your profile and add a selfie photo before generating an AI twin.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Set Up', onPress: () => router.push('/digital-twin' as Href) },
-      ]);
+    if (!digitalTwin?.twin_image_url) {
+      Alert.alert(
+        'Generate your twin first',
+        'Go to your profile and create a digital twin before trying on outfits.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Set Up', onPress: () => router.push('/digital-twin' as Href) },
+        ],
+      );
       return;
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Build outfit description for the twin
-    const outfitDesc = currentOutfitItems.map(i => `${i.name} (${i.category})`).join(', ');
-    const accessoryDesc = selectedAccessories.length > 0
-      ? ' with accessories: ' + selectedAccessories.map(a => a.name).join(', ')
-      : '';
-    const scenePrompt = chatMessage.trim();
-    const fullDetails = [
-      outfitDesc ? `Wearing: ${outfitDesc}${accessoryDesc}` : '',
-      scenePrompt ? `Scene: ${scenePrompt}` : '',
-    ].filter(Boolean).join('. ');
+    // Build outfit items list with their images for the AI
+    const allItems = [...currentOutfitItems, ...selectedAccessories];
+    const outfitItemsForAI: OutfitTwinItem[] = allItems.map(item => ({
+      name: item.name,
+      category: item.category,
+      imageUri: item.clean_image_url || item.image_url,
+    }));
 
+    const scenePrompt = chatMessage.trim() || undefined;
     setChatMessage('');
 
     // Generate in background
     setTwinGenerating(true);
-    setTwinProgress('Building your AI twin with this fit...');
+    setTwinProgress('Dressing your twin in this fit...');
 
     try {
-      const result = await generateDigitalTwin(
-        digitalTwin.selfie_url,
-        digitalTwin.skin_color || '#C48C5C',
-        digitalTwin.hair_color || '#2C1A0E',
-        fullDetails,
-        digitalTwin.body_url,
+      const newTwinImageUrl = await generateOutfitTwin(
+        digitalTwin.twin_image_url,
+        outfitItemsForAI,
+        scenePrompt,
       );
 
       setDigitalTwin({
         ...digitalTwin,
-        ai_description: result.ai_description,
-        body_type: result.body_type || digitalTwin.body_type || '',
-        style_recommendations: result.style_recommendations,
-        twin_image_url: result.twin_image_url,
+        twin_image_url: newTwinImageUrl,
         updated_at: new Date().toISOString(),
       });
-      setTwinProgress('Twin generated!');
+      setTwinProgress('New fit generated!');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setTwinGenerating(false), 2000);
     } catch (e: any) {
@@ -386,8 +511,8 @@ export default function StylistScreen() {
         <View style={styles.canvas}>
           {hasAnyItems ? (
             <View style={styles.slotsColumn}>
-              {OUTFIT_SLOTS.map(({ slot, label, heightRatio, category }) => {
-                const slotItems = itemsBySlot[slot];
+              {visibleSlots.map(({ slot, label, heightRatio, category }) => {
+                const slotItems = filteredItemsBySlot[slot];
                 const currentItem = getSlotItem(slot);
 
                 return (
@@ -456,7 +581,7 @@ export default function StylistScreen() {
       </View>
 
       {/* Chat bar at bottom */}
-      <View style={styles.chatBarWrapper}>
+      <SafeAreaView edges={['bottom']} style={styles.chatBarWrapper}>
         <View style={styles.chatBar}>
           <Pressable style={styles.chatPlusBtn} onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -475,12 +600,18 @@ export default function StylistScreen() {
             <Send size={16} color={Colors.background} />
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
 
       <OutfitFilters
         visible={showFilters}
         onClose={() => setShowFilters(false)}
-        onApply={() => setShowFilters(false)}
+        onApply={(filters) => {
+          setStyleFilter(filters.style);
+          setColorFilter(filters.color);
+          setWeatherFilter(filters.weather);
+          setLayoutFilter(filters.layout);
+          setShowFilters(false);
+        }}
       />
 
       {showAddMenu && (
@@ -533,47 +664,48 @@ export default function StylistScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
-  topBarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.textPrimary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radius.pill },
-  titleText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
-  avatarCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  avatarText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textSecondary },
-  twinBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
-  twinBannerText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
-  canvasArea: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
-  canvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden', minHeight: 500 },
-  canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: Colors.textTertiary },
-  canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary, textAlign: 'center' },
-  slotsColumn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8 },
-  slotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  slotCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  slotImageWrapper: { width: '65%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  slotImagePressable: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  slotImage: { width: '100%', height: '100%' },
-  slotEmptySpace: { width: 40, height: 40 },
-  fabColumn: { position: 'absolute', right: 28, bottom: 170, gap: 12 },
-  fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#32D583', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-  fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-  fabSaved: { borderColor: Colors.accentGreen },
-  chatBarWrapper: { paddingHorizontal: 16, paddingBottom: 100, paddingTop: 4 },
-  chatBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 6, gap: 8, borderWidth: 1, borderColor: Colors.border },
-  chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurface, alignItems: 'center', justifyContent: 'center' },
-  chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textPrimary, paddingVertical: 0 },
-  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
-  // Saved fits picker
-  fitsPickerContainer: { flex: 1, backgroundColor: Colors.background },
-  fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
-  fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textSecondary },
-  fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
-  fitsPickerCard: { marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
-  fitsPickerItems: { flexDirection: 'row', marginBottom: 10 },
-  fitsPickerThumb: { width: 60, height: 60, marginRight: 8, backgroundColor: '#FFFFFF', borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-  fitsPickerImage: { width: '90%', height: '90%' },
-  fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
-  fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-});
+function createStylistStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+    topBarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+    titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.textPrimary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radius.pill },
+    titleText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.background },
+    avatarCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+    avatarText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.textSecondary },
+    twinBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: C.border },
+    twinBannerText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
+    canvasArea: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
+    canvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden' },
+    canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+    canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: C.textTertiary },
+    canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary, textAlign: 'center' },
+    slotsColumn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8 },
+    slotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+    slotCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    slotImageWrapper: { width: '65%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+    slotImagePressable: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+    slotImage: { width: '100%', height: '100%' },
+    slotEmptySpace: { width: 40, height: 40 },
+    fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },
+    fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+    fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+    fabSaved: { borderColor: C.accentGreen },
+    chatBarWrapper: { paddingHorizontal: 16, paddingBottom: 80, paddingTop: 4 },
+    chatBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 6, gap: 8, borderWidth: 1, borderColor: C.border },
+    chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.cardSurface, alignItems: 'center', justifyContent: 'center' },
+    chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textPrimary, paddingVertical: 0 },
+    sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center' },
+    fitsPickerContainer: { flex: 1, backgroundColor: C.background },
+    fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
+    fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textSecondary },
+    fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary },
+    fitsPickerCard: { marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border },
+    fitsPickerItems: { flexDirection: 'row', marginBottom: 10 },
+    fitsPickerThumb: { width: 60, height: 60, marginRight: 8, backgroundColor: '#FFFFFF', borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+    fitsPickerImage: { width: '90%', height: '90%' },
+    fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
+    fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary, marginTop: 2 },
+  });
+}
