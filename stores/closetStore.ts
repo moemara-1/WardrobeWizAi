@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { ClosetItem, ClothingCategory, DigitalTwin, Outfit, SavedFit } from '@/types';
+import { ClosetItem, ClothingCategory, DigitalTwin, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -75,6 +75,15 @@ interface ClosetState {
 
     addSavedFit: (fit: SavedFit) => void;
     deleteSavedFit: (id: string) => void;
+
+    // Posts
+    posts: UserPost[];
+    addPost: (post: UserPost) => void;
+    deletePost: (id: string) => void;
+
+    // User Profile
+    userProfile: UserProfileData;
+    updateUserProfile: (updates: Partial<UserProfileData>) => void;
 }
 
 // ─── Supabase Sync (fire-and-forget, offline-first) ───
@@ -160,6 +169,20 @@ const syncToSupabase = {
             if (__DEV__) console.warn('Sync upsertTwin failed:', e);
         }
     },
+
+    async upsertProfile(profile: UserProfileData, userId: string) {
+        try {
+            await supabase.from('profiles').upsert({
+                id: userId,
+                username: profile.username,
+                bio: profile.bio || null,
+                avatar_url: profile.pfp_url || null,
+                updated_at: new Date().toISOString(),
+            });
+        } catch (e) {
+            if (__DEV__) console.warn('Sync upsertProfile failed:', e);
+        }
+    },
 };
 
 export const useClosetStore = create<ClosetState>()(
@@ -182,6 +205,8 @@ export const useClosetStore = create<ClosetState>()(
             canvasItem: null,
             canvasOutfit: null,
             savedFits: [],
+            posts: [],
+            userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
 
             // Auth actions
             setUserId: (id) => set({ userId: id }),
@@ -273,6 +298,20 @@ export const useClosetStore = create<ClosetState>()(
             // Saved Fits
             addSavedFit: (fit) => set((state) => ({ savedFits: [fit, ...state.savedFits] })),
             deleteSavedFit: (id) => set((state) => ({ savedFits: state.savedFits.filter((f) => f.id !== id) })),
+
+            // Posts
+            addPost: (post) => set((state) => ({ posts: [post, ...state.posts] })),
+            deletePost: (id) => set((state) => ({ posts: state.posts.filter((p) => p.id !== id) })),
+
+            // User Profile
+            updateUserProfile: (updates) => {
+                set((state) => {
+                    const newProfile = { ...state.userProfile, ...updates };
+                    const userId = get().userId;
+                    if (userId) syncToSupabase.upsertProfile(newProfile, userId);
+                    return { userProfile: newProfile };
+                });
+            },
         }),
         {
             name: 'closet-storage',
@@ -283,6 +322,8 @@ export const useClosetStore = create<ClosetState>()(
                 outfits: state.outfits,
                 digitalTwin: state.digitalTwin,
                 savedFits: state.savedFits,
+                posts: state.posts,
+                userProfile: state.userProfile,
             }),
             migrate: (persisted: unknown, _version: number) => {
                 // Future migrations go here
@@ -297,10 +338,11 @@ export const useClosetStore = create<ClosetState>()(
 
 export async function hydrateFromSupabase(userId: string): Promise<void> {
     try {
-        const [itemsRes, outfitsRes, twinRes] = await Promise.all([
+        const [itemsRes, outfitsRes, twinRes, profileRes] = await Promise.all([
             supabase.from('items').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
             supabase.from('outfits').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
             supabase.from('digital_twins').select('*').eq('user_id', userId).single(),
+            supabase.from('profiles').select('*').eq('id', userId).single(),
         ]);
 
         const store = useClosetStore.getState();
@@ -368,6 +410,15 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
                 twin_image_url: row.twin_image_url || row.image_url || existingTwin?.twin_image_url || '',
                 created_at: row.created_at,
                 updated_at: row.updated_at,
+            });
+        }
+
+        if (profileRes.data) {
+            const row = profileRes.data as any;
+            store.updateUserProfile({
+                username: row.username || 'User',
+                bio: row.bio || '',
+                pfp_url: row.avatar_url || undefined,
             });
         }
     } catch (e) {

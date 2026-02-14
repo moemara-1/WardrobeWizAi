@@ -1,6 +1,5 @@
 import { AddToClosetSheet } from '@/components/ui/AddToClosetSheet';
-import { Radius, Typography } from '@/constants/Colors';
-import { useThemeColors } from '@/contexts/ThemeContext';
+import { Colors, Radius, Typography } from '@/constants/Colors';
 import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, Outfit } from '@/types';
@@ -11,16 +10,16 @@ import { router, type Href } from 'expo-router';
 import { ChevronDown, Pencil, Play, Plus, Sparkles, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  FlatList,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Dimensions,
+    FlatList,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,7 +39,6 @@ const FILTER_DEFS: { key: FilterKey; label: string }[] = [
 ];
 
 export default function ClosetScreen() {
-  const Colors = useThemeColors();
   const [activeTab, setActiveTab] = useState<ClosetTab>('pieces');
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
@@ -140,10 +138,6 @@ export default function ClosetScreen() {
     Haptics.selectionAsync();
     setSelectedFilters((prev) => ({ ...prev, [key]: prev[key] === value ? null : value }));
   };
-
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
-  const editSt = useMemo(() => createEditStyles(Colors), [Colors]);
-  const fitModalSt = useMemo(() => createFitModalStyles(Colors), [Colors]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -315,14 +309,14 @@ export default function ClosetScreen() {
           {/* Fit Detail Modal */}
           {selectedFit && (
             <Modal visible={!!selectedFit} transparent animationType="slide">
-              <View style={fitModalSt.overlay}>
-                <Pressable style={fitModalSt.backdrop} onPress={() => setSelectedFit(null)} />
-                <View style={fitModalSt.sheet}>
-                  <View style={fitModalSt.handle} />
-                  <View style={fitModalSt.header}>
+              <View style={fitModalStyles.overlay}>
+                <Pressable style={fitModalStyles.backdrop} onPress={() => setSelectedFit(null)} />
+                <View style={fitModalStyles.sheet}>
+                  <View style={fitModalStyles.handle} />
+                  <View style={fitModalStyles.header}>
                     <View>
-                      <Text style={fitModalSt.title}>{selectedFit.name}</Text>
-                      <Text style={fitModalSt.subtitle}>
+                      <Text style={fitModalStyles.title}>{selectedFit.name}</Text>
+                      <Text style={fitModalStyles.subtitle}>
                         {selectedFit.item_ids.length} pieces · {selectedFit.occasion || 'casual'}
                       </Text>
                     </View>
@@ -332,7 +326,7 @@ export default function ClosetScreen() {
                   </View>
 
                   {/* Full-size canvas preview */}
-                  <View style={fitModalSt.canvasPreview}>
+                  <View style={fitModalStyles.canvasPreview}>
                     {(() => {
                       const resolvedItems = selectedFit.item_ids
                         .map((oid) => items.find((i) => i.id === oid))
@@ -343,37 +337,35 @@ export default function ClosetScreen() {
                         .filter(Boolean) as ClosetItem[];
                       const displayPieces = bySlot.length > 0 ? bySlot : resolvedItems;
                       return displayPieces.map((piece, idx) => (
-                        <View key={piece.id} style={[fitModalSt.canvasSlot, { flex: idx === 1 ? 1.4 : 1 }]}>
-                          <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={fitModalSt.canvasImage} contentFit="contain" />
-                          <Text style={fitModalSt.slotLabel}>{piece.name}</Text>
+                        <View key={piece.id} style={[fitModalStyles.canvasSlot, { flex: idx === 1 ? 1.4 : 1 }]}>
+                          <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={fitModalStyles.canvasImage} contentFit="contain" />
+                          <Text style={fitModalStyles.slotLabel}>{piece.name}</Text>
                         </View>
                       ));
                     })()}
                   </View>
 
-                  <View style={fitModalSt.actions}>
-                    <Pressable style={fitModalSt.loadBtn} onPress={() => {
+                  <View style={fitModalStyles.actions}>
+                    <Pressable style={fitModalStyles.loadBtn} onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                       setCanvasOutfit(selectedFit);
                       setSelectedFit(null);
                       router.push('/(tabs)/stylist' as Href);
                     }}>
                       <Play size={16} color={Colors.background} />
-                      <Text style={fitModalSt.loadBtnText}>Load to Canvas</Text>
+                      <Text style={fitModalStyles.loadBtnText}>Load to Canvas</Text>
                     </Pressable>
-                    <Pressable style={fitModalSt.deleteBtn} onPress={() => {
+                    <Pressable style={fitModalStyles.deleteBtn} onPress={() => {
                       Alert.alert('Delete Fit', `Remove "${selectedFit.name}"?`, [
                         { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Delete', style: 'destructive', onPress: () => {
-                            deleteOutfit(selectedFit.id);
-                            setSelectedFit(null);
-                          }
-                        },
+                        { text: 'Delete', style: 'destructive', onPress: () => {
+                          deleteOutfit(selectedFit.id);
+                          setSelectedFit(null);
+                        }},
                       ]);
                     }}>
                       <Trash2 size={16} color={Colors.accentCoral} />
-                      <Text style={fitModalSt.deleteBtnText}>Delete</Text>
+                      <Text style={fitModalStyles.deleteBtnText}>Delete</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -412,7 +404,6 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
   onSave: (id: string, updates: Partial<ClosetItem>) => void;
   onDelete: (item: ClosetItem) => void;
 }) {
-  const Colors = useThemeColors();
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
@@ -426,8 +417,6 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
       setGarmentType(item.garment_type || '');
     }
   }, [item]);
-
-  const editStyles = useMemo(() => createEditStyles(Colors), [Colors]);
 
   if (!item) return null;
 
@@ -482,87 +471,81 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
   );
 }
 
-function createEditStyles(C: any) {
-  return StyleSheet.create({
-    overlay: { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-    sheet: { backgroundColor: C.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingBottom: 40 },
-    handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: C.textPrimary },
-    body: { paddingHorizontal: 20, paddingTop: 16 },
-    imagePreview: { width: 120, height: 120, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, alignSelf: 'center', marginBottom: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-    previewImage: { width: '85%', height: '85%' },
-    fieldLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, marginBottom: 6, marginTop: 12 },
-    input: { backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, borderWidth: 1, borderColor: C.border },
-    actions: { marginTop: 28, gap: 12, paddingBottom: 20 },
-    saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
-    saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.background },
-    deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
-    deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.accentCoral },
-  });
-}
+const editStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingBottom: 40 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: Colors.textPrimary },
+  body: { paddingHorizontal: 20, paddingTop: 16 },
+  imagePreview: { width: 120, height: 120, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, alignSelf: 'center', marginBottom: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  previewImage: { width: '85%', height: '85%' },
+  fieldLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border },
+  actions: { marginTop: 28, gap: 12, paddingBottom: 20 },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
+  saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.background },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
+  deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.accentCoral },
+});
 
-function createFitModalStyles(C: any) {
-  return StyleSheet.create({
-    overlay: { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-    sheet: { backgroundColor: C.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
-    handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    title: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary },
-    subtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary, marginTop: 2, textTransform: 'capitalize' },
-    canvasPreview: { marginHorizontal: 20, marginVertical: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, padding: 12, gap: 4, minHeight: 300 },
-    canvasSlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    canvasImage: { width: '65%', height: '90%' },
-    slotLabel: { fontFamily: Typography.bodyFamily, fontSize: 10, color: C.textTertiary, marginTop: 2 },
-    actions: { flexDirection: 'row', gap: 12, paddingHorizontal: 20 },
-    loadBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
-    loadBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.background },
-    deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
-    deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.accentCoral },
-  });
-}
+const fitModalStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  title: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
+  subtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+  canvasPreview: { marginHorizontal: 20, marginVertical: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, padding: 12, gap: 4, minHeight: 300 },
+  canvasSlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  canvasImage: { width: '65%', height: '90%' },
+  slotLabel: { fontFamily: Typography.bodyFamily, fontSize: 10, color: Colors.textTertiary, marginTop: 2 },
+  actions: { flexDirection: 'row', gap: 12, paddingHorizontal: 20 },
+  loadBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
+  loadBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.background },
+  deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
+  deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.accentCoral },
+});
 
-function createStyles(C: any) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
-    topTabs: { flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border },
-    topTab: { flex: 1, alignItems: 'center', paddingVertical: 12, position: 'relative' },
-    topTabText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textTertiary },
-    topTabTextActive: { fontFamily: Typography.bodyFamilyBold, color: C.textPrimary },
-    topTabIndicator: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 2, backgroundColor: C.textPrimary, borderRadius: 1 },
-    filterWrapper: { borderBottomWidth: 1, borderBottomColor: C.border },
-    filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
-    filterPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
-    filterPillActive: { backgroundColor: C.textPrimary, borderColor: C.textPrimary },
-    filterPillOpen: { borderColor: C.accentBlue },
-    filterPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, textTransform: 'capitalize' },
-    filterPillTextActive: { color: C.background },
-    clearBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-    dropdownPanel: { backgroundColor: C.cardSurface, borderBottomWidth: 1, borderBottomColor: C.border },
-    dropdownRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-    dropdownEmpty: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary },
-    dropdownChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
-    dropdownChipActive: { backgroundColor: C.accentBlue, borderColor: C.accentBlue },
-    dropdownChipText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, textTransform: 'capitalize' },
-    dropdownChipTextActive: { color: C.textPrimary },
-    gridContent: { paddingBottom: 120 },
-    gridRow: { gap: GRID_GAP },
-    gridItem: { width: ITEM_SIZE, height: ITEM_SIZE, backgroundColor: '#FFFFFF', marginBottom: GRID_GAP },
-    gridImage: { width: '100%', height: '100%' },
-    fab: { position: 'absolute', bottom: 110, alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-    emptyTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary },
-    emptySubtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
-    emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.pill, backgroundColor: C.accentGreen, marginTop: 8 },
-    emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.background },
-    fitsContainer: { flex: 1 },
-    fitPreviewCard: { flex: 1, backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, overflow: 'hidden', marginBottom: 12 },
-    fitStackPreview: { height: 200, backgroundColor: '#FFFFFF', padding: 6, gap: 2 },
-    fitStackSlot: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-    fitStackImage: { width: '70%', height: '90%' },
-    fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.textPrimary, paddingHorizontal: 10, paddingTop: 8 },
-    fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 11, color: C.textSecondary, paddingHorizontal: 10, paddingBottom: 10, textTransform: 'capitalize' },
-  });
-}
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  topTabs: { flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  topTab: { flex: 1, alignItems: 'center', paddingVertical: 12, position: 'relative' },
+  topTabText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textTertiary },
+  topTabTextActive: { fontFamily: Typography.bodyFamilyBold, color: Colors.textPrimary },
+  topTabIndicator: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 2, backgroundColor: Colors.textPrimary, borderRadius: 1 },
+  filterWrapper: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
+  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border, height: 36 },
+  filterPillActive: { backgroundColor: Colors.textPrimary, borderColor: Colors.textPrimary },
+  filterPillOpen: { borderColor: Colors.accentBlue },
+  filterPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, textTransform: 'capitalize' },
+  filterPillTextActive: { color: Colors.background },
+  clearBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  dropdownPanel: { backgroundColor: Colors.cardSurface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  dropdownRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  dropdownEmpty: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary },
+  dropdownChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
+  dropdownChipActive: { backgroundColor: Colors.accentBlue, borderColor: Colors.accentBlue },
+  dropdownChipText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, textTransform: 'capitalize' },
+  dropdownChipTextActive: { color: Colors.textPrimary },
+  gridContent: { paddingBottom: 120 },
+  gridRow: { gap: GRID_GAP },
+  gridItem: { width: ITEM_SIZE, height: ITEM_SIZE, backgroundColor: '#FFFFFF', marginBottom: GRID_GAP },
+  gridImage: { width: '100%', height: '100%' },
+  fab: { position: 'absolute', bottom: 110, alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
+  emptyTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
+  emptySubtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen, marginTop: 8 },
+  emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
+  fitsContainer: { flex: 1 },
+  fitPreviewCard: { flex: 1, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 12 },
+  fitStackPreview: { height: 200, backgroundColor: '#FFFFFF', padding: 6, gap: 2 },
+  fitStackSlot: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  fitStackImage: { width: '70%', height: '90%' },
+  fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textPrimary, paddingHorizontal: 10, paddingTop: 8 },
+  fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, paddingHorizontal: 10, paddingBottom: 10, textTransform: 'capitalize' },
+});

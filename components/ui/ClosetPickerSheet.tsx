@@ -36,6 +36,16 @@ const CATEGORY_FILTERS: { key: ClothingCategory | 'all'; label: string }[] = [
   { key: 'jewelry', label: 'Jewelry' },
 ];
 
+const ACCESSORY_CATEGORIES: ClothingCategory[] = ['accessory', 'bag', 'hat', 'jewelry'];
+
+const ACCESSORY_FILTERS: { key: ClothingCategory | 'all'; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'accessory', label: 'Accessories' },
+  { key: 'bag', label: 'Bags' },
+  { key: 'hat', label: 'Hats' },
+  { key: 'jewelry', label: 'Jewelry' },
+];
+
 interface ClosetPickerSheetProps {
   visible: boolean;
   onClose: () => void;
@@ -63,9 +73,19 @@ export function ClosetPickerSheet({
   const [activeCat, setActiveCat] = useState<ClothingCategory | 'all'>(filterCategory || 'all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Determine if we're in accessories-only mode
+  const accessoriesOnly = filterCategory === 'accessory';
+  const visibleFilters = accessoriesOnly ? ACCESSORY_FILTERS : CATEGORY_FILTERS;
+
   const filtered = useMemo(() => {
     let result = items.filter((i) => !excludeIds.includes(i.id));
-    if (activeCat !== 'all') result = result.filter((i) => i.category === activeCat);
+    // In accessories-only mode, always limit to accessory categories
+    if (accessoriesOnly) {
+      result = result.filter((i) => ACCESSORY_CATEGORIES.includes(i.category));
+      if (activeCat !== 'all') result = result.filter((i) => i.category === activeCat);
+    } else {
+      if (activeCat !== 'all') result = result.filter((i) => i.category === activeCat);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -148,7 +168,7 @@ export function ClosetPickerSheet({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.pillRow}
         >
-          {CATEGORY_FILTERS.map((cat) => (
+          {visibleFilters.map((cat) => (
             <Pressable
               key={cat.key}
               style={[styles.pill, activeCat === cat.key && styles.pillActive]}
@@ -212,7 +232,7 @@ function createStyles(C: any) {
     searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.input, gap: 8, borderWidth: 1, borderColor: C.border },
     searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textPrimary, padding: 0 },
     pillRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 6, paddingBottom: 12 },
-    pill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    pill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border, height: 34, justifyContent: 'center' },
     pillActive: { backgroundColor: C.textPrimary, borderColor: C.textPrimary },
     pillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textSecondary },
     pillTextActive: { color: C.background },

@@ -1,26 +1,23 @@
-import { Radius, Typography } from '@/constants/Colors';
+import { Colors, Radius, Typography } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
-import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, CheckCircle, Eye, EyeOff, Lock, Mail, Sparkles } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Linking,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-  const Colors = useThemeColors();
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { signInWithEmail, signUpWithEmail, signInWithApple, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -70,6 +67,7 @@ export default function LoginScreen() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Something went wrong.';
+      // Don't show error for user cancellation
       if (!message.includes('canceled') && !message.includes('cancelled') && !message.includes('dismiss')) {
         Alert.alert('Sign In Failed', message);
       }
@@ -238,51 +236,185 @@ export default function LoginScreen() {
   );
 }
 
-function createStyles(C: any) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
-    safeArea: { flex: 1 },
-    keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  safeArea: { flex: 1 },
+  keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
 
-    header: { alignItems: 'center', marginBottom: 40 },
-    title: { fontFamily: Typography.serifFamilyBold, fontSize: 32, color: C.textPrimary, marginTop: 12 },
-    subtitle: { fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textSecondary, marginTop: 6 },
+  header: { alignItems: 'center', marginBottom: 40 },
+  title: {
+    fontFamily: Typography.serifFamilyBold,
+    fontSize: 32,
+    color: Colors.textPrimary,
+    marginTop: 12,
+  },
+  subtitle: {
+    fontFamily: Typography.bodyFamily,
+    fontSize: 15,
+    color: Colors.textSecondary,
+    marginTop: 6,
+  },
 
-    form: { gap: 12 },
-    inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.input, borderWidth: 1, borderColor: C.border, paddingHorizontal: 14, height: 52 },
-    inputIcon: { marginRight: 10 },
-    input: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, padding: 0 },
-    eyeBtn: { padding: 4 },
+  form: { gap: 12 },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.cardSurfaceAlt,
+    borderRadius: Radius.input,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 14,
+    height: 52,
+  },
+  inputIcon: { marginRight: 10 },
+  input: {
+    flex: 1,
+    fontFamily: Typography.bodyFamily,
+    fontSize: 15,
+    color: Colors.textPrimary,
+    padding: 0,
+  },
+  eyeBtn: { padding: 4 },
 
-    primaryBtn: { height: 52, borderRadius: Radius.pill, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-    btnDisabled: { opacity: 0.6 },
-    primaryBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
+  primaryBtn: {
+    height: 52,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.accentGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  btnDisabled: { opacity: 0.6 },
+  primaryBtnText: {
+    fontFamily: Typography.bodyFamilyBold,
+    fontSize: 16,
+    color: '#FFF',
+  },
 
-    dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
-    dividerLine: { flex: 1, height: 1, backgroundColor: C.border },
-    dividerText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary, marginHorizontal: 12 },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  dividerText: {
+    fontFamily: Typography.bodyFamily,
+    fontSize: 13,
+    color: Colors.textTertiary,
+    marginHorizontal: 12,
+  },
 
-    socialRow: { flexDirection: 'row', gap: 12 },
-    socialBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 48, borderRadius: Radius.lg, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border, gap: 8 },
-    socialBtnIcon: { fontSize: 22, color: C.textPrimary },
-    socialBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textPrimary },
+  socialRow: { flexDirection: 'row', gap: 12 },
+  socialBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.cardSurfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+  },
+  socialBtnIcon: {
+    fontSize: 22,
+    color: Colors.textPrimary,
+  },
+  socialBtnText: {
+    fontFamily: Typography.bodyFamilyMedium,
+    fontSize: 15,
+    color: Colors.textPrimary,
+  },
 
-    toggleRow: { alignItems: 'center', marginTop: 24 },
-    toggleText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary },
-    toggleLink: { fontFamily: Typography.bodyFamilyBold, color: C.accentGreen },
+  toggleRow: { alignItems: 'center', marginTop: 24 },
+  toggleText: {
+    fontFamily: Typography.bodyFamily,
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  toggleLink: {
+    fontFamily: Typography.bodyFamilyBold,
+    color: Colors.accentGreen,
+  },
 
-    // Confirmation screen
-    confirmationView: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-    confirmationIcon: { marginBottom: 20 },
-    confirmationTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 26, color: C.textPrimary, marginBottom: 8 },
-    confirmationEmail: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.accentGreen, marginBottom: 16 },
-    confirmationDesc: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
-    confirmationTips: { width: '100%', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, padding: 16, gap: 6, marginBottom: 24 },
-    tipHeader: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.textPrimary, marginBottom: 4 },
-    tipText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary, lineHeight: 18 },
-    openMailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: Radius.pill, backgroundColor: C.accentGreen, width: '100%', marginBottom: 16 },
-    openMailText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.background },
-    backToLoginBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
-    backToLoginText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentGreen },
-  });
-}
+  // Confirmation screen
+  confirmationView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  confirmationIcon: {
+    marginBottom: 20,
+  },
+  confirmationTitle: {
+    fontFamily: Typography.serifFamilyBold,
+    fontSize: 26,
+    color: Colors.textPrimary,
+    marginBottom: 8,
+  },
+  confirmationEmail: {
+    fontFamily: Typography.bodyFamilyBold,
+    fontSize: 15,
+    color: Colors.accentGreen,
+    marginBottom: 16,
+  },
+  confirmationDesc: {
+    fontFamily: Typography.bodyFamily,
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmationTips: {
+    width: '100%',
+    backgroundColor: Colors.cardSurfaceAlt,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 16,
+    gap: 6,
+    marginBottom: 24,
+  },
+  tipHeader: {
+    fontFamily: Typography.bodyFamilyBold,
+    fontSize: 13,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  tipText: {
+    fontFamily: Typography.bodyFamily,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  openMailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 52,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.accentGreen,
+    width: '100%',
+    marginBottom: 16,
+  },
+  openMailText: {
+    fontFamily: Typography.bodyFamilyBold,
+    fontSize: 16,
+    color: Colors.background,
+  },
+  backToLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  backToLoginText: {
+    fontFamily: Typography.bodyFamilyMedium,
+    fontSize: 14,
+    color: Colors.accentGreen,
+  },
+});

@@ -1,29 +1,38 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
+import { UserPost } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
 import {
+  Camera,
   ChevronRight,
   DollarSign,
+  Edit3,
   Grid3X3,
   Heart,
+  ImageIcon as ImageIconLucide,
   Layers,
-  PersonStanding,
+  Plus,
   Settings,
   Shirt,
+  Tag,
   User,
   UserCircle,
+  X,
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,35 +42,45 @@ const GRID_COLUMNS = 3;
 const GRID_GAP = 2;
 const TILE_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
-type ProfileTab = 'closet' | 'looks' | 'liked';
+type ProfileTab = 'posts' | 'closet' | 'looks' | 'liked';
 
 export default function ProfileScreen() {
   const Colors = useThemeColors();
-  const [activeTab, setActiveTab] = useState<ProfileTab>('closet');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const items = useClosetStore((s) => s.items);
   const outfits = useClosetStore((s) => s.outfits);
   const digitalTwin = useClosetStore((s) => s.digitalTwin);
+  const posts = useClosetStore((s) => s.posts);
+  const addPost = useClosetStore((s) => s.addPost);
+  const userProfile = useClosetStore((s) => s.userProfile);
+  const updateUserProfile = useClosetStore((s) => s.updateUserProfile);
+
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showPostViewer, setShowPostViewer] = useState<UserPost | null>(null);
+  const [showAddPostModal, setShowAddPostModal] = useState(false);
 
   const styles = useMemo(() => createProfileStyles(Colors), [Colors]);
 
-  const stats = useMemo(() => ({
-    items: items.length,
-    outfits: outfits.length,
-    looks: outfits.filter((o) => o.pinned).length,
-  }), [items, outfits]);
+  const handleAddPost = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowAddPostModal(true);
+  }, []);
 
-  const gridData = activeTab === 'closet' ? items : activeTab === 'looks' ? outfits : [];
+  const gridData = activeTab === 'closet' ? items
+    : activeTab === 'looks' ? outfits
+      : activeTab === 'posts' ? posts
+        : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
         data={gridData}
         keyExtractor={(item) => item.id}
-        numColumns={activeTab === 'closet' ? GRID_COLUMNS : 1}
+        numColumns={activeTab === 'closet' || activeTab === 'posts' ? GRID_COLUMNS : 1}
         key={activeTab}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.gridContent}
-        columnWrapperStyle={activeTab === 'closet' ? styles.gridRow : undefined}
+        columnWrapperStyle={(activeTab === 'closet' || activeTab === 'posts') ? styles.gridRow : undefined}
         ListHeaderComponent={
           <>
             {/* Header row */}
@@ -78,37 +97,49 @@ export default function ProfileScreen() {
             {/* Avatar + name */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarCircle}>
-                {digitalTwin?.selfie_url ? (
+                {userProfile.pfp_url ? (
+                  <Image source={{ uri: userProfile.pfp_url }} style={styles.avatarImage} />
+                ) : digitalTwin?.selfie_url ? (
                   <Image source={{ uri: digitalTwin.selfie_url }} style={styles.avatarImage} />
                 ) : (
                   <User size={32} color={Colors.textTertiary} strokeWidth={1.5} />
                 )}
               </View>
               <View style={styles.nameBlock}>
-                <Text style={styles.displayName}>User</Text>
-                <Text style={styles.handle}>@user</Text>
+                <Text style={styles.displayName}>{userProfile.username}</Text>
+                <Text style={styles.handle}>@{userProfile.username.toLowerCase().replace(/\s+/g, '')}</Text>
+                {userProfile.bio ? <Text style={styles.bioText}>{userProfile.bio}</Text> : null}
               </View>
             </View>
+
+            {/* Edit Profile Button */}
+            <Pressable
+              style={styles.editProfileBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowEditProfile(true); }}
+            >
+              <Edit3 size={14} color={Colors.textPrimary} />
+              <Text style={styles.editProfileText}>Edit Profile</Text>
+            </Pressable>
 
             {/* Stats row */}
             <View style={styles.statsRow}>
               <View style={styles.statBlock}>
-                <Text style={styles.statValue}>{stats.items}</Text>
+                <Text style={styles.statValue}>{userProfile.followers}</Text>
+                <Text style={styles.statLabel}>Followers</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statBlock}>
+                <Text style={styles.statValue}>{userProfile.following}</Text>
+                <Text style={styles.statLabel}>Following</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statBlock}>
+                <Text style={styles.statValue}>{items.length}</Text>
                 <Text style={styles.statLabel}>Pieces</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statBlock}>
-                <Text style={styles.statValue}>{stats.outfits}</Text>
-                <Text style={styles.statLabel}>Outfits</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statBlock}>
-                <Text style={styles.statValue}>{stats.looks}</Text>
-                <Text style={styles.statLabel}>Pinned</Text>
               </View>
             </View>
 
-            {/* Neckworth Card */}
+            {/* Wardrobe Value Card (renamed from Neckworth) */}
             <Pressable
               style={styles.neckworthCard}
               onPress={() => {
@@ -120,13 +151,13 @@ export default function ProfileScreen() {
                 <DollarSign size={18} color={Colors.accentGreen} />
               </View>
               <View style={styles.neckworthMeta}>
-                <Text style={styles.neckworthTitle}>Neckworth</Text>
+                <Text style={styles.neckworthTitle}>Wardrobe Value</Text>
                 <Text style={styles.neckworthSub}>See your closet's total value</Text>
               </View>
               <ChevronRight size={18} color={Colors.textTertiary} />
             </Pressable>
 
-            {/* Digital Twin Cards — matching .pen Profile Section */}
+            {/* My Digital Twin Card (renamed from Selfie photo, body type removed) */}
             <View style={styles.twinSection}>
               <Pressable
                 style={styles.twinCard}
@@ -139,37 +170,17 @@ export default function ProfileScreen() {
                   <UserCircle size={22} color={Colors.textTertiary} />
                 </View>
                 <View style={styles.twinCardMeta}>
-                  <Text style={styles.twinCardTitle}>Selfie photo</Text>
-                  <Text style={styles.twinCardSub}>Should show your face</Text>
-                </View>
-                <ChevronRight size={20} color={Colors.textTertiary} />
-              </Pressable>
-
-              <Pressable
-                style={styles.twinCard}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push('/digital-twin' as Href);
-                }}
-              >
-                <View style={styles.twinCardAvatar}>
-                  <PersonStanding size={22} color={Colors.textTertiary} />
-                </View>
-                <View style={styles.twinCardMeta}>
-                  <Text style={styles.twinCardTitle}>Body type</Text>
-                  <Text style={styles.twinCardSub}>
-                    {digitalTwin?.body_type
-                      ? digitalTwin.body_type
-                      : 'Set your measurements'}
-                  </Text>
+                  <Text style={styles.twinCardTitle}>My Digital Twin</Text>
+                  <Text style={styles.twinCardSub}>Set up your virtual try-on avatar</Text>
                 </View>
                 <ChevronRight size={20} color={Colors.textTertiary} />
               </Pressable>
             </View>
 
-            {/* Content Tabs — Instagram-style */}
+            {/* Content Tabs — Posts first (default) */}
             <View style={styles.tabBar}>
               {([
+                { key: 'posts' as ProfileTab, Icon: ImageIconLucide },
                 { key: 'closet' as ProfileTab, Icon: Grid3X3 },
                 { key: 'looks' as ProfileTab, Icon: Layers },
                 { key: 'liked' as ProfileTab, Icon: Heart },
@@ -183,9 +194,34 @@ export default function ProfileScreen() {
                 </Pressable>
               ))}
             </View>
+
+            {/* Add Post FAB (only on posts tab) */}
+            {activeTab === 'posts' && posts.length > 0 && (
+              <Pressable style={styles.addPostRow} onPress={handleAddPost}>
+                <Plus size={16} color={Colors.accentGreen} />
+                <Text style={styles.addPostText}>Add Post</Text>
+              </Pressable>
+            )}
           </>
         }
         renderItem={({ item }: { item: any }) => {
+          if (activeTab === 'posts') {
+            return (
+              <Pressable
+                style={styles.gridTile}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowPostViewer(item);
+                }}
+              >
+                <Image
+                  source={{ uri: item.image_url }}
+                  style={styles.gridImage}
+                  contentFit="cover"
+                />
+              </Pressable>
+            );
+          }
           if (activeTab === 'closet') {
             return (
               <Pressable
@@ -232,18 +268,313 @@ export default function ProfileScreen() {
         }}
         ListEmptyComponent={
           <View style={styles.emptyGrid}>
-            <Text style={styles.emptyGridText}>
-              {activeTab === 'closet'
-                ? 'No pieces in your closet yet'
-                : activeTab === 'looks'
-                  ? 'No outfits saved yet'
-                  : 'No liked items yet'}
-            </Text>
+            {activeTab === 'posts' ? (
+              <Pressable style={styles.addPostEmpty} onPress={handleAddPost}>
+                <Plus size={24} color={Colors.textTertiary} />
+                <Text style={styles.emptyGridText}>Add your first post</Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.emptyGridText}>
+                {activeTab === 'closet'
+                  ? 'No pieces in your closet yet'
+                  : activeTab === 'looks'
+                    ? 'No outfits saved yet'
+                    : 'No liked items yet'}
+              </Text>
+            )}
           </View>
         }
       />
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        visible={showEditProfile}
+        onClose={() => setShowEditProfile(false)}
+        userProfile={userProfile}
+        onSave={(updates) => { updateUserProfile(updates); setShowEditProfile(false); }}
+        digitalTwin={digitalTwin}
+      />
+
+      {/* Post Viewer Modal */}
+      {showPostViewer && (
+        <Modal visible animationType="fade" transparent>
+          <View style={styles.postViewerOverlay}>
+            <Pressable style={styles.postViewerBackdrop} onPress={() => setShowPostViewer(null)} />
+            <SafeAreaView style={styles.postViewerContent} edges={['top', 'bottom']}>
+              <View style={styles.postViewerHeader}>
+                <View style={styles.postViewerUser}>
+                  {userProfile.pfp_url ? (
+                    <Image source={{ uri: userProfile.pfp_url }} style={styles.postViewerAvatar} />
+                  ) : (
+                    <View style={[styles.postViewerAvatarPlaceholder, { backgroundColor: Colors.cardSurfaceAlt }]}>
+                      <User size={16} color={Colors.textTertiary} />
+                    </View>
+                  )}
+                  <Text style={styles.postViewerUsername}>{userProfile.username}</Text>
+                </View>
+                <Pressable onPress={() => setShowPostViewer(null)}>
+                  <X size={24} color={Colors.textPrimary} />
+                </Pressable>
+              </View>
+              <View style={styles.postViewerImageContainer}>
+                <Image source={{ uri: showPostViewer.image_url }} style={styles.postViewerImage} contentFit="contain" />
+              </View>
+              {showPostViewer.caption && (
+                <Text style={styles.postViewerCaption}>{showPostViewer.caption}</Text>
+              )}
+              {showPostViewer.tagged_item_ids && showPostViewer.tagged_item_ids.length > 0 && (
+                <View style={styles.postViewerTags}>
+                  <Tag size={14} color="#FFFFFF" />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                    {showPostViewer.tagged_item_ids.map((itemId) => {
+                      const taggedItem = items.find((i) => i.id === itemId);
+                      return taggedItem ? (
+                        <View key={itemId} style={styles.postTagChip}>
+                          <Image source={{ uri: taggedItem.clean_image_url || taggedItem.image_url }} style={styles.postTagThumb} contentFit="contain" />
+                          <Text style={styles.postTagName}>{taggedItem.name}</Text>
+                        </View>
+                      ) : null;
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+            </SafeAreaView>
+          </View>
+        </Modal>
+      )}
+
+      {/* Add Post Modal */}
+      <AddPostModal
+        visible={showAddPostModal}
+        onClose={() => setShowAddPostModal(false)}
+        items={items}
+        onSave={(post) => { addPost(post); setShowAddPostModal(false); }}
+      />
     </SafeAreaView>
   );
+}
+
+function EditProfileModal({ visible, onClose, userProfile, onSave, digitalTwin }: {
+  visible: boolean;
+  onClose: () => void;
+  userProfile: { username: string; bio: string; pfp_url?: string };
+  onSave: (updates: { username?: string; bio?: string; pfp_url?: string }) => void;
+  digitalTwin: any;
+}) {
+  const Colors = useThemeColors();
+  const [username, setUsername] = useState(userProfile.username);
+  const [bio, setBio] = useState(userProfile.bio);
+  const [pfpUrl, setPfpUrl] = useState(userProfile.pfp_url);
+  const styles = useMemo(() => createEditProfileStyles(Colors), [Colors]);
+
+  React.useEffect(() => {
+    if (visible) {
+      setUsername(userProfile.username);
+      setBio(userProfile.bio);
+      setPfpUrl(userProfile.pfp_url);
+    }
+  }, [visible, userProfile]);
+
+  const handleChangePfp = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPfpUrl(result.assets[0].uri);
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={onClose}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Text style={styles.title}>Edit Profile</Text>
+          <Pressable onPress={() => onSave({ username, bio, pfp_url: pfpUrl })}>
+            <Text style={styles.saveText}>Save</Text>
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={styles.body}>
+          <Pressable style={styles.pfpSection} onPress={handleChangePfp}>
+            <View style={styles.pfpCircle}>
+              {pfpUrl ? (
+                <Image source={{ uri: pfpUrl }} style={styles.pfpImage} />
+              ) : digitalTwin?.selfie_url ? (
+                <Image source={{ uri: digitalTwin.selfie_url }} style={styles.pfpImage} />
+              ) : (
+                <User size={32} color={Colors.textTertiary} />
+              )}
+            </View>
+            <Text style={styles.changePfpText}>Change Photo</Text>
+          </Pressable>
+          <Text style={styles.label}>Username</Text>
+          <TextInput style={styles.input} value={username} onChangeText={setUsername} placeholder="Username" placeholderTextColor={Colors.textTertiary} />
+          <Text style={styles.label}>Bio</Text>
+          <TextInput style={[styles.input, styles.bioInput]} value={bio} onChangeText={setBio} placeholder="Write a bio..." placeholderTextColor={Colors.textTertiary} multiline />
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+function AddPostModal({ visible, onClose, items, onSave }: {
+  visible: boolean;
+  onClose: () => void;
+  items: any[];
+  onSave: (post: UserPost) => void;
+}) {
+  const Colors = useThemeColors();
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [caption, setCaption] = useState('');
+  const [taggedIds, setTaggedIds] = useState<string[]>([]);
+  const styles = useMemo(() => createAddPostStyles(Colors), [Colors]);
+
+  React.useEffect(() => {
+    if (visible) {
+      setImageUri(null);
+      setCaption('');
+      setTaggedIds([]);
+    }
+  }, [visible]);
+
+  const pickFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!result.canceled && result.assets[0]) setImageUri(result.assets[0].uri);
+  };
+
+  const pickFromCamera = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) return;
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!result.canceled && result.assets[0]) setImageUri(result.assets[0].uri);
+  };
+
+  const toggleTag = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTaggedIds((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]);
+  };
+
+  const handlePost = () => {
+    if (!imageUri) return;
+    onSave({
+      id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      image_url: imageUri,
+      caption: caption.trim() || undefined,
+      tagged_item_ids: taggedIds.length > 0 ? taggedIds : undefined,
+      created_at: new Date().toISOString(),
+    });
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+          <Text style={styles.title}>New Post</Text>
+          <Pressable onPress={handlePost} disabled={!imageUri}>
+            <Text style={[styles.postBtnText, !imageUri && { opacity: 0.4 }]}>Post</Text>
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={styles.body}>
+          {!imageUri ? (
+            <View style={styles.pickSection}>
+              <Pressable style={styles.pickBtn} onPress={pickFromCamera}>
+                <Camera size={24} color={Colors.textPrimary} />
+                <Text style={styles.pickBtnText}>Take Photo</Text>
+              </Pressable>
+              <Pressable style={styles.pickBtn} onPress={pickFromGallery}>
+                <ImageIconLucide size={24} color={Colors.textPrimary} />
+                <Text style={styles.pickBtnText}>From Gallery</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.previewSection}>
+              <Image source={{ uri: imageUri }} style={styles.previewImage} contentFit="cover" />
+              <Pressable style={styles.changePhotoBtn} onPress={() => setImageUri(null)}>
+                <Text style={styles.changePhotoText}>Change Photo</Text>
+              </Pressable>
+            </View>
+          )}
+          <Text style={styles.label}>Caption</Text>
+          <TextInput
+            style={styles.captionInput}
+            value={caption}
+            onChangeText={setCaption}
+            placeholder="Write a caption..."
+            placeholderTextColor={Colors.textTertiary}
+            multiline
+          />
+          {items.length > 0 && (
+            <>
+              <Text style={styles.label}>Tag Clothing Items</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagRow}>
+                {items.slice(0, 20).map((item) => (
+                  <Pressable key={item.id} style={[styles.tagItem, taggedIds.includes(item.id) && styles.tagItemActive]} onPress={() => toggleTag(item.id)}>
+                    <Image source={{ uri: item.clean_image_url || item.image_url }} style={styles.tagItemImage} contentFit="contain" />
+                    {taggedIds.includes(item.id) && (
+                      <View style={styles.tagCheck}><X size={10} color="#FFF" /></View>
+                    )}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+function createAddPostStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    cancelText: { fontFamily: Typography.bodyFamily, fontSize: 16, color: C.textSecondary },
+    title: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: C.textPrimary },
+    postBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.accentGreen },
+    body: { padding: 20, gap: 12 },
+    pickSection: { flexDirection: 'row', gap: 16, justifyContent: 'center', paddingVertical: 40 },
+    pickBtn: { alignItems: 'center', gap: 8, paddingVertical: 24, paddingHorizontal: 32, borderRadius: Radius.lg, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    pickBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textPrimary },
+    previewSection: { alignItems: 'center', gap: 8 },
+    previewImage: { width: '100%', height: 300, borderRadius: Radius.lg },
+    changePhotoBtn: { paddingVertical: 6 },
+    changePhotoText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentGreen },
+    label: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, marginTop: 8 },
+    captionInput: { fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, backgroundColor: C.cardSurface, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border, minHeight: 60, textAlignVertical: 'top' },
+    tagRow: { gap: 8, paddingVertical: 4 },
+    tagItem: { width: 56, height: 56, borderRadius: 10, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: C.border },
+    tagItemActive: { borderColor: C.accentGreen },
+    tagItemImage: { width: '100%', height: '100%' },
+    tagCheck: { position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center' },
+  });
+}
+
+function createEditProfileStyles(C: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+    cancelText: { fontFamily: Typography.bodyFamily, fontSize: 16, color: C.textSecondary },
+    title: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: C.textPrimary },
+    saveText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.accentGreen },
+    body: { padding: 20, gap: 8 },
+    pfpSection: { alignItems: 'center', gap: 8, marginBottom: 16 },
+    pfpCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: C.border },
+    pfpImage: { width: '100%', height: '100%' },
+    changePfpText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentGreen },
+    label: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, marginTop: 8, marginBottom: 4 },
+    input: { fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, backgroundColor: C.cardSurface, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.border },
+    bioInput: { minHeight: 80, textAlignVertical: 'top' },
+  });
 }
 
 function createProfileStyles(C: any) {
@@ -254,12 +585,15 @@ function createProfileStyles(C: any) {
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
     screenTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 24, color: C.textPrimary },
     settingsBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-    avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingBottom: 16 },
+    avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingBottom: 12 },
     avatarCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.border, overflow: 'hidden' },
     avatarImage: { width: '100%', height: '100%' },
-    nameBlock: { gap: 2 },
+    nameBlock: { gap: 2, flex: 1 },
     displayName: { fontFamily: Typography.bodyFamilyBold, fontSize: 20, color: C.textPrimary },
     handle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary },
+    bioText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary, marginTop: 4 },
+    editProfileBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 16, marginBottom: 16, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.border, backgroundColor: C.cardSurfaceAlt },
+    editProfileText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textPrimary },
     statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 16, backgroundColor: C.cardSurface, borderRadius: Radius.lg, paddingVertical: 14, borderWidth: 1, borderColor: C.border, marginBottom: 16 },
     statBlock: { flex: 1, alignItems: 'center', gap: 2 },
     statValue: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary },
@@ -274,6 +608,8 @@ function createProfileStyles(C: any) {
     tabBar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: GRID_GAP },
     tabItem: { flex: 1, alignItems: 'center', paddingVertical: 12 },
     tabItemActive: { borderBottomWidth: 2, borderBottomColor: C.textPrimary },
+    addPostRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, marginHorizontal: 16, marginBottom: 4 },
+    addPostText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.accentGreen },
     gridTile: { width: TILE_SIZE, height: TILE_SIZE, backgroundColor: '#FFFFFF' },
     gridImage: { width: '100%', height: '100%' },
     outfitCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
@@ -285,10 +621,27 @@ function createProfileStyles(C: any) {
     outfitCount: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary },
     emptyGrid: { paddingVertical: 60, alignItems: 'center' },
     emptyGridText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textTertiary },
+    addPostEmpty: { alignItems: 'center', gap: 8 },
     neckworthCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 16, backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, padding: 14 },
     neckworthIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: `${C.accentGreen}20`, alignItems: 'center', justifyContent: 'center' },
     neckworthMeta: { flex: 1 },
     neckworthTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
     neckworthSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary, marginTop: 2 },
+    // Post viewer
+    postViewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' },
+    postViewerBackdrop: { ...StyleSheet.absoluteFillObject },
+    postViewerContent: { flex: 1 },
+    postViewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+    postViewerUser: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    postViewerAvatar: { width: 32, height: 32, borderRadius: 16 },
+    postViewerAvatarPlaceholder: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    postViewerUsername: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: '#FFFFFF' },
+    postViewerImageContainer: { flex: 1, justifyContent: 'center' },
+    postViewerImage: { width: '100%', height: '100%' },
+    postViewerCaption: { fontFamily: Typography.bodyFamily, fontSize: 14, color: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 12 },
+    postViewerTags: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
+    postTagChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
+    postTagThumb: { width: 24, height: 24, borderRadius: 4 },
+    postTagName: { fontFamily: Typography.bodyFamily, fontSize: 12, color: '#FFFFFF' },
   });
 }

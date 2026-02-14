@@ -1,7 +1,7 @@
+import { supabase } from '@/lib/supabase';
 import { ClothingCategory } from '@/types';
 import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { supabase } from '@/lib/supabase';
 
 const VISION_MODEL = 'meta-llama/Llama-3.2-11B-Vision-Instruct';
 const TEXT_MODEL = 'meta-llama/Meta-Llama-3.1-70B-Instruct';
@@ -39,7 +39,104 @@ function parseJSON<T>(text: string): T {
     // Then try raw JSON object
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error(`No JSON found in response: ${text.slice(0, 200)}`);
-    return JSON.parse(match[0]);
+    // Attempt to fix common JSON errors (like trailing commas)
+    let jsonStr = match[0];
+    try {
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        // Very basic fix attempt: remove trailing commas before closing braces/brackets
+        jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(jsonStr);
+    }
+}
+
+async function callReplicate(model: string, input: Record<string, unknown>): Promise<any> {
+    const start = Date.now();
+    const token = process.env.EXPO_PUBLIC_REPLICATE_API_TOKEN;
+    if (!token) throw new Error('Missing EXPO_PUBLIC_REPLICATE_API_TOKEN');
+
+    const isVersion = !model.includes('/');
+    const url = isVersion
+        ? 'https://api.replicate.com/v1/predictions'
+        : `https://api.replicate.com/v1/models/${model}/predictions`;
+
+    const body: any = { input };
+    if (isVersion) body.version = model;
+
+    // Start prediction
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'wait', // Wait for result
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (response.status !== 200 && response.status !== 201) {
+        let errorBody = await response.text();
+        throw new Error(`Replicate API error (${response.status}): ${errorBody}`);
+    }
+
+    let prediction = await response.json();
+
+    // If still processing, we might need to poll (if 'Prefer: wait' timed out or wasn't respected fully)
+    while (prediction.status === 'starting' || prediction.status === 'processing') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const pollRes = await fetch(prediction.urls.get, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        prediction = await pollRes.json();
+    }
+
+    if (prediction.status === 'succeeded') {
+        return prediction.output;
+    } else {
+        throw new Error(`Replicate prediction failed: ${prediction.error}`);
+    }
+}
+
+async function callDeepInfraImage(model: string, input: Record<string, unknown>): Promise<string> {
+    const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
+    if (!token) throw new Error('Missing EXPO_PUBLIC_DEEPINFRA_KEY');
+
+    const url = `https://api.deepinfra.com/v1/inference/${model}`;
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`DeepInfra Image API error (${response.status}): ${errorBody}`);
+    }
+
+    const result = await response.json();
+
+    // DeepInfra Flux output usually contains an 'images' array with base64 strings or URLs
+    // Or key 'output' or 'images' depending on model wrapper.
+    // For standard DeepInfra inference API (not openai compat):
+    // images: ["base64..."]
+
+    if (result.images && result.images.length > 0) {
+        const img = result.images[0];
+        if (img.startsWith('http')) return img;
+        // Check if base64 header is present, if not add it
+        return img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
+    }
+
+    // Some endpoints wrap in 'output'
+    if (result.output && Array.isArray(result.output)) {
+        return result.output[0];
+    }
+
+    throw new Error(`Unexpected DeepInfra response format: ${JSON.stringify(result).slice(0, 100)}...`);
 }
 
 export async function analyzeClothingImage(imageUri: string): Promise<ClothingAnalysis> {
@@ -175,6 +272,7 @@ export interface OutfitDetection {
     estimatedValue: number | null;
     colors: string[];
     confidence: number;
+    box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-100
 }
 
 export interface OutfitAnalysis {
@@ -188,69 +286,75 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
         encoding: FileSystem.EncodingType.Base64,
     });
 
-    const content = await callDeepInfra({
-        model: VISION_MODEL,
-        messages: [{
-            role: 'user',
-            content: [
-                {
-                    type: 'text',
-                    text: `Analyze this outfit image and identify each clothing item visible.
+    const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item.
 
-For EACH clothing piece, provide:
-1. Name/description
-2. Category (top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other)
-3. Brand guess (be specific)
-4. How confident you are about the brand (0-1)
-5. Specific model name if identifiable
-6. Estimated retail value in USD
-7. Main colors (color names, not hex)
-8. Overall confidence in the detection (0-1)
+Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
 
-Also identify:
-- Overall style (streetwear, casual, formal, sporty, etc.)
-- Suggested occasion (everyday, work, date night, gym, etc.)
+For EACH item, provide details and its BOUNDING BOX (box_2d) as [ymin, xmin, ymax, xmax] using 0-100 scale.
+You MUST find at least 1 item.
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact format:
 {
   "detections": [
     {
-      "name": "Air Force 1 Low",
-      "category": "shoe",
-      "brand": "Nike",
-      "brandConfidence": 0.95,
-      "modelName": "Air Force 1 07",
-      "estimatedValue": 110,
-      "colors": ["white"],
-      "confidence": 0.98
+      "name": "descriptive name",
+      "category": "top",
+      "brand": "Brand",
+      "brandConfidence": 0.8,
+      "modelName": "Model",
+      "estimatedValue": 50,
+      "colors": ["color"],
+      "confidence": 0.9,
+      "box_2d": [10, 10, 50, 50]
     }
   ],
-  "overallStyle": "streetwear",
+  "overallStyle": "casual",
   "occasion": "casual"
-}`,
-                },
-                {
-                    type: 'image_url',
-                    image_url: { url: `data:image/jpeg;base64,${base64}` },
-                },
-            ],
-        }],
-        max_tokens: 1500,
-        temperature: 0.3,
-    });
+}
+
+CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
 
     try {
+        if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision)...');
+
+        const content = await callDeepInfra({
+            model: VISION_MODEL,
+            messages: [{
+                role: 'user',
+                content: [
+                    {
+                        type: 'text',
+                        text: prompt,
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: { url: `data:image/jpeg;base64,${base64}` },
+                    },
+                ],
+            }],
+            max_tokens: 2000,
+            temperature: 0.2, // Low temp for valid JSON
+        });
+
+        if (__DEV__) console.log('[DetectFit] Raw output:', content.slice(0, 100) + '...');
+
         const parsed = parseJSON<OutfitAnalysis>(content);
+
+        // Validate
+        if (!parsed.detections || !Array.isArray(parsed.detections)) {
+            parsed.detections = [];
+        }
         return {
-            detections: parsed.detections || [],
+            detections: parsed.detections,
             overallStyle: parsed.overallStyle,
             occasion: parsed.occasion,
         };
-    } catch {
-        if (__DEV__) console.warn('Outfit analysis returned non-JSON, using defaults');
+    } catch (e) {
+        if (__DEV__) console.warn('[DetectFit] Error:', e);
         return { detections: [], overallStyle: undefined, occasion: undefined };
     }
 }
+
 
 /* ─── Digital Twin Generation ─── */
 
@@ -337,6 +441,7 @@ export interface ProductIdentification {
     colors: string[];
     material: string | null;
     description: string;
+    box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-100
 }
 
 /**
@@ -366,6 +471,7 @@ Provide:
 5. Main colors
 6. Primary material (cotton, leather, polyester, denim, etc.)
 7. A concise product description for generating a clean product image
+8. BOUNDING BOX (box_2d) of the item as [ymin, xmin, ymax, xmax] using 0-100 scale.
 
 Return ONLY valid JSON:
 {
@@ -375,7 +481,8 @@ Return ONLY valid JSON:
   "garment_type": "specific garment type",
   "colors": ["color1", "color2"],
   "material": "primary material or null",
-  "description": "A concise 1-sentence description of the item's appearance for image generation"
+  "description": "A concise 1-sentence description of the item's appearance for image generation",
+  "box_2d": [10, 10, 90, 90]
 }`,
                 },
                 {
@@ -597,53 +704,121 @@ CRITICAL RULES:
 }
 
 /**
- * Step 2: Regenerate a clean product image using FLUX.1-Kontext-dev.
- * Takes the original photo and transforms it into a clean product shot
- * on a white background, like an e-commerce listing.
+ * Pipeline 1: Bria Fibo Edit (Replicate) -> Rembg (Replicate) [For Add Item]
+ * Pipeline 2: Seedream (Replicate) -> Rembg (Replicate) [For Detect Fit]
  */
 export async function regenerateCleanImage(
     imageUri: string,
-    product: ProductIdentification,
+    _product: ProductIdentification,
+    pipelineType: 'add-item-bria' | 'detect-fit-seedream' = 'add-item-bria'
 ): Promise<string> {
 
-    // Resize image to max 512x512 for faster upload/inference
+    // Resize image to max 1024x1024 (Replicate handles larger, but let's be safe/fast)
     const { uri: resizedUri } = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 512, height: 512 } }],
+        [{ resize: { width: 1024, height: 1024 } }],
         { compress: 0.9, format: SaveFormat.JPEG }
     );
     const base64 = await FileSystem.readAsStringAsync(resizedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
+    let currentImageUri = `data:image/jpeg;base64,${base64}`;
 
-    const colorStr = product.colors.join(' and ');
-    const materialStr = product.material ? `, ${product.material}` : '';
-    const brandStr = product.brand ? `${product.brand} ` : '';
+    try {
+        let enhancedImageUri = currentImageUri;
 
-    const prompt = `Transform this into a clean e-commerce product photograph. Show ONLY the ${brandStr}${product.description || product.name} — a ${colorStr}${materialStr} ${product.garment_type || product.category}.
+        if (pipelineType === 'detect-fit-seedream') {
+            // Pipeline 2: Seedream (Replicate)
+            if (__DEV__) console.log('Step 1 (Pipeline 2): Calling Replicate Seedream-4...');
 
-CRITICAL RULES:
-- Remove ALL backgrounds, people, mannequins, shadows, reflections, and distractions.
-- The item must be perfectly isolated, with NO visible background, NO shadows, NO artifacts, NO person, NO mannequin, NO floor, NO props, NO color cast.
-- Place the item flat-lay or floating on a 100% pure seamless WHITE (#FFFFFF) background, edge-to-edge, with no gradient, no texture, no drop shadow, no border, no floor, no horizon, no corners, no surface, no context.
-- The result must look like a shopping website product photo: sharp, well-lit, no wrinkles, no background at all, just the item on pure white.`;
+            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}. High quality, 8k.`;
 
-    const { data, error } = await supabase.functions.invoke('ai-image', {
-        body: {
-            prompt,
-            imageBase64: base64,
-            model: 'black-forest-labs/FLUX.1-Kontext-dev',
-            size: '512x512', // Lower resolution for speed
-        },
-    });
-    if (error) throw new Error(`Image generation error: ${error.message}`);
-    const b64 = data.data?.[0]?.b64_json;
-    if (!b64) throw new Error('No image data in response');
+            // bytedance/seedream-4 on Replicate
+            const seedreamOutput = await callReplicate('bytedance/seedream-4', {
+                image: currentImageUri,
+                prompt: prompt,
+            });
 
-    const fileName = `clean_${Date.now()}.jpg`;
-    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-    await FileSystem.writeAsStringAsync(fileUri, b64, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
-    return fileUri;
+            let result = seedreamOutput;
+            if (Array.isArray(result)) result = result[0];
+
+            if (!result || typeof result !== 'string') {
+                if (__DEV__) console.warn('Seedream returned invalid output:', seedreamOutput);
+                throw new Error('Seedream failed');
+            }
+            enhancedImageUri = result;
+            if (__DEV__) console.log('Seedream generation complete.');
+
+        } else {
+            // Pipeline 1: Bria Fibo Edit (Replicate)
+            // Model: bria-ai/fibo-edit (or bria/fibo-edit)
+            // Using logic for text-guided editing.
+            if (__DEV__) console.log('Step 1 (Pipeline 1): Calling Replicate Bria Fibo Edit...');
+
+            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
+
+            // bria-ai/fibo-edit logic
+            // Inputs: image, instruction (string), etc.
+            // Using 'bria/fibo-edit' as found in search.
+            const briaOutput = await callReplicate('bria/fibo-edit', {
+                image: currentImageUri,
+                instruction: prompt, // Text-guided edit uses 'instruction'
+                // Optional: mask (if we had one, but we don't for raw photo)
+            });
+
+            let result = briaOutput;
+            if (Array.isArray(result)) result = result[0];
+
+            if (!result || typeof result !== 'string') {
+                if (__DEV__) console.warn('Bria returned invalid output:', briaOutput);
+                throw new Error('Bria Fibo Edit failed');
+            }
+            enhancedImageUri = result;
+            if (__DEV__) console.log('Bria enhancement complete.');
+        }
+
+        // Update currentImage for Step 2
+        currentImageUri = enhancedImageUri;
+
+        // Step 2: Remove Background using `rembg` on Replicate
+        // Common step for both pipelines to ensure transparency.
+        if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
+
+        const rembgModelVersion = 'fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003';
+        const rembgOutput = await callReplicate(rembgModelVersion, {
+            image: currentImageUri,
+        });
+
+        let resultUri = rembgOutput;
+        if (typeof rembgOutput !== 'string') {
+            resultUri = Array.isArray(rembgOutput) ? rembgOutput[0] : rembgOutput;
+        }
+
+        if (!resultUri || typeof resultUri !== 'string') {
+            throw new Error('Unexpected Replicate output format from rembg');
+        }
+
+        const fileName = `clean_${Date.now()}.png`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        const downloadRes = await FileSystem.downloadAsync(resultUri, fileUri);
+        return downloadRes.uri;
+
+    } catch (e) {
+        if (__DEV__) console.warn('Clean pipeline failed:', e);
+
+        // Fallback: If AI fails, use basic remove-bg on original
+        if (__DEV__) console.log('Falling back to basic remove-bg on original...');
+        try {
+            const fallbackOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                image: `data:image/jpeg;base64,${base64}`,
+            });
+            const fallbackUri = Array.isArray(fallbackOutput) ? fallbackOutput[0] : fallbackOutput;
+            const fileName = `clean_fallback_${Date.now()}.png`;
+            const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+            const downloadRes = await FileSystem.downloadAsync(fallbackUri, fileUri);
+            return downloadRes.uri;
+        } catch (err2) {
+            throw new Error(`Clean pipeline failed completely: ${e}`);
+        }
+    }
 }

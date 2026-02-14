@@ -1,39 +1,38 @@
-import { Radius, Typography } from '@/constants/Colors';
-import { useThemeColors } from '@/contexts/ThemeContext';
+import { Colors, Radius, Typography } from '@/constants/Colors';
 import * as Haptics from 'expo-haptics';
 import {
-  Briefcase,
-  Check,
-  Cloud,
-  CloudRain,
-  CloudSnow,
-  Columns2,
-  Dumbbell,
-  Flame,
-  Grid2x2,
-  Home,
-  LayoutGrid,
-  Shirt,
-  Snowflake,
-  Square,
-  Thermometer,
-  Wine,
-  Zap
+    Briefcase,
+    Check,
+    Cloud,
+    CloudRain,
+    CloudSnow,
+    Columns2,
+    Dumbbell,
+    Flame,
+    Grid2x2,
+    Home,
+    LayoutGrid,
+    Shirt,
+    Snowflake,
+    Square,
+    Thermometer,
+    Wine,
+    Zap
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  Dimensions,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    Dimensions,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import Animated, {
-  FadeIn,
-  FadeOut,
-  SlideInDown,
-  SlideOutDown,
+    FadeIn,
+    FadeOut,
+    SlideInDown,
+    SlideOutDown,
 } from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -86,9 +85,6 @@ const LAYOUT_OPTIONS = [
 ] as const;
 
 export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps) {
-  const Colors = useThemeColors();
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
-
   const [selectedStyle, setSelectedStyle] = useState<string[]>([]);
   const [selectedColor, setSelectedColor] = useState<string[]>([]);
   const [selectedWeather, setSelectedWeather] = useState<string[]>([]);
@@ -121,13 +117,23 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
 
   return (
     <View style={styles.overlay}>
-      <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdropView}>
+      <Animated.View
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
+        style={styles.backdropView}
+      >
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
       </Animated.View>
 
-      <Animated.View entering={SlideInDown.duration(350).damping(24)} exiting={SlideOutDown.duration(250)} style={styles.sheet}>
+      <Animated.View
+        entering={SlideInDown.duration(350).damping(24)}
+        exiting={SlideOutDown.duration(250)}
+        style={styles.sheet}
+      >
+        {/* Handle */}
         <View style={styles.handleBar} />
 
+        {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={handleClear}>
             <Text style={styles.clearText}>Clear{activeCount > 0 ? ` (${activeCount})` : ''}</Text>
@@ -145,7 +151,11 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
             {STYLE_OPTIONS.map(({ key, label, icon: Icon }) => {
               const active = selectedStyle.includes(key);
               return (
-                <Pressable key={key} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleMulti(key, setSelectedStyle)}>
+                <Pressable
+                  key={key}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => toggleMulti(key, setSelectedStyle)}
+                >
                   <Icon size={16} color={active ? Colors.accentGreen : Colors.textSecondary} />
                   <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{label}</Text>
                 </Pressable>
@@ -159,7 +169,11 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
             {COLOR_OPTIONS.map(({ key, label, color }) => {
               const active = selectedColor.includes(key);
               return (
-                <Pressable key={key} style={[styles.colorCard, active && styles.colorCardActive]} onPress={() => toggleMulti(key, setSelectedColor)}>
+                <Pressable
+                  key={key}
+                  style={[styles.colorCard, active && styles.colorCardActive]}
+                  onPress={() => toggleMulti(key, setSelectedColor)}
+                >
                   {key === 'colorful' ? (
                     <View style={styles.rainbowCircle}>
                       <View style={[styles.rainbowQuad, { backgroundColor: '#FF5733' }]} />
@@ -182,7 +196,11 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
             {WEATHER_OPTIONS.map(({ key, label, icon: Icon }) => {
               const active = selectedWeather.includes(key);
               return (
-                <Pressable key={key} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleMulti(key, setSelectedWeather)}>
+                <Pressable
+                  key={key}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => toggleMulti(key, setSelectedWeather)}
+                >
                   <Icon size={16} color={active ? Colors.accentGreen : Colors.textSecondary} />
                   <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{label}</Text>
                 </Pressable>
@@ -196,7 +214,14 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
             {LAYOUT_OPTIONS.map(({ key, label, desc, icon: Icon }) => {
               const active = selectedLayout === key;
               return (
-                <Pressable key={key} style={[styles.layoutCard, active && styles.layoutCardActive]} onPress={() => { Haptics.selectionAsync(); setSelectedLayout(key); }}>
+                <Pressable
+                  key={key}
+                  style={[styles.layoutCard, active && styles.layoutCardActive]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedLayout(key);
+                  }}
+                >
                   <Icon size={20} color={active ? Colors.accentGreen : Colors.textSecondary} />
                   <Text style={[styles.layoutLabel, active && styles.layoutLabelActive]}>{label}</Text>
                   <Text style={[styles.layoutDesc, active && styles.layoutDescActive]}>{desc}</Text>
@@ -210,36 +235,175 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
   );
 }
 
-function createStyles(C: any) {
-  return StyleSheet.create({
-    overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', zIndex: 200 },
-    backdropView: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.5)' },
-    sheet: { backgroundColor: C.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 48, maxHeight: SCREEN_HEIGHT * 0.8 },
-    handleBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.borderLight, alignSelf: 'center', marginTop: 10, marginBottom: 16 },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-    clearText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textSecondary },
-    headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary },
-    checkBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center' },
-    sectionTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.textPrimary, marginBottom: 12, marginTop: 8 },
-    chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-    chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
-    chipActive: { borderColor: C.accentGreen, backgroundColor: 'rgba(50, 213, 131, 0.08)' },
-    chipLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
-    chipLabelActive: { color: C.accentGreen },
-    colorRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-    colorCard: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: Radius.md, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
-    colorCardActive: { borderColor: C.accentGreen, backgroundColor: 'rgba(50, 213, 131, 0.08)' },
-    colorDot: { width: 24, height: 24, borderRadius: 12 },
-    rainbowCircle: { width: 24, height: 24, borderRadius: 12, overflow: 'hidden', flexDirection: 'row', flexWrap: 'wrap' },
-    rainbowQuad: { width: 12, height: 12 },
-    colorLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: C.textSecondary },
-    colorLabelActive: { color: C.accentGreen },
-    layoutRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-    layoutCard: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 12, paddingHorizontal: 4, borderRadius: Radius.md, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
-    layoutCardActive: { borderColor: C.accentGreen, backgroundColor: 'rgba(50, 213, 131, 0.08)' },
-    layoutLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: C.textSecondary },
-    layoutLabelActive: { color: C.accentGreen },
-    layoutDesc: { fontFamily: Typography.bodyFamily, fontSize: 9, color: C.textTertiary, textAlign: 'center' },
-    layoutDescActive: { color: C.accentGreen },
-  });
-}
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    zIndex: 200,
+  },
+  backdropView: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  sheet: {
+    backgroundColor: Colors.cardSurface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 48,
+    maxHeight: SCREEN_HEIGHT * 0.8,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.borderLight,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  clearText: {
+    fontFamily: Typography.bodyFamilyMedium,
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  headerTitle: {
+    fontFamily: Typography.bodyFamilyBold,
+    fontSize: 16,
+    color: Colors.textPrimary,
+  },
+  checkBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.accentGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionTitle: {
+    fontFamily: Typography.bodyFamilyBold,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  // Chips for Style & Climate
+  chipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.cardSurfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  chipActive: {
+    borderColor: Colors.accentGreen,
+    backgroundColor: 'rgba(50, 213, 131, 0.08)',
+  },
+  chipLabel: {
+    fontFamily: Typography.bodyFamilyMedium,
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  chipLabelActive: {
+    color: Colors.accentGreen,
+  },
+  // Color palette
+  colorRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  colorCard: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.cardSurfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  colorCardActive: {
+    borderColor: Colors.accentGreen,
+    backgroundColor: 'rgba(50, 213, 131, 0.08)',
+  },
+  colorDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  rainbowCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  rainbowQuad: {
+    width: 12,
+    height: 12,
+  },
+  colorLabel: {
+    fontFamily: Typography.bodyFamilyMedium,
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+  colorLabelActive: {
+    color: Colors.accentGreen,
+  },
+  // Layout
+  layoutRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  layoutCard: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.cardSurfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  layoutCardActive: {
+    borderColor: Colors.accentGreen,
+    backgroundColor: 'rgba(50, 213, 131, 0.08)',
+  },
+  layoutLabel: {
+    fontFamily: Typography.bodyFamilyMedium,
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+  layoutLabelActive: {
+    color: Colors.accentGreen,
+  },
+  layoutDesc: {
+    fontFamily: Typography.bodyFamily,
+    fontSize: 9,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+  },
+  layoutDescActive: {
+    color: Colors.accentGreen,
+  },
+});

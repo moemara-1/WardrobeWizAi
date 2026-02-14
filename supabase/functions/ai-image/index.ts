@@ -5,9 +5,9 @@
 // Deploy: supabase functions deploy ai-image
 // Secrets: supabase secrets set DEEPINFRA_KEY=your-key REPLICATE_API_TOKEN=your-token
 
+import { encode as b64Encode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { encode as b64Encode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
 import jpeg from "https://esm.sh/jpeg-js@0.4.4";
 
 const DEEPINFRA_BASE = "https://api.deepinfra.com/v1/openai";
@@ -538,6 +538,99 @@ serve(async (req) => {
             status: 200, // Return 200 so supabase client can read the error body
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
+        );
+      }
+    }
+
+    /* ═════════════════════════════════════
+       MODE: cleanup — Product Image Cleanup via SeedReam (Nano Banana)
+       Isolates clothing on white background without changing the item
+       ═════════════════════════════════════ */
+    if (mode === "cleanup") {
+      const replicateToken = Deno.env.get("REPLICATE_API_TOKEN");
+      if (!replicateToken) {
+        return new Response(
+          JSON.stringify({ error: "REPLICATE_API_TOKEN not configured on server" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      console.log(`[CLEANUP] Starting product image cleanup...`);
+
+      try {
+        const imageDataUri = `data:image/jpeg;base64,${imageBase64}`;
+
+        let createRes = await fetch("https://api.replicate.com/v1/predictions", {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${replicateToken}`,
+            "Content-Type": "application/json",
+            Prefer: "wait",
+          },
+          body: JSON.stringify({
+            version: NANO_BANANA_VERSION,
+            input: {
+              prompt: "isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE",
+              image_input: [imageDataUri],
+              aspect_ratio: "1:1",
+              width: 1024,
+              height: 1024,
+              max_images: 1,
+              enhance_prompt: true,
+              output_format: "jpg",
+            },
+          }),
+        });
+
+        if (!createRes.ok) {
+          const errBody = await createRes.text().catch(() => "");
+          throw new Error(`Replicate API ${createRes.status}: ${errBody.slice(0, 300)}`);
+        }
+
+        let prediction = await createRes.json();
+        console.log(`[CLEANUP] Prediction status: ${prediction.status}, id: ${prediction.id}`);
+
+        // Poll if synchronous wait timed out
+        if (prediction.status && !["succeeded", "failed", "canceled"].includes(prediction.status)) {
+          const pollUrl = prediction.urls?.get;
+          if (pollUrl) {
+            for (let attempt = 0; attempt < 60; attempt++) {
+              await new Promise((r) => setTimeout(r, 3000));
+              const pollRes = await fetch(pollUrl, {
+                headers: { Authorization: `Token ${replicateToken}` },
+              });
+              prediction = await pollRes.json();
+              console.log(`[CLEANUP] Poll ${attempt + 1}: status=${prediction.status}`);
+              if (["succeeded", "failed", "canceled"].includes(prediction.status)) break;
+            }
+          }
+        }
+
+        if (prediction.status === "failed") {
+          throw new Error(`Cleanup failed: ${prediction.error || "unknown"}`);
+        }
+        if (prediction.status !== "succeeded" || !prediction.output) {
+          throw new Error(`Cleanup did not complete: status=${prediction.status}`);
+        }
+
+        const outputUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+        if (!outputUrl) throw new Error("Cleanup returned no output URL");
+
+        const imgRes = await fetch(outputUrl);
+        if (!imgRes.ok) throw new Error(`Failed to download: ${imgRes.status}`);
+        const imgBuf = new Uint8Array(await imgRes.arrayBuffer());
+        const resultB64 = b64Encode(imgBuf);
+        console.log(`[CLEANUP] ✓ Done — ${Math.round(resultB64.length / 1024)}KB`);
+
+        return new Response(
+          JSON.stringify({ data: [{ b64_json: resultB64 }] }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      } catch (cleanupErr) {
+        console.error("[CLEANUP] Error:", cleanupErr.message);
+        return new Response(
+          JSON.stringify({ error: cleanupErr.message }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
     }
