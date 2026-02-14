@@ -1,7 +1,8 @@
 import { Radius, Typography } from '@/constants/Colors';
-import { useAuth } from '@/contexts/AuthContext';
 import { useThemeColors } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
 import { useClosetStore } from '@/stores/closetStore';
+import { ClosetItem } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -14,7 +15,7 @@ import {
   Search,
   Sparkles
 } from 'lucide-react-native';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -30,15 +31,15 @@ type SubView = 'explore' | 'discover';
 
 // Masonry photo data — clean fashion photos for Explore (matching .pen)
 const EXPLORE_PHOTOS_LEFT = [
-  { id: 'e1', imageUrl: 'https://images.unsplash.com/photo-1608635680046-aebf91c1a9c8?w=400', height: 320 },
-  { id: 'e3', imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400', height: 260 },
-  { id: 'e5', imageUrl: 'https://images.unsplash.com/photo-1576507169637-cdcff61eb6d5?w=400', height: 300 },
+  { id: 'post-1', imageUrl: 'https://images.unsplash.com/photo-1608635680046-aebf91c1a9c8?w=400', height: 320 },
+  { id: 'post-3', imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400', height: 260 },
+  { id: 'post-4', imageUrl: 'https://images.unsplash.com/photo-1576507169637-cdcff61eb6d5?w=400', height: 300 },
 ];
 
 const EXPLORE_PHOTOS_RIGHT = [
-  { id: 'e2', imageUrl: 'https://images.unsplash.com/photo-1622021211530-7d31fd86862d?w=400', height: 240 },
-  { id: 'e4', imageUrl: 'https://images.unsplash.com/photo-1683488780206-88ce4240f3da?w=400', height: 340 },
-  { id: 'e6', imageUrl: 'https://images.unsplash.com/photo-1612694831097-d7cd14379928?w=400', height: 280 },
+  { id: 'post-2', imageUrl: 'https://images.unsplash.com/photo-1622021211530-7d31fd86862d?w=400', height: 240 },
+  { id: 'post-5', imageUrl: 'https://images.unsplash.com/photo-1683488780206-88ce4240f3da?w=400', height: 340 },
+  { id: 'post-6', imageUrl: 'https://images.unsplash.com/photo-1612694831097-d7cd14379928?w=400', height: 280 },
 ];
 
 const SHORTCUTS = [
@@ -184,7 +185,14 @@ function ExploreView() {
       <View style={styles.masonry}>
         <View style={styles.column}>
           {EXPLORE_PHOTOS_LEFT.map((photo) => (
-            <Pressable key={photo.id} style={[styles.masonryTile, { height: photo.height }]}>
+            <Pressable
+              key={photo.id}
+              style={[styles.masonryTile, { height: photo.height }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({ pathname: '/post/[id]', params: { id: photo.id } } as Href);
+              }}
+            >
               <Image
                 source={{ uri: photo.imageUrl }}
                 style={styles.masonryImage}
@@ -195,7 +203,14 @@ function ExploreView() {
         </View>
         <View style={styles.column}>
           {EXPLORE_PHOTOS_RIGHT.map((photo) => (
-            <Pressable key={photo.id} style={[styles.masonryTile, { height: photo.height }]}>
+            <Pressable
+              key={photo.id}
+              style={[styles.masonryTile, { height: photo.height }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({ pathname: '/post/[id]', params: { id: photo.id } } as Href);
+              }}
+            >
               <Image
                 source={{ uri: photo.imageUrl }}
                 style={styles.masonryImage}
@@ -209,6 +224,13 @@ function ExploreView() {
   );
 }
 
+interface CommunityUser {
+  id: string;
+  username: string;
+  pfp_url?: string;
+  items: ClosetItem[];
+}
+
 function DiscoverView({
   searchQuery,
   onSearchChange,
@@ -220,6 +242,99 @@ function DiscoverView({
 }) {
   const Colors = useThemeColors();
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
+  const [communityUsers, setCommunityUsers] = useState<CommunityUser[]>([]);
+  const [loadingCommunity, setLoadingCommunity] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // Fetch all users who have items
+        // We'll fetching items first, then profiles for those users
+        const { data: itemRows } = await supabase
+          .from('items')
+          .select('id, user_id, name, category, brand, colors, image_url, clean_image_url, garment_type, tags, estimated_value, created_at, updated_at')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (cancelled || !itemRows?.length) {
+          if (!cancelled) setLoadingCommunity(false);
+          return;
+        }
+
+        // Group items by user_id
+        const userItemsMap = new Map<string, ClosetItem[]>();
+        for (const row of itemRows) {
+          const uid = row.user_id as string;
+          if (!userItemsMap.has(uid)) userItemsMap.set(uid, []);
+          userItemsMap.get(uid)!.push({
+            id: row.id,
+            user_id: uid,
+            name: row.name,
+            category: row.category,
+            brand: row.brand,
+            colors: row.colors || [],
+            image_url: row.image_url,
+            clean_image_url: row.clean_image_url,
+            garment_type: row.garment_type,
+            tags: row.tags || [],
+            estimated_value: row.estimated_value ? Number(row.estimated_value) : undefined,
+            detected_confidence: 1,
+            wear_count: 0,
+            favorite: false,
+            created_at: row.created_at,
+            updated_at: row.updated_at || row.created_at,
+          });
+        }
+
+        // Fetch profiles for these users
+        const userIds = Array.from(userItemsMap.keys());
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', userIds);
+
+        const profileMap = new Map<string, { username: string, avatar_url?: string }>();
+        if (profiles) {
+          profiles.forEach(p => {
+            profileMap.set(p.id, { username: p.username, avatar_url: p.avatar_url });
+          });
+        }
+
+        // Build community user list
+        const users: CommunityUser[] = [];
+        for (const [uid, items] of userItemsMap) {
+          const profile = profileMap.get(uid);
+
+          // Try to get twin info as fallback
+          let twinUrl: string | undefined;
+          if (!profile?.avatar_url) {
+            const { data: twin } = await supabase
+              .from('digital_twins')
+              .select('twin_image_url, selfie_url')
+              .eq('user_id', uid)
+              .single();
+            twinUrl = twin?.selfie_url || twin?.twin_image_url || undefined;
+          }
+
+          users.push({
+            id: uid,
+            username: profile?.username || `user_${uid.slice(0, 6)}`,
+            pfp_url: profile?.avatar_url || twinUrl,
+            items,
+          });
+        }
+
+        if (!cancelled) setCommunityUsers(users);
+      } catch (e) {
+        if (__DEV__) console.warn('Failed to load community:', e);
+      } finally {
+        if (!cancelled) setLoadingCommunity(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
       <View style={styles.searchBar}>
@@ -260,24 +375,77 @@ function DiscoverView({
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>My Closet</Text>
       </View>
-
       <MyClosetProfileCard />
+
+      {/* Community */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Community</Text>
+      </View>
+      {loadingCommunity ? (
+        <View style={styles.emptyClosetCard}>
+          <Text style={styles.emptyClosetText}>Loading community...</Text>
+        </View>
+      ) : communityUsers.length === 0 ? (
+        <View style={[styles.emptyClosetCard, { marginHorizontal: 16 }]}>
+          <Text style={styles.emptyClosetText}>No community members yet</Text>
+        </View>
+      ) : (
+        communityUsers.map((user) => (
+          <CommunityUserCard key={user.id} user={user} />
+        ))
+      )}
     </ScrollView>
+  );
+}
+
+function CommunityUserCard({ user }: { user: CommunityUser }) {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
+
+  return (
+    <View style={styles.profileCard}>
+      <View style={styles.profileInfoRow}>
+        <View style={styles.profileLeft}>
+          {user.pfp_url ? (
+            <Image source={{ uri: user.pfp_url }} style={styles.profileAvatarImage} contentFit="cover" />
+          ) : (
+            <View style={[styles.profileAvatar, { backgroundColor: Colors.accentGreen }]}>
+              <Text style={styles.profileAvatarText}>{user.username[0]?.toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={styles.profileMeta}>
+            <Text style={styles.profileName}>{user.username}</Text>
+            <Text style={styles.profileHandle}>{user.items.length} pieces</Text>
+          </View>
+        </View>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.profileItemsRow}
+      >
+        {user.items.slice(0, 8).map((item) => (
+          <View key={item.id} style={styles.profileItemThumb}>
+            <Image
+              source={{ uri: item.clean_image_url || item.image_url }}
+              style={styles.profileItemImage}
+              contentFit="contain"
+            />
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
 function MyClosetProfileCard() {
   const Colors = useThemeColors();
-  const { items, digitalTwin } = useClosetStore();
-  const { session } = useAuth();
+  const { items, digitalTwin, userProfile } = useClosetStore();
 
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
 
-  const displayName = useMemo(() => {
-    const email = session?.user?.email;
-    if (!email) return 'You';
-    return email.split('@')[0];
-  }, [session]);
+  const displayName = userProfile?.username || 'You';
+  const pfpUrl = userProfile?.pfp_url;
 
   const recentItems = useMemo(() => items.slice(0, 8), [items]);
 
@@ -321,7 +489,13 @@ function MyClosetProfileCard() {
       {/* User info row */}
       <View style={styles.profileInfoRow}>
         <View style={styles.profileLeft}>
-          {digitalTwin?.twin_image_url ? (
+          {pfpUrl ? (
+            <Image
+              source={{ uri: pfpUrl }}
+              style={styles.profileAvatarImage}
+              contentFit="cover"
+            />
+          ) : digitalTwin?.twin_image_url ? (
             <Image
               source={{ uri: digitalTwin.twin_image_url }}
               style={styles.profileAvatarImage}

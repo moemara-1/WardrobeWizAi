@@ -6,13 +6,15 @@ import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, Sparkles, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
   Pressable,
+  Image as RNImage,
   ScrollView,
   StyleSheet,
   Text,
@@ -57,7 +59,11 @@ interface DetectedPiece {
   estimatedValue: string;
   tags: string[];
   garmentType: string;
+
   selected: boolean; // user can deselect items they don't want to save
+  box_2d?: [number, number, number, number];
+  cleanImageUri?: string;
+  isCleaning?: boolean;
 }
 
 export default function AnalyzeScreen() {
@@ -126,50 +132,89 @@ export default function AnalyzeScreen() {
       const resolvedCategory = product?.category || analysis.category;
       const resolvedGarmentType = product?.garment_type || analysis.garment_type || undefined;
       setGarmentSlot(classifyGarmentSlot(resolvedCategory, resolvedGarmentType));
+
+      // Step 2: Crop and Clean
+      // We need to wait for product identification to get the bounding box
+      let workingUri = uri;
+
+      if (product?.box_2d) {
+        try {
+          // box is [ymin, xmin, ymax, xmax] in 0-100 scale
+          const [ymin, xmin, ymax, xmax] = product.box_2d;
+
+          // Get image dimensions
+          const dimensions = await new Promise<{ width: number, height: number }>((resolve, reject) => {
+            RNImage.getSize(uri, (width, height) => resolve({ width, height }), reject);
+          });
+
+          // Add some padding (margin)
+          const padding = 5; // 5%
+          const y1 = Math.max(0, ymin - padding);
+          const x1 = Math.max(0, xmin - padding);
+          const y2 = Math.min(100, ymax + padding);
+          const x2 = Math.min(100, xmax + padding);
+
+          const cropX = (x1 / 100) * dimensions.width;
+          const cropY = (y1 / 100) * dimensions.height;
+          const cropW = ((x2 - x1) / 100) * dimensions.width;
+          const cropH = ((y2 - y1) / 100) * dimensions.height;
+
+          const cropped = await manipulateAsync(
+            uri,
+            [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
+            { format: SaveFormat.JPEG, compress: 0.9 }
+          );
+
+          workingUri = cropped.uri;
+        } catch (e) {
+          console.warn('Failed to crop single item:', e);
+        }
+      }
+
+      setStage('researching');
+
+      const researchPromise = researchClothingItem(
+        product?.name || name || analysis!.name,
+        product?.brand || analysis!.brand,
+        product?.category || analysis!.category,
+      ).then((research: ItemResearch) => {
+        if (research.estimated_value) setEstimatedValue(String(research.estimated_value));
+        if (research.brand && !brand) setBrand(research.brand);
+        if (research.tags.length > 0) setTags(research.tags);
+        if (research.subcategory) setGarmentType(research.subcategory);
+      }).catch(() => { });
+
+      // Generate clean product image from the (potentially cropped) working URI
+      const effectiveProduct: ProductIdentification = product || {
+        name: analysis!.name,
+        brand: analysis!.brand,
+        category: analysis!.category,
+        garment_type: analysis!.garment_type,
+        colors: analysis!.colors,
+        material: null,
+        description: analysis!.name,
+      };
+
+      const cleanImagePromise = regenerateCleanImage(workingUri, effectiveProduct)
+        .then((cleanUri) => {
+          if (cleanUri) setCleanImageUri(cleanUri);
+        })
+        .catch(() => {
+          // Fallback: try removeBackground (remove.bg API)
+          return removeBackground(workingUri)
+            .then((r) => {
+              if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
+            });
+        }).catch(() => { });
+
+      await Promise.allSettled([researchPromise, cleanImagePromise]);
+      setStage('done');
+
     } catch (err) {
       setStage('error');
       setErrorMsg(err instanceof Error ? err.message : 'Vision analysis failed');
       return;
     }
-
-    // Step 2: Research + clean image regeneration in parallel
-    setStage('researching');
-
-    const researchPromise = researchClothingItem(
-      product?.name || name || analysis!.name,
-      product?.brand || analysis!.brand,
-      product?.category || analysis!.category,
-    ).then((research: ItemResearch) => {
-      if (research.estimated_value) setEstimatedValue(String(research.estimated_value));
-      if (research.brand && !brand) setBrand(research.brand);
-      if (research.tags.length > 0) setTags(research.tags);
-      if (research.subcategory) setGarmentType(research.subcategory);
-    }).catch(() => { });
-
-    // Generate clean product image using FLUX (product-only, no person)
-    // If identifyProduct succeeded, use its data; otherwise build from basic analysis
-    const effectiveProduct: ProductIdentification = product || {
-      name: analysis!.name,
-      brand: analysis!.brand,
-      category: analysis!.category,
-      garment_type: analysis!.garment_type,
-      colors: analysis!.colors,
-      material: null,
-      description: analysis!.name,
-    };
-
-    const cleanImagePromise = regenerateCleanImage(uri, effectiveProduct)
-      .then((cleanUri) => {
-        if (cleanUri) setCleanImageUri(cleanUri);
-      }).catch(() => {
-        // Fallback: try simple background removal
-        removeBackground(uri).then((r) => {
-          if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
-        }).catch(() => { });
-      });
-
-    await Promise.allSettled([researchPromise, cleanImagePromise]);
-    setStage('done');
   }, []);
 
   // ─── Multi-item pipeline (fit pic) ───
@@ -184,7 +229,7 @@ export default function AnalyzeScreen() {
 
       if (!result.detections || result.detections.length === 0) {
         setStage('error');
-        setErrorMsg('No clothing items detected in image');
+        setErrorMsg('No clothing items detected in image. Make sure the photo clearly shows a person wearing clothes.');
         return;
       }
 
@@ -199,15 +244,104 @@ export default function AnalyzeScreen() {
         tags: [],
         garmentType: det.modelName || '',
         selected: true,
+        box_2d: det.box_2d,
+        isCleaning: false,
       }));
 
       setDetectedPieces(pieces);
+
+      // Trigger cropping and cleaning for each piece
+      // We need image dimensions first
+      RNImage.getSize(uri, (width, height) => {
+        pieces.forEach((piece, idx) => {
+          if (piece.box_2d && piece.box_2d.length === 4) {
+            // process in background
+            processPieceImage(uri, piece.id, piece.box_2d!, width, height, piece);
+          }
+        });
+      }, (err) => {
+        console.warn('Failed to get image size', err);
+      });
+
+      // Research each piece in parallel for better details
+      setStage('researching');
+      const researchPromises = pieces.map(async (piece, idx) => {
+        try {
+          const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
+          setDetectedPieces((prev) =>
+            prev.map((p, i) => i === idx ? {
+              ...p,
+              estimatedValue: research.estimated_value ? String(research.estimated_value) : p.estimatedValue,
+              brand: research.brand || p.brand,
+              tags: research.tags.length > 0 ? research.tags : p.tags,
+              garmentType: research.subcategory || p.garmentType,
+            } : p)
+          );
+        } catch { /* ignore research failures */ }
+      });
+
+      await Promise.allSettled(researchPromises);
       setStage('done');
     } catch (err) {
       setStage('error');
       setErrorMsg(err instanceof Error ? err.message : 'Outfit analysis failed');
     }
   }, []);
+
+  const processPieceImage = async (
+    originalUri: string,
+    pieceId: string,
+    box: [number, number, number, number],
+    imgWidth: number,
+    imgHeight: number,
+    piece: DetectedPiece
+  ) => {
+    try {
+      // box is [ymin, xmin, ymax, xmax] in 0-100 scale
+      const [ymin, xmin, ymax, xmax] = box;
+
+      // Add some padding (margin) to the crop to ensure we don't cut off edges
+      const padding = 5; // 5% padding
+      const y1 = Math.max(0, ymin - padding);
+      const x1 = Math.max(0, xmin - padding);
+      const y2 = Math.min(100, ymax + padding);
+      const x2 = Math.min(100, xmax + padding);
+
+      const cropX = (x1 / 100) * imgWidth;
+      const cropY = (y1 / 100) * imgHeight;
+      const cropW = ((x2 - x1) / 100) * imgWidth;
+      const cropH = ((y2 - y1) / 100) * imgHeight;
+
+      // Crop
+      const cropped = await manipulateAsync(
+        originalUri,
+        [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
+        { format: SaveFormat.JPEG, compress: 0.9 }
+      );
+
+      // Clean
+      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: true } : p));
+
+      // Construct a minimal product object for the cleaner prompt
+      const tempProduct: ProductIdentification = {
+        name: piece.name,
+        brand: piece.brand || null,
+        category: piece.category,
+        garment_type: piece.garmentType || null,
+        colors: piece.colors,
+        material: null,
+        description: piece.name
+      };
+
+      const cleanUri = await regenerateCleanImage(cropped.uri, tempProduct, 'detect-fit-seedream');
+
+      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
+
+    } catch (e) {
+      console.warn('Failed to clean piece image:', e);
+      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: false } : p));
+    }
+  };
 
   useEffect(() => {
     if (!imageUri) return;
@@ -260,7 +394,8 @@ export default function AnalyzeScreen() {
       const newItem: ClosetItem = {
         id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         user_id: 'demo',
-        image_url: imageUri,
+        image_url: piece.cleanImageUri || imageUri, // Use clean image if available
+        clean_image_url: piece.cleanImageUri,
         original_image_url: imageUri,
         name: piece.name || 'Clothing Item',
         category: piece.category,
@@ -405,6 +540,17 @@ export default function AnalyzeScreen() {
                           <Text style={styles.colorChipText}>{c}</Text>
                         </View>
                       ))}
+                    </View>
+                  )}
+                  {piece.cleanImageUri && (
+                    <View style={styles.cleanImagePreview}>
+                      <Image source={{ uri: piece.cleanImageUri }} style={styles.cleanImageThumb} contentFit="contain" />
+                    </View>
+                  )}
+                  {piece.isCleaning && (
+                    <View style={styles.cleaningIndicator}>
+                      <ActivityIndicator size="small" color={Colors.accentGreen} />
+                      <Text style={styles.cleaningText}>Generating clean image...</Text>
                     </View>
                   )}
                   {piece.estimatedValue ? (
@@ -632,5 +778,9 @@ function createStyles(C: any) {
     pieceConfidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: C.accentGreen },
     pieceColors: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     pieceValue: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
+    cleanImagePreview: { marginTop: 8, height: 100, backgroundColor: '#FFFFFF', borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+    cleanImageThumb: { width: '100%', height: '100%' },
+    cleaningIndicator: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
+    cleaningText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textTertiary },
   });
 }

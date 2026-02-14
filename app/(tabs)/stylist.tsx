@@ -1,8 +1,7 @@
 import { AddMenuPopover } from '@/components/ui/AddMenuPopover';
 import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
-import { Radius, Typography } from '@/constants/Colors';
-import { useThemeColors } from '@/contexts/ThemeContext';
+import { Colors, Radius, Typography } from '@/constants/Colors';
 import { generateOutfitTwin, OutfitTwinItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
@@ -11,30 +10,30 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import {
-  Bookmark,
-  BookmarkCheck,
-  Dices,
-  Plus,
-  Send,
-  SlidersHorizontal,
-  Sparkles
+    Bookmark,
+    BookmarkCheck,
+    Dices,
+    Plus,
+    Send,
+    SlidersHorizontal,
+    Sparkles
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  PanResponder,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    ActivityIndicator,
+    Alert,
+    Animated,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    PanResponder,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -47,7 +46,6 @@ const OUTFIT_SLOTS: { slot: GarmentSlot; label: string; heightRatio: number; cat
 ];
 
 export default function StylistScreen() {
-  const Colors = useThemeColors();
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [styleFilter, setStyleFilter] = useState<string[]>([]);
@@ -80,8 +78,6 @@ export default function StylistScreen() {
   const canvasOutfit = useClosetStore((s) => s.canvasOutfit);
   const clearCanvasOutfit = useClosetStore((s) => s.clearCanvasOutfit);
 
-  const styles = useMemo(() => createStylistStyles(Colors), [Colors]);
-
   // Consume canvasItem passed from item detail "Try on Canvas"
   useEffect(() => {
     if (canvasItem) {
@@ -105,7 +101,6 @@ export default function StylistScreen() {
       const newIndices = { ...slotIndices };
       for (const piece of resolvedItems) {
         const slot = classifyGarmentSlot(piece.category, piece.garment_type || undefined);
-        // Outfit slots by category
         const slotItems = itemsBySlot[slot];
         const idx = slotItems.findIndex((i) => i.id === piece.id);
         if (idx >= 0) {
@@ -664,48 +659,47 @@ export default function StylistScreen() {
   );
 }
 
-function createStylistStyles(C: any) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
-    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
-    topBarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-    titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.textPrimary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radius.pill },
-    titleText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.background },
-    avatarCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-    avatarText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.textSecondary },
-    twinBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: C.border },
-    twinBannerText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
-    canvasArea: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
-    canvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden' },
-    canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-    canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: C.textTertiary },
-    canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary, textAlign: 'center' },
-    slotsColumn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8 },
-    slotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-    slotCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    slotImageWrapper: { width: '65%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-    slotImagePressable: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-    slotImage: { width: '100%', height: '100%' },
-    slotEmptySpace: { width: 40, height: 40 },
-    fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },
-    fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-    fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-    fabSaved: { borderColor: C.accentGreen },
-    chatBarWrapper: { paddingHorizontal: 16, paddingBottom: 80, paddingTop: 4 },
-    chatBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 6, gap: 8, borderWidth: 1, borderColor: C.border },
-    chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.cardSurface, alignItems: 'center', justifyContent: 'center' },
-    chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textPrimary, paddingVertical: 0 },
-    sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center' },
-    fitsPickerContainer: { flex: 1, backgroundColor: C.background },
-    fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
-    fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textSecondary },
-    fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary },
-    fitsPickerCard: { marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border },
-    fitsPickerItems: { flexDirection: 'row', marginBottom: 10 },
-    fitsPickerThumb: { width: 60, height: 60, marginRight: 8, backgroundColor: '#FFFFFF', borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-    fitsPickerImage: { width: '90%', height: '90%' },
-    fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
-    fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  });
-}
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+  topBarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.textPrimary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radius.pill },
+  titleText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
+  avatarCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  avatarText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textSecondary },
+  twinBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
+  twinBannerText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
+  canvasArea: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
+  canvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden' },
+  canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: Colors.textTertiary },
+  canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary, textAlign: 'center' },
+  slotsColumn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8 },
+  slotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  slotCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  slotImageWrapper: { width: '65%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  slotImagePressable: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  slotImage: { width: '100%', height: '100%' },
+  slotEmptySpace: { width: 40, height: 40 },
+  fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },
+  fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#32D583', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  fabSaved: { borderColor: Colors.accentGreen },
+  chatBarWrapper: { paddingHorizontal: 16, paddingBottom: 80, paddingTop: 4 },
+  chatBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 6, gap: 8, borderWidth: 1, borderColor: Colors.border },
+  chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurface, alignItems: 'center', justifyContent: 'center' },
+  chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textPrimary, paddingVertical: 0 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
+  // Saved fits picker
+  fitsPickerContainer: { flex: 1, backgroundColor: Colors.background },
+  fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
+  fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textSecondary },
+  fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
+  fitsPickerCard: { marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
+  fitsPickerItems: { flexDirection: 'row', marginBottom: 10 },
+  fitsPickerThumb: { width: 60, height: 60, marginRight: 8, backgroundColor: '#FFFFFF', borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  fitsPickerImage: { width: '90%', height: '90%' },
+  fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
+  fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+});

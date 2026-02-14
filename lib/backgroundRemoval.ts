@@ -1,5 +1,5 @@
-import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/lib/supabase';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export type GarmentSlot = 'headwear' | 'top' | 'bottom' | 'footwear' | 'accessory' | 'full-body' | 'unknown';
 

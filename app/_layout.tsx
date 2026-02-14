@@ -1,8 +1,8 @@
+import { Colors } from '@/constants/Colors';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { AppThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { Fraunces_400Regular, Fraunces_700Bold, useFonts } from '@expo-google-fonts/fraunces';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -15,6 +15,18 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+
+const APP_DARK_THEME = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: Colors.background,
+    card: Colors.cardSurface,
+    text: Colors.textPrimary,
+    border: Colors.border,
+    primary: Colors.accentGreen,
+  },
+};
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -35,44 +47,10 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <AppThemeProvider>
-        <ThemedApp fontsLoaded={loaded} />
-      </AppThemeProvider>
+      <ThemeProvider value={APP_DARK_THEME}>
+        <RootNavigator fontsLoaded={loaded} />
+      </ThemeProvider>
     </AuthProvider>
-  );
-}
-
-function ThemedApp({ fontsLoaded }: { fontsLoaded: boolean }) {
-  const { colors, isDark } = useTheme();
-
-  const navTheme = isDark
-    ? {
-      ...DarkTheme,
-      colors: {
-        ...DarkTheme.colors,
-        background: colors.background,
-        card: colors.cardSurface,
-        text: colors.textPrimary,
-        border: colors.border,
-        primary: colors.accentGreen,
-      },
-    }
-    : {
-      ...DefaultTheme,
-      colors: {
-        ...DefaultTheme.colors,
-        background: colors.background,
-        card: colors.cardSurface,
-        text: colors.textPrimary,
-        border: colors.border,
-        primary: colors.accentGreen,
-      },
-    };
-
-  return (
-    <ThemeProvider value={navTheme}>
-      <RootNavigator fontsLoaded={fontsLoaded} />
-    </ThemeProvider>
   );
 }
 
@@ -151,18 +129,6 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
       />
       <Stack.Screen
         name="settings"
-        options={{ animation: 'slide_from_right' }}
-      />
-      <Stack.Screen
-        name="privacy-policy"
-        options={{ animation: 'slide_from_right' }}
-      />
-      <Stack.Screen
-        name="terms-of-service"
-        options={{ animation: 'slide_from_right' }}
-      />
-      <Stack.Screen
-        name="closet-value"
         options={{ animation: 'slide_from_right' }}
       />
     </Stack>

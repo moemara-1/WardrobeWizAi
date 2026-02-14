@@ -139,3 +139,19 @@ export interface SavedFit {
     prompt: string;
     created_at: string;
 }
+
+export interface UserPost {
+    id: string;
+    image_url: string;
+    caption?: string;
+    tagged_item_ids?: string[];
+    created_at: string;
+}
+
+export interface UserProfileData {
+    username: string;
+    bio: string;
+    pfp_url?: string;
+    followers: number;
+    following: number;
+}
