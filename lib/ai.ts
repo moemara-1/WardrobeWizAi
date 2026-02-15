@@ -140,20 +140,55 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
 }
 
 /**
- * Ensures a file URI has the file:// scheme prefix.
- * Important for iOS file system access.
+ * Prepares an image for upload/processing by ensuring it's accessible.
+ * On iOS, images from ImagePicker might be in a temp location we can't read later.
+ * This function copies the file to the app's cache directory to ensure ownership.
  */
-function ensureFileUri(uri: string): string {
+async function prepareImageForUpload(uri: string): Promise<string> {
     if (!uri) return uri;
     if (uri.startsWith('http') || uri.startsWith('data:')) return uri;
-    if (uri.startsWith('file://')) return uri;
-    // If it starts with / and not file://, prepend it
-    if (uri.startsWith('/')) return `file://${uri}`;
-    return uri;
+
+    try {
+        // Ensure standard file:// prefix
+        let safeUri = uri;
+        if (!safeUri.startsWith('file://') && safeUri.startsWith('/')) {
+            safeUri = `file://${safeUri}`;
+        }
+
+        // Check if file exists and is accessible
+        const info = await FileSystem.getInfoAsync(safeUri);
+        if (!info.exists) {
+            console.warn(`[prepareImage] File does not exist at: ${safeUri}`);
+            // Attempt to use original URI if safeUri failed (fallback)
+            const infoOriginal = await FileSystem.getInfoAsync(uri);
+            if (infoOriginal.exists) {
+                safeUri = uri; // Original was actually correct
+            } else {
+                throw new Error(`File not found at ${uri}`);
+            }
+        }
+
+        // Generate a new path in our cache directory
+        const filename = safeUri.split('/').pop() || `temp_${Date.now()}.jpg`;
+        const destPath = `${FileSystem.cacheDirectory}upload_${Date.now()}_${filename}`;
+
+        // Copy file to ensure we have read permissions
+        await FileSystem.copyAsync({
+            from: safeUri,
+            to: destPath
+        });
+
+        if (__DEV__) console.log(`[prepareImage] Copied ${safeUri} -> ${destPath}`);
+        return destPath;
+    } catch (e) {
+        console.warn('[prepareImage] Failed to prepare image, using original:', e);
+        return uri;
+    }
 }
 
 export async function analyzeClothingImage(imageUri: string): Promise<ClothingAnalysis> {
-    const base64 = await FileSystem.readAsStringAsync(ensureFileUri(imageUri), {
+    const preparedUri = await prepareImageForUpload(imageUri);
+    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -295,7 +330,8 @@ export interface OutfitAnalysis {
 }
 
 export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalysis> {
-    const base64 = await FileSystem.readAsStringAsync(ensureFileUri(imageUri), {
+    const preparedUri = await prepareImageForUpload(imageUri);
+    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -401,13 +437,15 @@ export async function generateDigitalTwin(
     additionalDetails: string,
     bodyPhotoUri?: string,
 ): Promise<DigitalTwinAnalysis> {
-    const base64Selfie = await FileSystem.readAsStringAsync(ensureFileUri(selfieUri), {
+    const preparedSelfie = await prepareImageForUpload(selfieUri);
+    const base64Selfie = await FileSystem.readAsStringAsync(preparedSelfie, {
         encoding: FileSystem.EncodingType.Base64,
     });
 
     let bodyBase64: string | undefined;
     if (bodyPhotoUri) {
-        bodyBase64 = await FileSystem.readAsStringAsync(ensureFileUri(bodyPhotoUri), {
+        const preparedBody = await prepareImageForUpload(bodyPhotoUri);
+        bodyBase64 = await FileSystem.readAsStringAsync(preparedBody, {
             encoding: FileSystem.EncodingType.Base64,
         });
     }
@@ -463,7 +501,8 @@ export interface ProductIdentification {
  * its brand, specific model, colors, and material.
  */
 export async function identifyProduct(imageUri: string): Promise<ProductIdentification> {
-    const base64 = await FileSystem.readAsStringAsync(ensureFileUri(imageUri), {
+    const preparedUri = await prepareImageForUpload(imageUri);
+    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -552,7 +591,8 @@ export async function generateOutfitTwin(
             encoding: FileSystem.EncodingType.Base64,
         });
     } else {
-        twinBase64 = await FileSystem.readAsStringAsync(ensureFileUri(twinImageUrl), {
+        const preparedTwin = await prepareImageForUpload(twinImageUrl);
+        twinBase64 = await FileSystem.readAsStringAsync(preparedTwin, {
             encoding: FileSystem.EncodingType.Base64,
         });
     }
