@@ -1,24 +1,16 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
-import { generateDigitalTwin } from '@/lib/ai';
+import { clearLogs, generateDigitalTwin, getLogs, log } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { router, type Href } from 'expo-router';
-import {
-  ArrowLeft,
-  Camera,
-  Check,
-  FileText,
-  Palette,
-  Scan,
-  Upload,
-  UserCircle,
-} from 'lucide-react-native';
+import { Href, useRouter } from 'expo-router';
+import { ArrowLeft, Camera, Check, FileText, Palette, Scan, Upload, UserCircle, XCircle } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,15 +23,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const DEFAULT_SKIN_COLORS = ['#FDDBB4', '#E8B889', '#C48C5C', '#8D5524', '#3B1F0B'];
 const DEFAULT_HAIR_COLORS = ['#FAF0BE', '#D2691E', '#8B0000', '#2C1A0E', '#1C1C1C'];
 
-/**
- * Simple dominant-color extraction from an image
- * In a real app, you'd use an ML model or service — this analyzes via Canvas or just returns the defaults
- */
 async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
   try {
-    // In a production app, send to a color detection API
-    // For now, we return a reasonable median color from the photo
-    // The user sees their photo and the picked color as a visual verification
     return null;
   } catch {
     return null;
@@ -47,63 +32,101 @@ async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
 }
 
 export default function DigitalTwinScreen() {
+  const router = useRouter();
   const { digitalTwin, setDigitalTwin, twinGenerating, setTwinGenerating, setTwinProgress, twinProgress } = useClosetStore();
+
   const [selfieUri, setSelfieUri] = useState<string | null>(digitalTwin?.selfie_url ?? null);
+  const [selfieBase64, setSelfieBase64] = useState<string | null>(null);
+
   const [bodyUri, setBodyUri] = useState<string | null>(digitalTwin?.body_url ?? null);
   const [skinColor, setSkinColor] = useState<string | null>(digitalTwin?.skin_color ?? null);
   const [hairColor, setHairColor] = useState<string | null>(digitalTwin?.hair_color ?? null);
   const [additionalDetails, setAdditionalDetails] = useState(digitalTwin?.additional_details ?? '');
+
   const [isDetectingSkin, setIsDetectingSkin] = useState(false);
   const [isDetectingHair, setIsDetectingHair] = useState(false);
 
-  const pickImage = async (setter: (uri: string | null) => void) => {
+  const [showErrorLogs, setShowErrorLogs] = useState(false);
+  const [errorLogs, setErrorLogs] = useState('');
+
+  const pickImage = async (setter: (uri: string | null) => void, base64Setter?: (b64: string | null) => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    log('[pickImage] Launching ImageLibrary...');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      base64: true,
+    });
     if (!result.canceled && result.assets[0]) {
-      setter(result.assets[0].uri);
+      const asset = result.assets[0];
+      log(`[pickImage] Selected: ${asset.uri}`);
+      setter(asset.uri);
+      if (base64Setter) {
+        if (asset.base64) {
+          log(`[pickImage] Base64 received (len: ${asset.base64.length})`);
+          base64Setter(asset.base64);
+        } else {
+          log('[pickImage] WARNING: No base64 returned from picker!');
+        }
+      }
+    } else {
+      log('[pickImage] Cancelled or no asset');
     }
   };
 
-  const takePhoto = async (setter: (uri: string | null) => void) => {
+  const takePhoto = async (setter: (uri: string | null) => void, base64Setter?: (b64: string | null) => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    log('[takePhoto] Requesting camera perms...');
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) return;
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+
+    log('[takePhoto] Launching Camera...');
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      base64: true,
+    });
     if (!result.canceled && result.assets[0]) {
-      setter(result.assets[0].uri);
+      const asset = result.assets[0];
+      log(`[takePhoto] Captured: ${asset.uri}`);
+      setter(asset.uri);
+      if (base64Setter) {
+        if (asset.base64) {
+          log(`[takePhoto] Base64 captured (len: ${asset.base64.length})`);
+          base64Setter(asset.base64);
+        } else {
+          log('[takePhoto] WARNING: No base64 returned from camera!');
+        }
+      }
     }
   };
 
-  /** Detect skin color from uploaded selfie photo */
   const detectSkinFromPhoto = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsDetectingSkin(true);
-
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
       if (!result.canceled && result.assets[0]) {
         const detected = await detectColorFromPhoto(result.assets[0].uri);
         if (detected) {
           setSkinColor(detected);
         } else {
-          // Auto-pick closest from defaults based on the photo
-          // For now, pick middle tone as reasonable default
           setSkinColor(DEFAULT_SKIN_COLORS[2]);
           Alert.alert('Color Detected', `We've selected a close match. You can fine-tune by tapping a swatch below.`);
         }
       }
     } catch {
-      // detection failed — default selected above
     } finally {
       setIsDetectingSkin(false);
     }
   }, []);
 
-  /** Detect hair color from uploaded photo */
   const detectHairFromPhoto = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsDetectingHair(true);
-
     try {
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
       if (!result.canceled && result.assets[0]) {
@@ -116,11 +139,14 @@ export default function DigitalTwinScreen() {
         }
       }
     } catch {
-      // detection failed — default selected above
     } finally {
       setIsDetectingHair(false);
     }
   }, []);
+
+  const copyLogs = async () => {
+    Alert.alert('Select Text', 'Please long-press the logs to select and copy them.');
+  };
 
   const canGenerate = selfieUri && skinColor && hairColor;
 
@@ -129,14 +155,25 @@ export default function DigitalTwinScreen() {
       Alert.alert('Missing Info', 'Please upload a selfie and select your skin & hair colors.');
       return;
     }
+
+    clearLogs();
+
+    log(`[handleGenerate] selfieUri: ${selfieUri}`);
+    log(`[handleGenerate] selfieBase64 present: ${!!selfieBase64} (len: ${selfieBase64?.length || 0})`);
+
+    if (!selfieBase64 && !selfieUri?.startsWith('http') && !selfieUri?.startsWith('data:')) {
+      Alert.alert(
+        'Refresh Required',
+        'Please re-select or re-take your selfie photo to enable generating.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTwinGenerating(true);
     setTwinProgress('Generating your digital twin...');
 
-    // Navigate back immediately — generation runs in background
-    router.back();
-
-    // Run generation in background
     try {
       const analysis = await generateDigitalTwin(
         selfieUri,
@@ -144,6 +181,7 @@ export default function DigitalTwinScreen() {
         hairColor,
         additionalDetails,
         bodyUri ?? undefined,
+        selfieBase64
       );
 
       const twin = {
@@ -156,7 +194,7 @@ export default function DigitalTwinScreen() {
         additional_details: additionalDetails || undefined,
         ai_description: analysis.ai_description,
         body_type: analysis.body_type,
-        style_recommendations: analysis.style_recommendations,
+        style_recommendations: analysis.style_recommendations, // This might need type reconciliation if lib/ai.ts generates string
         twin_image_url: analysis.twin_image_url,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -165,12 +203,22 @@ export default function DigitalTwinScreen() {
       setDigitalTwin(twin);
       setTwinProgress(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
     } catch (err) {
       if (__DEV__) console.error('Digital twin generation failed:', err);
+      log(`[handleGenerate] Error caught: ${err}`);
       setTwinProgress(null);
+
+      const logs = getLogs();
+      setErrorLogs(logs);
+
       Alert.alert(
         'Generation Failed',
-        `Could not create your digital twin: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
+        `Could not create your digital twin. View logs for details.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'View Logs', onPress: () => setShowErrorLogs(true) }
+        ]
       );
     } finally {
       setTwinGenerating(false);
@@ -188,7 +236,6 @@ export default function DigitalTwinScreen() {
       </SafeAreaView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Existing Twin Preview or Empty State */}
         {digitalTwin?.twin_image_url ? (
           <Pressable style={styles.twinPreview} onPress={() => router.push('/digital-twin-preview' as Href)}>
             <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinPreviewImage} contentFit="contain" />
@@ -208,7 +255,6 @@ export default function DigitalTwinScreen() {
 
         <Text style={styles.sectionTitle}>Profile</Text>
 
-        {/* Selfie Card */}
         <View style={styles.uploadCard}>
           {selfieUri ? (
             <Image source={{ uri: selfieUri }} style={styles.uploadPreview} contentFit="cover" />
@@ -217,16 +263,15 @@ export default function DigitalTwinScreen() {
           )}
           <Text style={styles.uploadLabel}>Selfie</Text>
           <View style={styles.uploadActions}>
-            <Pressable style={styles.uploadBtn} onPress={() => takePhoto(setSelfieUri)}>
+            <Pressable style={styles.uploadBtn} onPress={() => takePhoto(setSelfieUri, setSelfieBase64)}>
               <Text style={styles.uploadBtnText}>Take Photo</Text>
             </Pressable>
-            <Pressable style={styles.uploadBtn} onPress={() => pickImage(setSelfieUri)}>
+            <Pressable style={styles.uploadBtn} onPress={() => pickImage(setSelfieUri, setSelfieBase64)}>
               <Text style={styles.uploadBtnText}>Upload</Text>
             </Pressable>
           </View>
         </View>
 
-        {/* Body Type Card */}
         <View style={styles.uploadCard}>
           {bodyUri ? (
             <Image source={{ uri: bodyUri }} style={styles.uploadPreview} contentFit="cover" />
@@ -244,7 +289,6 @@ export default function DigitalTwinScreen() {
           </View>
         </View>
 
-        {/* Skin Color - with photo upload detect button */}
         <View style={styles.colorSection}>
           <View style={styles.colorHeader}>
             <Palette size={18} color={Colors.textSecondary} />
@@ -277,7 +321,6 @@ export default function DigitalTwinScreen() {
           </View>
         </View>
 
-        {/* Hair Color - with photo upload detect button */}
         <View style={styles.colorSection}>
           <View style={styles.colorHeader}>
             <Palette size={18} color={Colors.textSecondary} />
@@ -310,7 +353,6 @@ export default function DigitalTwinScreen() {
           </View>
         </View>
 
-        {/* Additional Details */}
         <View style={styles.detailsCard}>
           <View style={styles.detailsHeader}>
             <FileText size={18} color={Colors.textSecondary} />
@@ -346,6 +388,26 @@ export default function DigitalTwinScreen() {
           )}
         </Pressable>
       </SafeAreaView>
+
+      <Modal visible={showErrorLogs} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.debugModal} edges={['top']}>
+          <View style={styles.debugHeader}>
+            <Text style={styles.debugTitle}>Debug Logs</Text>
+            <Pressable onPress={() => setShowErrorLogs(false)}>
+              <XCircle size={24} color={Colors.textPrimary} />
+            </Pressable>
+          </View>
+          <View style={styles.debugContent}>
+            <ScrollView>
+              <Text style={styles.debugText} selectable={true}>{errorLogs || 'No logs available.'}</Text>
+            </ScrollView>
+          </View>
+          <View style={styles.copyBtn}>
+            <Text style={styles.copyBtnText}>Long press text above to copy</Text>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
     </View>
   );
 }
@@ -389,4 +451,11 @@ const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
   generatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  debugModal: { flex: 1, backgroundColor: Colors.background },
+  debugHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  debugTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
+  debugContent: { flex: 1, padding: 16 },
+  debugText: { fontFamily: 'monospace', fontSize: 12, color: Colors.textPrimary },
+  copyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, margin: 16, padding: 16, backgroundColor: Colors.cardSurface, borderRadius: Radius.pill },
+  copyBtnText: { fontFamily: Typography.bodyFamilyMedium, color: Colors.textSecondary, fontSize: 12 },
 });

@@ -1,6 +1,7 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { PostComment, useSocialStore } from '@/stores/socialStore';
+import { useClosetStore } from '@/stores/closetStore';
+import { useSocialStore } from '@/stores/socialStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -35,30 +36,30 @@ export default function PostDetailScreen() {
   const posts = useSocialStore((s) => s.posts);
   const likePost = useSocialStore((s) => s.likePost);
   const addComment = useSocialStore((s) => s.addComment);
+  const { userId, userProfile } = useClosetStore();
 
   const post = useMemo(() => posts.find((p) => p.id === id), [posts, id]);
   const [commentText, setCommentText] = useState('');
 
   const handleLike = useCallback(() => {
-    if (!post) return;
+    if (!post || !userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    likePost(post.id);
-  }, [post, likePost]);
+    likePost(post.id, userId);
+  }, [post, userId, likePost]);
 
   const handleSendComment = useCallback(() => {
-    if (!post || !commentText.trim()) return;
+    if (!post || !commentText.trim() || !userId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const comment: PostComment = {
-      id: `comment-${Date.now()}`,
-      userId: 'me',
-      username: 'You',
-      avatarUrl: null,
-      text: commentText.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    addComment(post.id, comment);
+
+    addComment(
+      post.id,
+      commentText.trim(),
+      userId,
+      userProfile.username || 'User',
+      userProfile.pfp_url || null
+    );
     setCommentText('');
-  }, [post, commentText, addComment]);
+  }, [post, commentText, userId, userProfile, addComment]);
 
   if (!post) {
     return (
@@ -73,7 +74,7 @@ export default function PostDetailScreen() {
     );
   }
 
-  const timeAgo = getTimeAgo(post.createdAt);
+  const timeAgo = getTimeAgo(post.created_at);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -97,8 +98,8 @@ export default function PostDetailScreen() {
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Poster info */}
           <View style={styles.posterRow}>
-            {post.avatarUrl ? (
-              <Image source={{ uri: post.avatarUrl }} style={styles.avatar} contentFit="cover" />
+            {post.avatar_url ? (
+              <Image source={{ uri: post.avatar_url }} style={styles.avatar} contentFit="cover" />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <User size={18} color={Colors.textTertiary} />
@@ -112,7 +113,7 @@ export default function PostDetailScreen() {
 
           {/* Post image */}
           <Image
-            source={{ uri: post.imageUrl }}
+            source={{ uri: post.image_url }}
             style={styles.postImage}
             contentFit="cover"
           />
@@ -144,14 +145,14 @@ export default function PostDetailScreen() {
           ) : null}
 
           {/* Clothing pieces in this post */}
-          {post.clothingPieces.length > 0 && (
+          {post.clothing_pieces.length > 0 && (
             <View style={styles.piecesSection}>
               <View style={styles.piecesSectionHeader}>
                 <Shirt size={16} color={Colors.textSecondary} />
                 <Text style={styles.piecesSectionTitle}>Clothing in this outfit</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.piecesScroll}>
-                {post.clothingPieces.map((piece, idx) => (
+                {post.clothing_pieces.map((piece, idx) => (
                   <View key={idx} style={styles.pieceEmblem}>
                     {piece.imageUrl ? (
                       <Image source={{ uri: piece.imageUrl }} style={styles.pieceEmblemImage} contentFit="contain" />
@@ -175,8 +176,8 @@ export default function PostDetailScreen() {
             </Text>
             {post.comments.map((comment) => (
               <View key={comment.id} style={styles.commentRow}>
-                {comment.avatarUrl ? (
-                  <Image source={{ uri: comment.avatarUrl }} style={styles.commentAvatar} />
+                {comment.avatar_url ? (
+                  <Image source={{ uri: comment.avatar_url }} style={styles.commentAvatar} />
                 ) : (
                   <View style={styles.commentAvatarPlaceholder}>
                     <User size={12} color={Colors.textTertiary} />
@@ -185,7 +186,7 @@ export default function PostDetailScreen() {
                 <View style={styles.commentContent}>
                   <Text style={styles.commentUser}>{comment.username}</Text>
                   <Text style={styles.commentText}>{comment.text}</Text>
-                  <Text style={styles.commentTime}>{getTimeAgo(comment.createdAt)}</Text>
+                  <Text style={styles.commentTime}>{getTimeAgo(comment.created_at)}</Text>
                 </View>
               </View>
             ))}

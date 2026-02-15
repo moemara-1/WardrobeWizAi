@@ -155,3 +155,42 @@ export interface UserProfileData {
     followers: number;
     following: number;
 }
+
+// Social / Feed Types
+
+export interface PostClothingPiece {
+    name: string;
+    brand: string | null;
+    category: ClothingCategory;
+    imageUrl: string | null;
+    id?: string; // Optional link to real closet item
+}
+
+export interface PostComment {
+    id: string;
+    user_id: string;
+    username: string;
+    avatar_url: string | null;
+    text: string;
+    created_at: string;
+}
+
+export interface SocialPost {
+    id: string;
+    user_id: string;
+    username: string;
+    avatar_url: string | null;
+    image_url: string;
+    caption: string;
+    clothing_pieces: PostClothingPiece[];
+    likes: number;
+    liked: boolean;
+    comments: PostComment[];
+    created_at: string;
+}
+
+export interface UserFollow {
+    user_id: string;
+    username: string;
+    avatar_url: string | null;
+}

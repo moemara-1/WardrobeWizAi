@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { ClosetItem, ClothingCategory, DigitalTwin, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
+import { ClosetItem, ClothingCategory, DigitalTwin, Outfit, SavedFit, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -75,11 +75,6 @@ interface ClosetState {
 
     addSavedFit: (fit: SavedFit) => void;
     deleteSavedFit: (id: string) => void;
-
-    // Posts
-    posts: UserPost[];
-    addPost: (post: UserPost) => void;
-    deletePost: (id: string) => void;
 
     // User Profile
     userProfile: UserProfileData;
@@ -205,7 +200,6 @@ export const useClosetStore = create<ClosetState>()(
             canvasItem: null,
             canvasOutfit: null,
             savedFits: [],
-            posts: [],
             userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
 
             // Auth actions
@@ -299,9 +293,6 @@ export const useClosetStore = create<ClosetState>()(
             addSavedFit: (fit) => set((state) => ({ savedFits: [fit, ...state.savedFits] })),
             deleteSavedFit: (id) => set((state) => ({ savedFits: state.savedFits.filter((f) => f.id !== id) })),
 
-            // Posts
-            addPost: (post) => set((state) => ({ posts: [post, ...state.posts] })),
-            deletePost: (id) => set((state) => ({ posts: state.posts.filter((p) => p.id !== id) })),
 
             // User Profile
             updateUserProfile: (updates) => {
@@ -322,7 +313,6 @@ export const useClosetStore = create<ClosetState>()(
                 outfits: state.outfits,
                 digitalTwin: state.digitalTwin,
                 savedFits: state.savedFits,
-                posts: state.posts,
                 userProfile: state.userProfile,
             }),
             migrate: (persisted: unknown, _version: number) => {

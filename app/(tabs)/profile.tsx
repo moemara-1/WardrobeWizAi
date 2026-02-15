@@ -1,6 +1,7 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
+import { useSocialStore } from '@/stores/socialStore';
 import { UserPost } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -50,10 +51,17 @@ export default function ProfileScreen() {
   const items = useClosetStore((s) => s.items);
   const outfits = useClosetStore((s) => s.outfits);
   const digitalTwin = useClosetStore((s) => s.digitalTwin);
-  const posts = useClosetStore((s) => s.posts);
-  const addPost = useClosetStore((s) => s.addPost);
   const userProfile = useClosetStore((s) => s.userProfile);
+  const userId = useClosetStore((s) => s.userId);
   const updateUserProfile = useClosetStore((s) => s.updateUserProfile);
+
+  const { userPosts: posts, addPost, fetchUserPosts } = useSocialStore();
+
+  React.useEffect(() => {
+    if (userId) {
+      fetchUserPosts(userId);
+    }
+  }, [userId, fetchUserPosts]);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showPostViewer, setShowPostViewer] = useState<UserPost | null>(null);
@@ -348,7 +356,27 @@ export default function ProfileScreen() {
         visible={showAddPostModal}
         onClose={() => setShowAddPostModal(false)}
         items={items}
-        onSave={(post) => { addPost(post); setShowAddPostModal(false); }}
+        onSave={(post) => {
+          if (!userId) return;
+          const pieces = (post.tagged_item_ids || []).map(id => {
+            const item = items.find(i => i.id === id);
+            return item ? {
+              name: item.name,
+              brand: item.brand || null,
+              category: item.category,
+              imageUrl: item.image_url,
+              id: item.id
+            } : null;
+          }).filter(Boolean) as any[];
+
+          addPost({
+            user_id: userId,
+            image_url: post.image_url,
+            caption: post.caption || '',
+            clothing_pieces: pieces
+          });
+          setShowAddPostModal(false);
+        }}
       />
     </SafeAreaView>
   );

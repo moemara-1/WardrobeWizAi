@@ -6,6 +6,17 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 const VISION_MODEL = 'meta-llama/Llama-3.2-11B-Vision-Instruct';
 const TEXT_MODEL = 'meta-llama/Meta-Llama-3.1-70B-Instruct';
 
+// Simple in-memory logger for debugging OTA builds
+export const debugLogs: string[] = [];
+export function log(msg: string) {
+    const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    debugLogs.push(entry);
+    console.log(msg); // Keep console log too
+    if (debugLogs.length > 200) debugLogs.shift(); // Increase buffer
+}
+export function getLogs() { return debugLogs.join('\n'); }
+export function clearLogs() { debugLogs.length = 0; }
+
 export interface ClothingAnalysis {
     name: string;
     category: ClothingCategory;
@@ -140,57 +151,68 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
 }
 
 /**
- * Prepares an image for upload/processing by ensuring it's accessible.
- * On iOS, images from ImagePicker might be in a temp location we can't read later.
- * This function copies the file to the app's cache directory to ensure ownership.
+ * Prepares an image for upload/processing.
+ * Returns both the URI and the Base64 data.
+ * Uses manipulateAsync to get base64 directly, avoiding FileSystem.readAsStringAsync.
  */
-async function prepareImageForUpload(uri: string): Promise<string> {
-    if (!uri) return uri;
-    if (uri.startsWith('http') || uri.startsWith('data:')) return uri;
+async function prepareImageForUpload(uri: string, providedBase64?: string | null): Promise<{ uri: string, base64: string | null }> {
+    if (!uri) return { uri, base64: null };
+
+    // If it's effectively a data URI already (rare for large images passed around as strings, but possible)
+    if (uri.startsWith('data:image')) {
+        return { uri, base64: uri.split(',')[1] };
+    }
 
     try {
-        // Ensure standard file:// prefix
-        let safeUri = uri;
-        if (!safeUri.startsWith('file://') && safeUri.startsWith('/')) {
-            safeUri = `file://${safeUri}`;
+        log(`[prepareImage] Processing: ${uri.slice(0, 50)}...`);
+
+        let targetUri = uri;
+
+        // If we have base64 from ImagePicker, use it as data URI source
+        if (providedBase64) {
+            log(`[prepareImage] Using provided base64 source (len: ${providedBase64.length})`);
+            targetUri = `data:image/jpeg;base64,${providedBase64}`;
         }
 
-        // Check if file exists and is accessible
-        const info = await FileSystem.getInfoAsync(safeUri);
-        if (!info.exists) {
-            console.warn(`[prepareImage] File does not exist at: ${safeUri}`);
-            // Attempt to use original URI if safeUri failed (fallback)
-            const infoOriginal = await FileSystem.getInfoAsync(uri);
-            if (infoOriginal.exists) {
-                safeUri = uri; // Original was actually correct
-            } else {
-                throw new Error(`File not found at ${uri}`);
-            }
-        }
+        // Use manipulateAsync to regenerate/resize AND GET BASE64 directly
+        // This avoids needing expo-file-system to read the file later
+        const result = await manipulateAsync(
+            targetUri,
+            [],
+            { format: SaveFormat.JPEG, compress: 0.8, base64: true }
+        );
 
-        // Generate a new path in our cache directory
-        const filename = safeUri.split('/').pop() || `temp_${Date.now()}.jpg`;
-        const destPath = `${FileSystem.cacheDirectory}upload_${Date.now()}_${filename}`;
-
-        // Copy file to ensure we have read permissions
-        await FileSystem.copyAsync({
-            from: safeUri,
-            to: destPath
-        });
-
-        if (__DEV__) console.log(`[prepareImage] Copied ${safeUri} -> ${destPath}`);
-        return destPath;
+        log(`[prepareImage] Success: ${result.uri}, Size: ${result.width}x${result.height}`);
+        return { uri: result.uri, base64: result.base64 || null };
     } catch (e) {
-        console.warn('[prepareImage] Failed to prepare image, using original:', e);
-        return uri;
+        log(`[prepareImage] Failed: ${e}`);
+        // If everything fails, return original uri and provided base64 as fallback
+        return { uri, base64: providedBase64 || null };
     }
 }
 
+
+export interface ProductIdentification {
+    name: string;
+    brand: string | null;
+    category: ClothingCategory;
+    garment_type: string | null;
+    colors: string[];
+    material: string | null;
+    description: string;
+    box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-100
+}
+
 export async function analyzeClothingImage(imageUri: string): Promise<ClothingAnalysis> {
-    const preparedUri = await prepareImageForUpload(imageUri);
-    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
+    const { uri, base64 } = await prepareImageForUpload(imageUri);
+    let imageBase64 = base64;
+
+    if (!imageBase64) {
+        // Fallback: This might fail on iOS OTA if permissions are missing
+        imageBase64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+    }
 
     const content = await callDeepInfra({
         model: VISION_MODEL,
@@ -226,7 +248,7 @@ Rules:
                 },
                 {
                     type: 'image_url',
-                    image_url: { url: `data:image/jpeg;base64,${base64}` },
+                    image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
                 },
             ],
         }],
@@ -330,10 +352,14 @@ export interface OutfitAnalysis {
 }
 
 export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalysis> {
-    const preparedUri = await prepareImageForUpload(imageUri);
-    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
+    const { uri, base64 } = await prepareImageForUpload(imageUri);
+    let imageBase64 = base64;
+
+    if (!imageBase64) {
+        imageBase64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+    }
 
     const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item.
 
@@ -377,7 +403,7 @@ CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
                     },
                     {
                         type: 'image_url',
-                        image_url: { url: `data:image/jpeg;base64,${base64}` },
+                        image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
                     },
                 ],
             }],
@@ -431,69 +457,120 @@ async function saveBase64Image(b64: string): Promise<string> {
  * No vision model needed — uses user-provided selfie, skin color, hair color directly.
  */
 export async function generateDigitalTwin(
-    selfieUri: string,
+    selfieUrl: string,
     skinColor: string,
     hairColor: string,
-    additionalDetails: string,
-    bodyPhotoUri?: string,
-): Promise<DigitalTwinAnalysis> {
-    const preparedSelfie = await prepareImageForUpload(selfieUri);
-    const base64Selfie = await FileSystem.readAsStringAsync(preparedSelfie, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
+    details: string,
+    bodyUrl?: string,
+    selfieBase64Input?: string | null, // New optional param
+): Promise<{
+    ai_description: string;
+    body_type: string;
+    style_recommendations: string;
+    twin_image_url: string;
+}> {
+    log(`[generateDigitalTwin] Starting... Selfie: ${selfieUrl}`);
 
-    let bodyBase64: string | undefined;
-    if (bodyPhotoUri) {
-        const preparedBody = await prepareImageForUpload(bodyPhotoUri);
-        bodyBase64 = await FileSystem.readAsStringAsync(preparedBody, {
-            encoding: FileSystem.EncodingType.Base64,
+    try {
+        // 1. Prepare Selfie - Pass base64 if we have it to bypass file reading issues
+        const { uri: effectiveSelfieUrl, base64 } = await prepareImageForUpload(selfieUrl, selfieBase64Input);
+
+        let selfieB64 = '';
+        if (effectiveSelfieUrl.startsWith('data:')) {
+            selfieB64 = effectiveSelfieUrl; // It's already a data URI
+        } else if (base64) {
+            selfieB64 = base64; // Use the base64 from manipulateAsync
+        } else {
+            // Read the file: 
+            // - If prepareImageForUpload succeeded, this is a clean cache file (readable).
+            // - If it failed, this is the original URI (might be unreadable).
+            try {
+                selfieB64 = await FileSystem.readAsStringAsync(effectiveSelfieUrl, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+            } catch (readError) {
+                log(`[generateDigitalTwin] Error reading selfie from ${effectiveSelfieUrl}: ${readError}. Attempting to use original selfieUrl.`);
+                // Fallback to original selfieUrl if effectiveSelfieUrl is unreadable
+                selfieB64 = await FileSystem.readAsStringAsync(selfieUrl, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+            }
+        }
+        log(`[generateDigitalTwin] Selfie base64 length: ${selfieB64.length}`);
+
+        let bodyBase64: string | undefined;
+        if (bodyUrl) {
+            const { uri: bodyUri, base64: bodyB64 } = await prepareImageForUpload(bodyUrl);
+            bodyBase64 = bodyB64 || undefined;
+            if (!bodyBase64) {
+                bodyBase64 = await FileSystem.readAsStringAsync(bodyUri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+            }
+        }
+
+        // 2. Analyze Selfie to get description
+        const selfieAnalysis = await callDeepInfra({
+            model: VISION_MODEL,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image_url',
+                            image_url: {
+                                url: `data:image/jpeg;base64,${selfieB64}`,
+                            },
+                        },
+                        {
+                            type: 'text',
+                            text: `Describe this person's physical appearance in detail for a fashion digital twin.
+                            Focus on:
+                            - Body shape and proportions
+                            - Face shape and features
+                            - Skin tone and undertones (detected: ${skinColor})
+                            - Hair style and color (detected: ${hairColor})
+                            
+                            Additional user details: "${details}"
+                            
+                            Return a single paragraph description.`,
+                        },
+                    ],
+                },
+            ],
         });
+
+        const aiDescription = selfieAnalysis;
+
+        // 3. Generate Twin Image using Flux
+        // We use the description + original selfie for face swap consistency
+        const twinPrompt = `A photorealistic digital fashion model, ${aiDescription}. Professional measurement photo style, neutral lighting, simple background. Full body shot showing head to toe.`;
+
+        log(`[generateDigitalTwin] Generating twin image...`);
+        const twinImageBase64 = await callDeepInfraImage('black-forest-labs/FLUX-1-schnell', {
+            prompt: twinPrompt,
+            num_inference_steps: 4,
+            width: 512,
+            height: 768, // 2:3 aspect ratio
+        });
+
+        // 4. Return structured data
+        return {
+            ai_description: aiDescription,
+            body_type: 'Detected from photo', // Placeholder, could be analyzed
+            style_recommendations: JSON.stringify({
+                colors: [skinColor, hairColor], // Basic recs
+                tips: ['Wear colors that contrast with your skin tone'],
+            }),
+            twin_image_url: twinImageBase64,
+        };
+
+    } catch (error) {
+        log(`[generateDigitalTwin] Error: ${error}`);
+        throw error;
     }
-
-    // Call edge function with Nano Banana + face-swap pipeline
-    const { data, error } = await supabase.functions.invoke('ai-image', {
-        body: {
-            mode: 'twin',
-            imageBase64: base64Selfie,
-            selfieBase64: base64Selfie,
-            bodyBase64,
-            skinColor,
-            hairColor,
-            additionalDetails,
-        },
-    });
-
-    if (error) {
-        throw new Error(`Twin generation failed: ${error.message}`);
-    }
-    if (data?.error) {
-        throw new Error(data.error);
-    }
-    const b64 = data?.data?.[0]?.b64_json;
-    if (!b64) throw new Error('No image data in twin generation response');
-
-    const twinImageUrl = await saveBase64Image(b64);
-
-    return {
-        ai_description: `Person with ${skinColor} skin tone and ${hairColor} hair color.${additionalDetails ? ` ${additionalDetails}` : ''}`,
-        body_type: 'average',
-        style_recommendations: 'Experiment with complementary colors and well-fitted silhouettes.',
-        twin_image_url: twinImageUrl,
-    };
 }
 
-/* ─── Clean Product Image Regeneration ─── */
-
-export interface ProductIdentification {
-    name: string;
-    brand: string | null;
-    category: ClothingCategory;
-    garment_type: string | null;
-    colors: string[];
-    material: string | null;
-    description: string;
-    box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-100
-}
 
 /**
  * Step 1: Identify the product using vision model.
@@ -501,10 +578,14 @@ export interface ProductIdentification {
  * its brand, specific model, colors, and material.
  */
 export async function identifyProduct(imageUri: string): Promise<ProductIdentification> {
-    const preparedUri = await prepareImageForUpload(imageUri);
-    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
+    const { uri, base64 } = await prepareImageForUpload(imageUri);
+    let imageBase64 = base64;
+
+    if (!imageBase64) {
+        imageBase64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+    }
 
     const content = await callDeepInfra({
         model: VISION_MODEL,
@@ -539,7 +620,7 @@ Return ONLY valid JSON:
                 },
                 {
                     type: 'image_url',
-                    image_url: { url: `data:image/jpeg;base64,${base64}` },
+                    image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
                 },
             ],
         }],
@@ -591,10 +672,14 @@ export async function generateOutfitTwin(
             encoding: FileSystem.EncodingType.Base64,
         });
     } else {
-        const preparedTwin = await prepareImageForUpload(twinImageUrl);
-        twinBase64 = await FileSystem.readAsStringAsync(preparedTwin, {
-            encoding: FileSystem.EncodingType.Base64,
-        });
+        const { uri, base64 } = await prepareImageForUpload(twinImageUrl);
+        if (base64) {
+            twinBase64 = base64;
+        } else {
+            twinBase64 = await FileSystem.readAsStringAsync(uri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+        }
     }
 
     // Resize all clothing images and convert to base64
@@ -663,7 +748,7 @@ export async function generateOutfitTwin(
                 selfieB64 = await FileSystem.readAsStringAsync(selfieResized.uri, {
                     encoding: FileSystem.EncodingType.Base64,
                 });
-                if (__DEV__) console.log(`[VTON] Selfie loaded for face-swap, b64 len: ${selfieB64.length}`);
+                if (__DEV__) console.log(`[VTON] Selfie loaded for face-swap, b64 len: ${selfieB64?.length}`);
             } catch (e) {
                 if (__DEV__) console.warn('[VTON] Failed to load selfie for face-swap:', e);
             }

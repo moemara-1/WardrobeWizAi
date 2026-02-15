@@ -1,49 +1,15 @@
-import { ClothingCategory } from '@/types';
+import { supabase } from '@/lib/supabase';
+import { PostComment, SocialPost, UserFollow } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-
-export interface SocialPost {
-    id: string;
-    userId: string;
-    username: string;
-    avatarUrl: string | null;
-    imageUrl: string;
-    caption: string;
-    clothingPieces: PostClothingPiece[];
-    likes: number;
-    liked: boolean;
-    comments: PostComment[];
-    createdAt: string;
-}
-
-export interface PostClothingPiece {
-    name: string;
-    brand: string | null;
-    category: ClothingCategory;
-    imageUrl: string | null;
-}
-
-export interface PostComment {
-    id: string;
-    userId: string;
-    username: string;
-    avatarUrl: string | null;
-    text: string;
-    createdAt: string;
-}
-
-export interface UserFollow {
-    userId: string;
-    username: string;
-    avatarUrl: string | null;
-}
 
 interface SocialState {
     posts: SocialPost[];
     userPosts: SocialPost[];
     followers: UserFollow[];
     following: UserFollow[];
+    isLoading: boolean;
 
     // User Profile
     currentUser: {
@@ -52,185 +18,216 @@ interface SocialState {
         bio: string | null;
     };
 
-    addPost: (post: SocialPost) => void;
-    deletePost: (id: string) => void;
-    likePost: (id: string) => void;
-    addComment: (postId: string, comment: PostComment) => void;
-    toggleFollow: (user: UserFollow) => void;
+    fetchFeed: () => Promise<void>;
+    fetchUserPosts: (userId: string) => Promise<void>;
+    addPost: (post: Omit<SocialPost, 'id' | 'likes' | 'liked' | 'comments' | 'created_at' | 'username' | 'avatar_url'>) => Promise<void>;
+    deletePost: (id: string) => Promise<void>;
+    likePost: (id: string, userId: string) => Promise<void>;
+    addComment: (postId: string, text: string, userId: string, username: string, avatarUrl: string | null) => Promise<void>;
+    toggleFollow: (targetUserId: string, currentUserId: string) => Promise<void>;
     updateProfile: (updates: Partial<{ username: string; avatarUrl: string | null; bio: string | null }>) => void;
 }
-
-const SEED_POSTS: SocialPost[] = [
-    {
-        id: 'post-1',
-        userId: 'user-alex',
-        username: 'alexstyle',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1608635680046-aebf91c1a9c8?w=600',
-        caption: 'Fall layers done right 🍂',
-        clothingPieces: [
-            { name: 'Oversized Wool Coat', brand: 'COS', category: 'outerwear', imageUrl: null },
-            { name: 'Cashmere Turtleneck', brand: 'Uniqlo', category: 'top', imageUrl: null },
-            { name: 'Wide Leg Trousers', brand: 'Zara', category: 'bottom', imageUrl: null },
-        ],
-        likes: 42,
-        liked: false,
-        comments: [
-            { id: 'c1', userId: 'user-maya', username: 'mayafits', avatarUrl: null, text: 'Love the coat!', createdAt: '2026-02-10T10:00:00Z' },
-        ],
-        createdAt: '2026-02-10T09:00:00Z',
-    },
-    {
-        id: 'post-2',
-        userId: 'user-jordan',
-        username: 'jordanwears',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1622021211530-7d31fd86862d?w=600',
-        caption: 'Minimal streetwear vibes',
-        clothingPieces: [
-            { name: 'Air Force 1 Low', brand: 'Nike', category: 'shoe', imageUrl: null },
-            { name: 'Cargo Pants', brand: 'Carhartt WIP', category: 'bottom', imageUrl: null },
-            { name: 'Oversized Graphic Tee', brand: null, category: 'top', imageUrl: null },
-        ],
-        likes: 89,
-        liked: false,
-        comments: [],
-        createdAt: '2026-02-09T15:30:00Z',
-    },
-    {
-        id: 'post-3',
-        userId: 'user-sam',
-        username: 'samcloset',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600',
-        caption: 'Date night outfit check',
-        clothingPieces: [
-            { name: 'Silk Midi Dress', brand: 'Reformation', category: 'dress', imageUrl: null },
-            { name: 'Strappy Heels', brand: 'Steve Madden', category: 'shoe', imageUrl: null },
-            { name: 'Gold Chain Necklace', brand: null, category: 'jewelry', imageUrl: null },
-        ],
-        likes: 156,
-        liked: false,
-        comments: [
-            { id: 'c2', userId: 'user-alex', username: 'alexstyle', avatarUrl: null, text: 'Where is this dress from??', createdAt: '2026-02-09T16:00:00Z' },
-            { id: 'c3', userId: 'user-sam', username: 'samcloset', avatarUrl: null, text: '@alexstyle Reformation!', createdAt: '2026-02-09T16:05:00Z' },
-        ],
-        createdAt: '2026-02-09T14:00:00Z',
-    },
-    {
-        id: 'post-4',
-        userId: 'user-maya',
-        username: 'mayafits',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1576507169637-cdcff61eb6d5?w=600',
-        caption: 'Gym to brunch transition 💪',
-        clothingPieces: [
-            { name: 'Track Jacket', brand: 'Adidas', category: 'outerwear', imageUrl: null },
-            { name: 'Leggings', brand: 'Lululemon', category: 'bottom', imageUrl: null },
-            { name: 'Samba OG', brand: 'Adidas', category: 'shoe', imageUrl: null },
-        ],
-        likes: 67,
-        liked: false,
-        comments: [],
-        createdAt: '2026-02-08T12:00:00Z',
-    },
-    {
-        id: 'post-5',
-        userId: 'user-kai',
-        username: 'kaidrip',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1683488780206-88ce4240f3da?w=600',
-        caption: 'Vintage finds of the week',
-        clothingPieces: [
-            { name: 'Vintage Denim Jacket', brand: "Levi's", category: 'outerwear', imageUrl: null },
-            { name: 'Band Tee', brand: null, category: 'top', imageUrl: null },
-            { name: 'Straight Jeans', brand: "Levi's", category: 'bottom', imageUrl: null },
-        ],
-        likes: 203,
-        liked: false,
-        comments: [
-            { id: 'c4', userId: 'user-jordan', username: 'jordanwears', avatarUrl: null, text: 'That jacket is insane', createdAt: '2026-02-08T10:00:00Z' },
-        ],
-        createdAt: '2026-02-08T09:00:00Z',
-    },
-    {
-        id: 'post-6',
-        userId: 'user-nina',
-        username: 'ninaootd',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1612694831097-d7cd14379928?w=600',
-        caption: 'Cozy Sunday layers',
-        clothingPieces: [
-            { name: 'Chunky Knit Sweater', brand: 'H&M', category: 'top', imageUrl: null },
-            { name: 'Wool Scarf', brand: 'Acne Studios', category: 'accessory', imageUrl: null },
-        ],
-        likes: 34,
-        liked: false,
-        comments: [],
-        createdAt: '2026-02-07T11:00:00Z',
-    },
-];
-
-const SEED_FOLLOWERS: UserFollow[] = [
-    { userId: 'user-alex', username: 'alexstyle', avatarUrl: null },
-    { userId: 'user-maya', username: 'mayafits', avatarUrl: null },
-    { userId: 'user-kai', username: 'kaidrip', avatarUrl: null },
-];
-
-const SEED_FOLLOWING: UserFollow[] = [
-    { userId: 'user-jordan', username: 'jordanwears', avatarUrl: null },
-    { userId: 'user-sam', username: 'samcloset', avatarUrl: null },
-    { userId: 'user-nina', username: 'ninaootd', avatarUrl: null },
-    { userId: 'user-kai', username: 'kaidrip', avatarUrl: null },
-];
 
 export const useSocialStore = create<SocialState>()(
     persist(
         (set, get) => ({
-            posts: SEED_POSTS,
+            posts: [],
             userPosts: [],
-            followers: SEED_FOLLOWERS,
-            following: SEED_FOLLOWING,
+            followers: [],
+            following: [],
+            isLoading: false,
             currentUser: {
                 username: 'User',
                 avatarUrl: null,
                 bio: 'Fashion enthusiast | WardrobeWiz user',
             },
 
-            addPost: (post) => set((state) => ({
-                posts: [post, ...state.posts],
-                userPosts: [post, ...state.userPosts],
-            })),
+            fetchFeed: async () => {
+                set({ isLoading: true });
+                try {
+                    const { data, error } = await supabase
+                        .from('posts')
+                        .select(`
+                            id, user_id, image_url, caption, created_at,
+                            profiles!posts_user_id_fkey (username, avatar_url),
+                            post_likes (user_id),
+                            post_comments (
+                                id, user_id, text, created_at,
+                                profiles (username, avatar_url)
+                            )
+                            /* 
+                                Note: We are not fetching clothing pieces yet as it requires 
+                                a complex join or a JSONB column 'tagged_items'.
+                                For now we assume empty clothing pieces or fetch later.
+                            */
+                        `)
+                        .order('created_at', { ascending: false })
+                        .limit(50);
 
-            deletePost: (id) => set((state) => ({
-                posts: state.posts.filter((p) => p.id !== id),
-                userPosts: state.userPosts.filter((p) => p.id !== id),
-            })),
+                    if (error) throw error;
 
-            likePost: (id) => set((state) => ({
-                posts: state.posts.map((p) =>
-                    p.id === id
-                        ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
-                        : p
-                ),
-            })),
+                    const currentUserId = (await supabase.auth.getUser()).data.user?.id;
 
-            addComment: (postId, comment) => set((state) => ({
-                posts: state.posts.map((p) =>
-                    p.id === postId
-                        ? { ...p, comments: [...p.comments, comment] }
-                        : p
-                ),
-            })),
+                    const posts: SocialPost[] = data.map((row: any) => ({
+                        id: row.id,
+                        user_id: row.user_id,
+                        username: row.profiles?.username || 'Unknown',
+                        avatar_url: row.profiles?.avatar_url || null,
+                        image_url: row.image_url,
+                        caption: row.caption || '',
+                        clothing_pieces: [], // TODO: Implementation depends on schema
+                        likes: row.post_likes?.length || 0,
+                        liked: row.post_likes?.some((l: any) => l.user_id === currentUserId) || false,
+                        comments: row.post_comments?.map((c: any) => ({
+                            id: c.id,
+                            user_id: c.user_id,
+                            username: c.profiles?.username || 'Unknown',
+                            avatar_url: c.profiles?.avatar_url || null,
+                            text: c.text,
+                            created_at: c.created_at,
+                        })) || [],
+                        created_at: row.created_at,
+                    }));
 
-            toggleFollow: (user) => set((state) => {
-                const isFollowing = state.following.some((f) => f.userId === user.userId);
-                return {
-                    following: isFollowing
-                        ? state.following.filter((f) => f.userId !== user.userId)
-                        : [...state.following, user],
+                    set({ posts });
+                } catch (e) {
+                    console.error('fetchFeed error:', e);
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
+
+            fetchUserPosts: async (userId: string) => {
+                try {
+                    const { data, error } = await supabase
+                        .from('posts')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .order('created_at', { ascending: false });
+
+                    if (error) throw error;
+                    // Simplified mapping since we don't need full social context for valid grid
+                    const userPosts: SocialPost[] = data.map((row: any) => ({
+                        id: row.id,
+                        user_id: row.user_id,
+                        username: 'Me',
+                        avatar_url: null,
+                        image_url: row.image_url,
+                        caption: row.caption || '',
+                        clothing_pieces: [],
+                        likes: 0,
+                        liked: false,
+                        comments: [],
+                        created_at: row.created_at,
+                    }));
+                    set({ userPosts });
+                } catch (e) {
+                    console.error('fetchUserPosts error:', e);
+                }
+            },
+
+            addPost: async (postData) => {
+                try {
+                    const { data, error } = await supabase.from('posts').insert({
+                        user_id: postData.user_id,
+                        image_url: postData.image_url,
+                        caption: postData.caption,
+                        // tagged_items: postData.clothing_pieces 
+                    }).select().single();
+
+                    if (error) throw error;
+
+                    // Optimistic update or refetch
+                    get().fetchFeed();
+                } catch (e) {
+                    console.error('addPost error:', e);
+                }
+            },
+
+            deletePost: async (id) => {
+                try {
+                    await supabase.from('posts').delete().eq('id', id);
+                    set((state) => ({
+                        posts: state.posts.filter((p) => p.id !== id),
+                        userPosts: state.userPosts.filter((p) => p.id !== id),
+                    }));
+                } catch (e) {
+                    console.error('deletePost error:', e);
+                }
+            },
+
+            likePost: async (postId, userId) => {
+                // Optimistic UI
+                set((state) => ({
+                    posts: state.posts.map((p) =>
+                        p.id === postId
+                            ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
+                            : p
+                    ),
+                }));
+
+                try {
+                    const post = get().posts.find(p => p.id === postId);
+                    if (post?.liked) {
+                        await supabase.from('post_likes').insert({ post_id: postId, user_id: userId });
+                    } else {
+                        await supabase.from('post_likes').delete().match({ post_id: postId, user_id: userId });
+                    }
+                } catch (e) {
+                    console.error('likePost error:', e);
+                    // Revert?
+                }
+            },
+
+            addComment: async (postId, text, userId, username, avatarUrl) => {
+                const tempId = `temp-${Date.now()}`;
+                const newComment: PostComment = {
+                    id: tempId,
+                    user_id: userId,
+                    username,
+                    avatar_url: avatarUrl,
+                    text: text,
+                    created_at: new Date().toISOString(),
                 };
-            }),
+
+                // Optimistic
+                set((state) => ({
+                    posts: state.posts.map((p) =>
+                        p.id === postId
+                            ? { ...p, comments: [...p.comments, newComment] }
+                            : p
+                    ),
+                }));
+
+                try {
+                    const { data, error } = await supabase.from('post_comments').insert({
+                        post_id: postId,
+                        user_id: userId,
+                        text: text,
+                    }).select().single();
+
+                    if (error) throw error;
+
+                    // Update ID
+                    set((state) => ({
+                        posts: state.posts.map((p) =>
+                            p.id === postId
+                                ? {
+                                    ...p,
+                                    comments: p.comments.map(c => c.id === tempId ? { ...c, id: data.id } : c)
+                                }
+                                : p
+                        ),
+                    }));
+                } catch (e) {
+                    console.error('addComment error:', e);
+                }
+            },
+
+            toggleFollow: async (targetUserId, currentUserId) => {
+                // TODO: Implement follow logic with 'follows' table
+                console.log('toggleFollow not implemented yet in backend', targetUserId);
+            },
 
             updateProfile: (updates) => set((state) => ({
                 currentUser: { ...state.currentUser, ...updates }
@@ -238,13 +235,12 @@ export const useSocialStore = create<SocialState>()(
         }),
         {
             name: 'social-storage',
-            version: 1,
+            version: 2, // Bump version for migration
             storage: createJSONStorage(() => AsyncStorage),
             partialize: (state) => ({
                 userPosts: state.userPosts,
-                followers: state.followers,
-                following: state.following,
                 currentUser: state.currentUser,
+                // Don't persist feed posts forever, maybe?
             }),
         },
     ),

@@ -2,6 +2,7 @@ import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useClosetStore } from '@/stores/closetStore';
+import { useSocialStore } from '@/stores/socialStore';
 import { ClosetItem } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -9,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
 import {
   Camera,
+  Heart,
   ImageIcon,
   Plane,
   ScanLine,
@@ -17,8 +19,10 @@ import {
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,27 +33,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type SubView = 'explore' | 'discover';
 
-// Masonry photo data — clean fashion photos for Explore (matching .pen)
-const EXPLORE_PHOTOS_LEFT = [
-  { id: 'post-1', imageUrl: 'https://images.unsplash.com/photo-1608635680046-aebf91c1a9c8?w=400', height: 320 },
-  { id: 'post-3', imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400', height: 260 },
-  { id: 'post-4', imageUrl: 'https://images.unsplash.com/photo-1576507169637-cdcff61eb6d5?w=400', height: 300 },
-];
-
-const EXPLORE_PHOTOS_RIGHT = [
-  { id: 'post-2', imageUrl: 'https://images.unsplash.com/photo-1622021211530-7d31fd86862d?w=400', height: 240 },
-  { id: 'post-5', imageUrl: 'https://images.unsplash.com/photo-1683488780206-88ce4240f3da?w=400', height: 340 },
-  { id: 'post-6', imageUrl: 'https://images.unsplash.com/photo-1612694831097-d7cd14379928?w=400', height: 280 },
-];
-
 const SHORTCUTS = [
   { key: 'stylist', label: 'StyleAI', icon: Sparkles, route: '/style-chat' },
   { key: 'tryon', label: 'Try On', icon: ScanLine, route: '/virtual-try-on' },
   { key: 'trip', label: 'Trip Plan', icon: Plane, route: '/trip-planner' },
   { key: 'add', label: 'Add Piece', icon: Camera, route: null },
 ] as const;
-
-
 
 export default function CommunityScreen() {
   const Colors = useThemeColors();
@@ -58,6 +47,8 @@ export default function CommunityScreen() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const addMenuY = useRef(new Animated.Value(0)).current;
   const addMenuOpacity = useRef(new Animated.Value(0)).current;
+
+  const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
 
   const switchView = (view: SubView) => {
     Haptics.selectionAsync();
@@ -110,8 +101,6 @@ export default function CommunityScreen() {
       openAddMenu();
     }
   };
-
-  const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -180,42 +169,108 @@ export default function CommunityScreen() {
 function ExploreView() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
+
+  const { posts, fetchFeed, isLoading } = useSocialStore();
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    fetchFeed();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchFeed();
+    setRefreshing(false);
+  };
+
+  const { leftCol, rightCol } = useMemo(() => {
+    const left: typeof posts = [];
+    const right: typeof posts = [];
+    posts.forEach((post, i) => {
+      if (i % 2 === 0) left.push(post);
+      else right.push(post);
+    });
+    return { leftCol: left, rightCol: right };
+  }, [posts]);
+
+  // If loading and empty, show spinner
+  if (isLoading && posts.length === 0) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 40 }}>
+        <ActivityIndicator size="large" color={Colors.accentGreen} />
+      </View>
+    );
+  }
+
+  // If loaded and empty (and not loading)
+  if (!isLoading && posts.length === 0) {
+    return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.listContent, { padding: 20, alignItems: 'center' }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.textPrimary} />}
+      >
+        <Text style={{ fontFamily: Typography.bodyFamily, color: Colors.textSecondary }}>No posts yet. Be the first!</Text>
+      </ScrollView>
+    );
+  }
+
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.textPrimary} />}
+    >
       <View style={styles.masonry}>
         <View style={styles.column}>
-          {EXPLORE_PHOTOS_LEFT.map((photo) => (
+          {leftCol.map((post) => (
             <Pressable
-              key={photo.id}
-              style={[styles.masonryTile, { height: photo.height }]}
+              key={post.id}
+              style={[styles.masonryTile, { height: 200 + (post.caption.length % 5) * 20 }]} // Dynamic random-ish height
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: '/post/[id]', params: { id: photo.id } } as Href);
+                router.push({ pathname: '/post/[id]', params: { id: post.id } } as Href);
               }}
             >
               <Image
-                source={{ uri: photo.imageUrl }}
+                source={{ uri: post.image_url }}
                 style={styles.masonryImage}
                 contentFit="cover"
+                transition={200}
               />
+              <View style={styles.postOverlay}>
+                <Text style={styles.postUser} numberOfLines={1}>@{post.username}</Text>
+                <View style={styles.postLikes}>
+                  <Heart size={10} color="#FFF" fill={post.liked ? "#FFF" : "transparent"} />
+                  <Text style={styles.postLikesCount}>{post.likes}</Text>
+                </View>
+              </View>
             </Pressable>
           ))}
         </View>
         <View style={styles.column}>
-          {EXPLORE_PHOTOS_RIGHT.map((photo) => (
+          {rightCol.map((post) => (
             <Pressable
-              key={photo.id}
-              style={[styles.masonryTile, { height: photo.height }]}
+              key={post.id}
+              style={[styles.masonryTile, { height: 240 + (post.caption.length % 3) * 20 }]} // Different jitter
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: '/post/[id]', params: { id: photo.id } } as Href);
+                router.push({ pathname: '/post/[id]', params: { id: post.id } } as Href);
               }}
             >
               <Image
-                source={{ uri: photo.imageUrl }}
+                source={{ uri: post.image_url }}
                 style={styles.masonryImage}
                 contentFit="cover"
+                transition={200}
               />
+              <View style={styles.postOverlay}>
+                <Text style={styles.postUser} numberOfLines={1}>@{post.username}</Text>
+                <View style={styles.postLikes}>
+                  <Heart size={10} color="#FFF" fill={post.liked ? "#FFF" : "transparent"} />
+                  <Text style={styles.postLikesCount}>{post.likes}</Text>
+                </View>
+              </View>
             </Pressable>
           ))}
         </View>
@@ -538,8 +593,12 @@ function createIndexStyles(C: any) {
     listContent: { paddingBottom: 120 },
     masonry: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginTop: 4 },
     column: { flex: 1, gap: 8 },
-    masonryTile: { borderRadius: 16, overflow: 'hidden', backgroundColor: C.cardSurfaceAlt },
+    masonryTile: { borderRadius: 16, overflow: 'hidden', backgroundColor: C.cardSurfaceAlt, position: 'relative' },
     masonryImage: { width: '100%', height: '100%' },
+    postOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(0,0,0,0.3)' },
+    postUser: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF', flex: 1, marginRight: 8 },
+    postLikes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    postLikesCount: { fontFamily: Typography.bodyFamilyBold, fontSize: 11, color: '#FFF' },
     searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.input, marginHorizontal: 16, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
     searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, padding: 0 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },
