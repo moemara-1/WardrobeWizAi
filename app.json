@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wardrobewizai.app",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "NSCameraUsageDescription": "WardrobeWizAi needs camera access to photograph your clothing items for analysis.",
         "NSPhotoLibraryUsageDescription": "WardrobeWizAi needs photo library access to import your clothing photos.",
@@ -30,7 +30,7 @@
         "backgroundColor": "#0B0B0E"
       },
       "package": "com.wardrobewizai.app",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -58,6 +58,12 @@
       ],
       "expo-web-browser"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/be04d0ab-fc16-4fd0-816f-506f3f2bf5a3"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "experiments": {
       "typedRoutes": true
     },
