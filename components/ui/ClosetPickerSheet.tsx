@@ -7,7 +7,6 @@ import { Image } from 'expo-image';
 import { Check, Search, X } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
-  Dimensions,
   FlatList,
   Modal,
   Pressable,
@@ -16,13 +15,12 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NUM_COLUMNS = 3;
 const GRID_GAP = 6;
-const ITEM_SIZE = (SCREEN_WIDTH - 32 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
 const CATEGORY_FILTERS: { key: ClothingCategory | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -66,7 +64,12 @@ export function ClosetPickerSheet({
   title = 'Add from Closet',
 }: ClosetPickerSheetProps) {
   const Colors = useThemeColors();
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  const ITEM_SIZE = (SCREEN_WIDTH - 32 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
+
+  const styles = useMemo(() => createStyles(Colors, ITEM_SIZE, insets.bottom), [Colors, ITEM_SIZE, insets.bottom]);
 
   const items = useClosetStore((s) => s.items);
   const [search, setSearch] = useState('');
@@ -163,23 +166,25 @@ export function ClosetPickerSheet({
         </View>
 
         {/* Category pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.pillRow}
-        >
-          {visibleFilters.map((cat) => (
-            <Pressable
-              key={cat.key}
-              style={[styles.pill, activeCat === cat.key && styles.pillActive]}
-              onPress={() => { Haptics.selectionAsync(); setActiveCat(cat.key); }}
-            >
-              <Text style={[styles.pillText, activeCat === cat.key && styles.pillTextActive]}>
-                {cat.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pillRow}
+          >
+            {visibleFilters.map((cat) => (
+              <Pressable
+                key={cat.key}
+                style={[styles.pill, activeCat === cat.key && styles.pillActive]}
+                onPress={() => { Haptics.selectionAsync(); setActiveCat(cat.key); }}
+              >
+                <Text style={[styles.pillText, activeCat === cat.key && styles.pillTextActive]}>
+                  {cat.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* Grid */}
         {filtered.length === 0 ? (
@@ -219,7 +224,7 @@ export function ClosetPickerSheet({
   );
 }
 
-function createStyles(C: any) {
+function createStyles(C: any, ITEM_SIZE: number, bottomInset: number) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.background },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
@@ -236,7 +241,7 @@ function createStyles(C: any) {
     pillActive: { backgroundColor: C.textPrimary, borderColor: C.textPrimary },
     pillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textSecondary },
     pillTextActive: { color: C.background },
-    grid: { paddingHorizontal: 16, paddingBottom: 100 },
+    grid: { paddingHorizontal: 16, paddingBottom: bottomInset + 20 },
     gridRow: { gap: GRID_GAP },
     gridItem: { width: ITEM_SIZE, marginBottom: GRID_GAP, alignItems: 'center', position: 'relative' },
     gridImage: { width: ITEM_SIZE, height: ITEM_SIZE, borderRadius: Radius.md, backgroundColor: '#FFFFFF' },

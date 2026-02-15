@@ -17,10 +17,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wardrobewizai.app",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "infoPlist": {
         "NSCameraUsageDescription": "WardrobeWizAi needs camera access to photograph your clothing items for analysis.",
-        "NSPhotoLibraryUsageDescription": "WardrobeWizAi needs photo library access to import your clothing photos."
+        "NSPhotoLibraryUsageDescription": "WardrobeWizAi needs photo library access to import your clothing photos.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -29,10 +30,11 @@
         "backgroundColor": "#0B0B0E"
       },
       "package": "com.wardrobewizai.app",
-      "versionCode": 1,
+      "versionCode": 4,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -64,7 +66,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "be04d0ab-fc16-4fd0-816f-506f3f2bf5a3"
       }
     }
   }
