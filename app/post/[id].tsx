@@ -1,6 +1,6 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { useSocialStore, PostComment } from '@/stores/socialStore';
+import { PostComment, useSocialStore } from '@/stores/socialStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';

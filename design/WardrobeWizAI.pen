@@ -1,5 +1,5 @@
 {
-  "version": "2.7",
+  "version": "2.8",
   "children": [
     {
       "type": "frame",
@@ -6669,6 +6669,1233 @@
                       "fill": "#6B6B6F"
                     }
                   ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "1oEKs",
+      "x": 6924,
+      "y": 0,
+      "name": "Neckworth - Overview",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "#0A0A0A",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "4OCzf",
+          "name": "Header",
+          "width": "fill_container",
+          "height": 56,
+          "padding": [
+            0,
+            16
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "vMaft",
+              "name": "backIcon",
+              "width": 24,
+              "height": 24,
+              "iconFontName": "arrow-left",
+              "iconFontFamily": "lucide",
+              "fill": "#FFFFFF"
+            },
+            {
+              "type": "text",
+              "id": "sSOCJ",
+              "name": "headerTitle",
+              "fill": "#FFFFFF",
+              "content": "Neckworth",
+              "fontFamily": "DM Sans",
+              "fontSize": 20,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "cM6qH",
+              "name": "headerSpacer",
+              "width": 24,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "qB5rX",
+          "name": "Tab Bar",
+          "width": "fill_container",
+          "height": 44,
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "YDkum",
+              "name": "overviewTab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#1A1A1A",
+              "cornerRadius": [
+                8,
+                8,
+                0,
+                0
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "KKlGk",
+                  "name": "overviewTabText",
+                  "fill": "#32D583",
+                  "content": "Overview",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TJqPU",
+              "name": "leaderTab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "7OolT",
+                  "name": "leaderTabText",
+                  "fill": "#666666",
+                  "content": "Leaderboard",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "A7ET3",
+          "name": "Value Card",
+          "width": "fill_container",
+          "fill": "#1A1A1A",
+          "cornerRadius": 16,
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 24,
+          "children": [
+            {
+              "type": "text",
+              "id": "NZkhG",
+              "name": "valueLabel",
+              "fill": "#888888",
+              "content": "Your Closet Value",
+              "fontFamily": "DM Sans",
+              "fontSize": 14,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "msjV0",
+              "name": "valueAmount",
+              "fill": "#FFFFFF",
+              "content": "$12,450",
+              "fontFamily": "DM Sans",
+              "fontSize": 42,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "okcOC",
+              "name": "valueSubtitle",
+              "fill": "#666666",
+              "content": "Based on 47 pieces",
+              "fontFamily": "DM Sans",
+              "fontSize": 13
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "OmiE0",
+          "name": "spacer1",
+          "width": "fill_container",
+          "height": 8
+        },
+        {
+          "type": "frame",
+          "id": "JiDLA",
+          "name": "Category Breakdown",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            0,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "F9igW",
+              "name": "catTitle",
+              "fill": "#FFFFFF",
+              "content": "Category Breakdown",
+              "fontFamily": "DM Sans",
+              "fontSize": 16,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "310d0",
+              "name": "catRow1",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Hx37D",
+                  "name": "catLabel1",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Dmcxm",
+                      "name": "catLabelText1",
+                      "fill": "#CCCCCC",
+                      "content": "Shoes",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "fJjJ9",
+                      "name": "catLabelVal1",
+                      "fill": "#FFFFFF",
+                      "content": "$4,200",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "jrMLU",
+                  "name": "catBar1Bg",
+                  "width": "fill_container",
+                  "height": 8,
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 4,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "DEH7s",
+                      "name": "catBar1Fill",
+                      "width": 240,
+                      "height": 8,
+                      "fill": "#32D583",
+                      "cornerRadius": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "FbIbb",
+              "name": "catRow2",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "7bsbm",
+                  "name": "catLabel2",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lPZ41",
+                      "name": "catLabelText2",
+                      "fill": "#CCCCCC",
+                      "content": "Tops",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "xKcet",
+                      "name": "catLabelVal2",
+                      "fill": "#FFFFFF",
+                      "content": "$3,800",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "maevl",
+                  "name": "catBar2Bg",
+                  "width": "fill_container",
+                  "height": 8,
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 4,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "zajCN",
+                      "name": "catBar2Fill",
+                      "width": 200,
+                      "height": 8,
+                      "fill": "#FF6B6B",
+                      "cornerRadius": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "H81hL",
+              "name": "catRow3",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zbsTd",
+                  "name": "catLabel3",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "sNdxi",
+                      "name": "catLabelText3",
+                      "fill": "#CCCCCC",
+                      "content": "Bottoms",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "aDcN9",
+                      "name": "catLabelVal3",
+                      "fill": "#FFFFFF",
+                      "content": "$2,650",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Ne3cJ",
+                  "name": "catBar3Bg",
+                  "width": "fill_container",
+                  "height": 8,
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 4,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "puevt",
+                      "name": "catBar3Fill",
+                      "width": 150,
+                      "height": 8,
+                      "fill": "#F7C948",
+                      "cornerRadius": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "2H10j",
+              "name": "catRow4",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "dCi1D",
+                  "name": "catLabel4",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Avpan",
+                      "name": "catLabelText4",
+                      "fill": "#CCCCCC",
+                      "content": "Accessories",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TtWOj",
+                      "name": "catLabelVal4",
+                      "fill": "#FFFFFF",
+                      "content": "$1,800",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "J5e1C",
+                  "name": "catBar4Bg",
+                  "width": "fill_container",
+                  "height": 8,
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 4,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "1qAXc",
+                      "name": "catBar4Fill",
+                      "width": 100,
+                      "height": 8,
+                      "fill": "#7B61FF",
+                      "cornerRadius": 4
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "0N56p",
+          "name": "spacer2",
+          "width": "fill_container",
+          "height": 12
+        },
+        {
+          "type": "frame",
+          "id": "CaY9d",
+          "name": "Earn Card",
+          "width": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 90,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#1A2E1A",
+                "position": 0
+              },
+              {
+                "color": "#0A0A0A",
+                "position": 1
+              }
+            ]
+          },
+          "cornerRadius": 12,
+          "gap": 12,
+          "padding": 16,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "G4JSc",
+              "name": "earnIcon",
+              "width": 20,
+              "height": 20,
+              "iconFontName": "trending-up",
+              "iconFontFamily": "lucide",
+              "fill": "#32D583"
+            },
+            {
+              "type": "frame",
+              "id": "xH06s",
+              "name": "earnTextWrap",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "h9FLN",
+                  "name": "earnTitle",
+                  "fill": "#32D583",
+                  "content": "You could earn $2,400",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "oT0z2",
+                  "name": "earnSub",
+                  "fill": "#888888",
+                  "content": "List 6 rarely worn items on marketplace",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 12
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "BLRHl",
+          "name": "spacer3",
+          "width": "fill_container",
+          "height": 12
+        },
+        {
+          "type": "frame",
+          "id": "mMxTF",
+          "name": "Most Valuable",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            0,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "raqUz",
+              "name": "mvpTitle",
+              "fill": "#FFFFFF",
+              "content": "Most Valuable Pieces",
+              "fontFamily": "DM Sans",
+              "fontSize": 16,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "3x9B4",
+              "name": "item1",
+              "width": "fill_container",
+              "fill": "#1A1A1A",
+              "cornerRadius": 12,
+              "gap": 12,
+              "padding": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Qcaqx",
+                  "name": "item1Img",
+                  "metadata": {
+                    "type": "unsplash",
+                    "username": "karsten116",
+                    "link": "https://unsplash.com/@karsten116",
+                    "author": "Karsten Winegeart"
+                  },
+                  "width": 56,
+                  "height": 56,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "https://images.unsplash.com/photo-1699198489130-2e02f3726612?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NzEwMDMxNjN8&ixlib=rb-4.1.0&q=80&w=1080",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 8
+                },
+                {
+                  "type": "frame",
+                  "id": "goVLA",
+                  "name": "item1Info",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Upe3d",
+                      "name": "item1Name",
+                      "fill": "#FFFFFF",
+                      "content": "Jordan 4 Retro",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "jHcPI",
+                      "name": "item1Cat",
+                      "fill": "#888888",
+                      "content": "Shoes",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 12
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "Uy6b7",
+                  "name": "item1Price",
+                  "fill": "#32D583",
+                  "content": "$380",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 16,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jB9Xf",
+              "name": "item2",
+              "width": "fill_container",
+              "fill": "#1A1A1A",
+              "cornerRadius": 12,
+              "gap": 12,
+              "padding": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AR55s",
+                  "name": "item2Img",
+                  "metadata": {
+                    "type": "unsplash",
+                    "username": "kxrabo",
+                    "link": "https://unsplash.com/@kxrabo",
+                    "author": "Karabo Mdluli"
+                  },
+                  "width": 56,
+                  "height": 56,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "https://images.unsplash.com/photo-1672861066612-d4bfd3d6fa09?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w4NDM0ODN8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NzEwMDMxNjN8&ixlib=rb-4.1.0&q=80&w=1080",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 8
+                },
+                {
+                  "type": "frame",
+                  "id": "alml4",
+                  "name": "item2Info",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "YFiLR",
+                      "name": "item2Name",
+                      "fill": "#FFFFFF",
+                      "content": "Vintage Denim Jacket",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "mNTVG",
+                      "name": "item2Cat",
+                      "fill": "#888888",
+                      "content": "Outerwear",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 12
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "YbzJI",
+                  "name": "item2Price",
+                  "fill": "#32D583",
+                  "content": "$320",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 16,
+                  "fontWeight": "700"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "MESU6",
+      "x": 7414,
+      "y": 0,
+      "name": "Neckworth - Leaderboard",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "#0A0A0A",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "b4pQ0",
+          "name": "Header",
+          "width": "fill_container",
+          "height": 56,
+          "padding": [
+            0,
+            16
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "8I5EN",
+              "name": "lBackIcon",
+              "width": 24,
+              "height": 24,
+              "iconFontName": "arrow-left",
+              "iconFontFamily": "lucide",
+              "fill": "#FFFFFF"
+            },
+            {
+              "type": "text",
+              "id": "ryUKr",
+              "name": "lHeaderTitle",
+              "fill": "#FFFFFF",
+              "content": "Neckworth",
+              "fontFamily": "DM Sans",
+              "fontSize": 20,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "QtPNh",
+              "name": "lHeaderSpacer",
+              "width": 24,
+              "height": 24
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "La4bP",
+          "name": "Tab Bar",
+          "width": "fill_container",
+          "height": 44,
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "NZMh4",
+              "name": "lOverviewTab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "1HGDG",
+                  "name": "lOverviewTabText",
+                  "fill": "#666666",
+                  "content": "Overview",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "pNmOx",
+              "name": "lLeaderTab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#1A1A1A",
+              "cornerRadius": [
+                8,
+                8,
+                0,
+                0
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "SmHok",
+                  "name": "lLeaderTabText",
+                  "fill": "#32D583",
+                  "content": "Leaderboard",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "XHjkx",
+          "name": "Your Value Card",
+          "width": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#1A2E1A",
+                "position": 0
+              },
+              {
+                "color": "#1A1A1A",
+                "position": 1
+              }
+            ]
+          },
+          "cornerRadius": 16,
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 20,
+          "children": [
+            {
+              "type": "frame",
+              "id": "S4tVa",
+              "name": "yourCardTopRow",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "nRha9",
+                  "name": "yourLabel",
+                  "fill": "#888888",
+                  "content": "Your Closet Value",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "YhRpU",
+                  "name": "yourRank",
+                  "fill": "#32D583",
+                  "cornerRadius": 12,
+                  "gap": 4,
+                  "padding": [
+                    4,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "cpOOj",
+                      "name": "yourRankIcon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "trophy",
+                      "iconFontFamily": "lucide",
+                      "fill": "#0A0A0A"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Fie1I",
+                      "name": "yourRankText",
+                      "fill": "#0A0A0A",
+                      "content": "#42",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "XELOj",
+              "name": "yourAmount",
+              "fill": "#FFFFFF",
+              "content": "$12,450",
+              "fontFamily": "DM Sans",
+              "fontSize": 36,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "9DfhQ",
+              "name": "yourSub",
+              "fill": "#888888",
+              "content": "47 pieces • Top 15%",
+              "fontFamily": "DM Sans",
+              "fontSize": 13
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "XTuQy",
+          "name": "spacerL",
+          "width": "fill_container",
+          "height": 16
+        },
+        {
+          "type": "frame",
+          "id": "Hpnz4",
+          "name": "Leaderboard List",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": [
+            0,
+            16
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "wfV0z",
+              "name": "listTitle",
+              "fill": "#FFFFFF",
+              "content": "Top Closets",
+              "fontFamily": "DM Sans",
+              "fontSize": 16,
+              "fontWeight": "700"
+            },
+            {
+              "type": "frame",
+              "id": "aEW87",
+              "name": "row1",
+              "width": "fill_container",
+              "fill": "#F7C94815",
+              "cornerRadius": 12,
+              "stroke": {
+                "thickness": 1,
+                "fill": "#F7C94830"
+              },
+              "gap": 12,
+              "padding": 14,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ekpvJ",
+                  "name": "row1Rank",
+                  "fill": "#F7C948",
+                  "content": "1",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 16,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "6ZPVA",
+                  "name": "row1Avatar",
+                  "fill": "#F7C948",
+                  "width": 36,
+                  "height": 36
+                },
+                {
+                  "type": "frame",
+                  "id": "dUAs7",
+                  "name": "row1Info",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "8qVEQ",
+                      "name": "row1Name",
+                      "fill": "#FFFFFF",
+                      "content": "StyleKing_23",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JFwPn",
+                      "name": "row1Pieces",
+                      "fill": "#888888",
+                      "content": "312 pieces",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 12
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "jOHfm",
+                  "name": "row1Val",
+                  "fill": "#F7C948",
+                  "content": "$86,200",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "rbvzM",
+              "name": "row2",
+              "width": "fill_container",
+              "fill": "#C0C0C015",
+              "cornerRadius": 12,
+              "stroke": {
+                "thickness": 1,
+                "fill": "#C0C0C030"
+              },
+              "gap": 12,
+              "padding": 14,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "rvhnD",
+                  "name": "row2Rank",
+                  "fill": "#C0C0C0",
+                  "content": "2",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 16,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "gk09v",
+                  "name": "row2Avatar",
+                  "fill": "#C0C0C0",
+                  "width": 36,
+                  "height": 36
+                },
+                {
+                  "type": "frame",
+                  "id": "QtLAE",
+                  "name": "row2Info",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "3as3R",
+                      "name": "row2Name",
+                      "fill": "#FFFFFF",
+                      "content": "DesignerDave",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YBdei",
+                      "name": "row2Pieces",
+                      "fill": "#888888",
+                      "content": "189 pieces",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 12
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ytBrO",
+                  "name": "row2Val",
+                  "fill": "#C0C0C0",
+                  "content": "$54,800",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "xAnPB",
+              "name": "row3",
+              "width": "fill_container",
+              "fill": "#CD7F3215",
+              "cornerRadius": 12,
+              "stroke": {
+                "thickness": 1,
+                "fill": "#CD7F3230"
+              },
+              "gap": 12,
+              "padding": 14,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ndHXj",
+                  "name": "row3Rank",
+                  "fill": "#CD7F32",
+                  "content": "3",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 16,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "s15bW",
+                  "name": "row3Avatar",
+                  "fill": "#CD7F32",
+                  "width": 36,
+                  "height": 36
+                },
+                {
+                  "type": "frame",
+                  "id": "I6FK9",
+                  "name": "row3Info",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EEHPQ",
+                      "name": "row3Name",
+                      "fill": "#FFFFFF",
+                      "content": "FashionFiona",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "GiBgY",
+                      "name": "row3Pieces",
+                      "fill": "#888888",
+                      "content": "156 pieces",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 12
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "Mkakm",
+                  "name": "row3Val",
+                  "fill": "#CD7F32",
+                  "content": "$42,100",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Hv6qT",
+              "name": "row4",
+              "width": "fill_container",
+              "fill": "#1A1A1A",
+              "cornerRadius": 12,
+              "gap": 12,
+              "padding": 14,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "pt96G",
+                  "name": "row4Rank",
+                  "fill": "#32D583",
+                  "content": "42",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 16,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "fzBUN",
+                  "name": "row4Avatar",
+                  "fill": "#32D583",
+                  "width": 36,
+                  "height": 36
+                },
+                {
+                  "type": "frame",
+                  "id": "7NMuo",
+                  "name": "row4Info",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "qAt5m",
+                      "name": "row4Name",
+                      "fill": "#32D583",
+                      "content": "You",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "JVjmg",
+                      "name": "row4Pieces",
+                      "fill": "#888888",
+                      "content": "47 pieces",
+                      "fontFamily": "DM Sans",
+                      "fontSize": 12
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "ZFMBB",
+                  "name": "row4Val",
+                  "fill": "#32D583",
+                  "content": "$12,450",
+                  "fontFamily": "DM Sans",
+                  "fontSize": 14,
+                  "fontWeight": "700"
                 }
               ]
             }

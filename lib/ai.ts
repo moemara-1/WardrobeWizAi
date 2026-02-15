@@ -139,8 +139,21 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
     throw new Error(`Unexpected DeepInfra response format: ${JSON.stringify(result).slice(0, 100)}...`);
 }
 
+/**
+ * Ensures a file URI has the file:// scheme prefix.
+ * Important for iOS file system access.
+ */
+function ensureFileUri(uri: string): string {
+    if (!uri) return uri;
+    if (uri.startsWith('http') || uri.startsWith('data:')) return uri;
+    if (uri.startsWith('file://')) return uri;
+    // If it starts with / and not file://, prepend it
+    if (uri.startsWith('/')) return `file://${uri}`;
+    return uri;
+}
+
 export async function analyzeClothingImage(imageUri: string): Promise<ClothingAnalysis> {
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+    const base64 = await FileSystem.readAsStringAsync(ensureFileUri(imageUri), {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -282,7 +295,7 @@ export interface OutfitAnalysis {
 }
 
 export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalysis> {
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+    const base64 = await FileSystem.readAsStringAsync(ensureFileUri(imageUri), {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -388,13 +401,13 @@ export async function generateDigitalTwin(
     additionalDetails: string,
     bodyPhotoUri?: string,
 ): Promise<DigitalTwinAnalysis> {
-    const base64Selfie = await FileSystem.readAsStringAsync(selfieUri, {
+    const base64Selfie = await FileSystem.readAsStringAsync(ensureFileUri(selfieUri), {
         encoding: FileSystem.EncodingType.Base64,
     });
 
     let bodyBase64: string | undefined;
     if (bodyPhotoUri) {
-        bodyBase64 = await FileSystem.readAsStringAsync(bodyPhotoUri, {
+        bodyBase64 = await FileSystem.readAsStringAsync(ensureFileUri(bodyPhotoUri), {
             encoding: FileSystem.EncodingType.Base64,
         });
     }
@@ -450,7 +463,7 @@ export interface ProductIdentification {
  * its brand, specific model, colors, and material.
  */
 export async function identifyProduct(imageUri: string): Promise<ProductIdentification> {
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+    const base64 = await FileSystem.readAsStringAsync(ensureFileUri(imageUri), {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -539,7 +552,7 @@ export async function generateOutfitTwin(
             encoding: FileSystem.EncodingType.Base64,
         });
     } else {
-        twinBase64 = await FileSystem.readAsStringAsync(twinImageUrl, {
+        twinBase64 = await FileSystem.readAsStringAsync(ensureFileUri(twinImageUrl), {
             encoding: FileSystem.EncodingType.Base64,
         });
     }
@@ -725,83 +738,73 @@ export async function regenerateCleanImage(
     let currentImageUri = `data:image/jpeg;base64,${base64}`;
 
     try {
-        let enhancedImageUri = currentImageUri;
+        let resultUri: string;
 
         if (pipelineType === 'detect-fit-seedream') {
-            // Pipeline 2: Seedream (Replicate)
+            // Pipeline 2: Seedream (Replicate) -> Rembg (Replicate)
             if (__DEV__) console.log('Step 1 (Pipeline 2): Calling Replicate Seedream-4...');
 
             const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}. High quality, 8k.`;
 
-            // bytedance/seedream-4 on Replicate
             const seedreamOutput = await callReplicate('bytedance/seedream-4', {
                 image: currentImageUri,
                 prompt: prompt,
             });
 
-            let result = seedreamOutput;
-            if (Array.isArray(result)) result = result[0];
-
-            if (!result || typeof result !== 'string') {
-                if (__DEV__) console.warn('Seedream returned invalid output:', seedreamOutput);
+            let seedreamResult = Array.isArray(seedreamOutput) ? seedreamOutput[0] : seedreamOutput;
+            if (!seedreamResult || typeof seedreamResult !== 'string') {
                 throw new Error('Seedream failed');
             }
-            enhancedImageUri = result;
             if (__DEV__) console.log('Seedream generation complete.');
 
+            // Step 2: Remove Background using `rembg` on Replicate
+            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
+            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                image: seedreamResult,
+            });
+            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
+
+            if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
+
         } else {
-            // Pipeline 1: Bria Fibo Edit (Replicate)
-            // Model: bria-ai/fibo-edit (or bria/fibo-edit)
-            // Using logic for text-guided editing.
-            if (__DEV__) console.log('Step 1 (Pipeline 1): Calling Replicate Bria Fibo Edit...');
+            // Pipeline 1: Bria Fibo Edit (DeepInfra)
+            // Replaces Replicate Bria + Rembg with single DeepInfra call -> NOW RESTORED TO CHAIN WITH REMBG
+            if (__DEV__) console.log('Pipeline 1: Calling DeepInfra Bria/fibo_edit...');
 
             const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
 
-            // bria-ai/fibo-edit logic
-            // Inputs: image, instruction (string), etc.
-            // Using 'bria/fibo-edit' as found in search.
-            const briaOutput = await callReplicate('bria/fibo-edit', {
+            resultUri = await callDeepInfraImage('Bria/fibo_edit', {
                 image: currentImageUri,
-                instruction: prompt, // Text-guided edit uses 'instruction'
-                // Optional: mask (if we had one, but we don't for raw photo)
+                prompt: prompt,
             });
 
-            let result = briaOutput;
-            if (Array.isArray(result)) result = result[0];
-
-            if (!result || typeof result !== 'string') {
-                if (__DEV__) console.warn('Bria returned invalid output:', briaOutput);
-                throw new Error('Bria Fibo Edit failed');
-            }
-            enhancedImageUri = result;
-            if (__DEV__) console.log('Bria enhancement complete.');
+            // Update currentImage for Step 2
+            currentImageUri = resultUri;
         }
-
-        // Update currentImage for Step 2
-        currentImageUri = enhancedImageUri;
 
         // Step 2: Remove Background using `rembg` on Replicate
         // Common step for both pipelines to ensure transparency.
         if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
-
-        const rembgModelVersion = 'fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003';
-        const rembgOutput = await callReplicate(rembgModelVersion, {
+        const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
             image: currentImageUri,
         });
+        resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
 
-        let resultUri = rembgOutput;
-        if (typeof rembgOutput !== 'string') {
-            resultUri = Array.isArray(rembgOutput) ? rembgOutput[0] : rembgOutput;
-        }
-
-        if (!resultUri || typeof resultUri !== 'string') {
-            throw new Error('Unexpected Replicate output format from rembg');
-        }
-
+        if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
         const fileName = `clean_${Date.now()}.png`;
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        const downloadRes = await FileSystem.downloadAsync(resultUri, fileUri);
-        return downloadRes.uri;
+
+        if (resultUri.startsWith('data:')) {
+            const base64Data = resultUri.split(',')[1];
+            await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+        } else {
+            const downloadRes = await FileSystem.downloadAsync(resultUri, fileUri);
+            if (downloadRes.status !== 200) throw new Error(`Failed to download result: ${downloadRes.status}`);
+        }
+
+        return fileUri;
 
     } catch (e) {
         if (__DEV__) console.warn('Clean pipeline failed:', e);
@@ -813,6 +816,7 @@ export async function regenerateCleanImage(
                 image: `data:image/jpeg;base64,${base64}`,
             });
             const fallbackUri = Array.isArray(fallbackOutput) ? fallbackOutput[0] : fallbackOutput;
+
             const fileName = `clean_fallback_${Date.now()}.png`;
             const fileUri = `${FileSystem.documentDirectory}${fileName}`;
             const downloadRes = await FileSystem.downloadAsync(fallbackUri, fileUri);
