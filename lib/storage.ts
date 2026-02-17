@@ -1,6 +1,6 @@
-import { supabase } from './supabase';
-import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system/legacy';
+import { supabase } from './supabase';
 
 const BUCKET = 'wardrobe-images';
 
@@ -64,3 +64,29 @@ export async function uploadBase64Image(
 
   return urlData.publicUrl;
 }
+
+/**
+ * Save a temporary file (from ImagePicker/Manipulator) to the app's permanent document directory.
+ * Returns the new permanent URI.
+ */
+export async function saveToPermanentStorage(tempUri: string): Promise<string> {
+  // If already in document directory or remote, return as is
+  if (!tempUri || tempUri.startsWith('http') || (FileSystem.documentDirectory && tempUri.includes(FileSystem.documentDirectory))) {
+    return tempUri;
+  }
+
+  const filename = tempUri.split('/').pop() || `file_${Date.now()}`;
+  // Ensure unique name
+  const uniqueName = `${Date.now()}_${filename}`;
+  const dest = `${FileSystem.documentDirectory}${uniqueName}`;
+
+  try {
+    await FileSystem.copyAsync({ from: tempUri, to: dest });
+    if (__DEV__) console.log(`[Persistence] Saved to permanent: ${dest}`);
+    return dest;
+  } catch (e) {
+    console.warn('[Persistence] Failed to save to permanent storage:', e);
+    return tempUri; // Fallback to temp
+  }
+}
+

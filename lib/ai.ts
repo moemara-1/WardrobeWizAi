@@ -181,7 +181,8 @@ async function prepareImageForUpload(uri: string): Promise<string> {
         if (__DEV__) console.log(`[prepareImage] Copied ${safeUri} -> ${destPath}`);
         return destPath;
     } catch (e) {
-        console.warn('[prepareImage] Failed to prepare image, using original:', e);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[prepareImage] Failed to prepare image ${uri}: ${msg}. Using original.`);
         return uri;
     }
 }
@@ -331,7 +332,14 @@ export interface OutfitAnalysis {
 
 export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalysis> {
     const preparedUri = await prepareImageForUpload(imageUri);
-    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
+    // Resize to max 1024x1024 to avoid huge payloads/timeouts
+    const { uri: resizedUri } = await manipulateAsync(
+        preparedUri,
+        [{ resize: { width: 1024, height: 1024 } }],
+        { compress: 0.8, format: SaveFormat.JPEG }
+    );
+
+    const base64 = await FileSystem.readAsStringAsync(resizedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
 
@@ -363,45 +371,40 @@ Return ONLY valid JSON in this exact format:
 
 CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
 
-    try {
-        if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision)...');
+    if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision)...');
 
-        const content = await callDeepInfra({
-            model: VISION_MODEL,
-            messages: [{
-                role: 'user',
-                content: [
-                    {
-                        type: 'text',
-                        text: prompt,
-                    },
-                    {
-                        type: 'image_url',
-                        image_url: { url: `data:image/jpeg;base64,${base64}` },
-                    },
-                ],
-            }],
-            max_tokens: 2000,
-            temperature: 0.2, // Low temp for valid JSON
-        });
+    const content = await callDeepInfra({
+        model: VISION_MODEL,
+        messages: [{
+            role: 'user',
+            content: [
+                {
+                    type: 'text',
+                    text: prompt,
+                },
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${base64}` },
+                },
+            ],
+        }],
+        max_tokens: 2000,
+        temperature: 0.2, // Low temp for valid JSON
+    });
 
-        if (__DEV__) console.log('[DetectFit] Raw output:', content.slice(0, 100) + '...');
+    if (__DEV__) console.log('[DetectFit] Raw output:', content.slice(0, 100) + '...');
 
-        const parsed = parseJSON<OutfitAnalysis>(content);
+    const parsed = parseJSON<OutfitAnalysis>(content);
 
-        // Validate
-        if (!parsed.detections || !Array.isArray(parsed.detections)) {
-            parsed.detections = [];
-        }
-        return {
-            detections: parsed.detections,
-            overallStyle: parsed.overallStyle,
-            occasion: parsed.occasion,
-        };
-    } catch (e) {
-        if (__DEV__) console.warn('[DetectFit] Error:', e);
-        return { detections: [], overallStyle: undefined, occasion: undefined };
+    // Validate
+    if (!parsed.detections || !Array.isArray(parsed.detections)) {
+        parsed.detections = [];
     }
+    return {
+        detections: parsed.detections,
+        overallStyle: parsed.overallStyle,
+        occasion: parsed.occasion,
+    };
 }
 
 
@@ -599,6 +602,7 @@ export async function generateOutfitTwin(
 
     // Resize all clothing images and convert to base64
     const clothingImages: { base64: string; name: string; category: string }[] = [];
+    const errors: string[] = [];
     for (const item of outfitItems) {
         try {
             let sourceUri = item.imageUri;
@@ -607,6 +611,9 @@ export async function generateOutfitTwin(
                 const tmpPath = `${FileSystem.cacheDirectory}tmp_garment_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
                 const dl = await FileSystem.downloadAsync(sourceUri, tmpPath);
                 sourceUri = dl.uri;
+            } else {
+                // Ensure local file is accessible (iOS permission fix)
+                sourceUri = await prepareImageForUpload(sourceUri);
             }
             const resized = await manipulateAsync(
                 sourceUri,
@@ -619,12 +626,14 @@ export async function generateOutfitTwin(
             clothingImages.push({ base64: b64, name: item.name, category: item.category });
             if (__DEV__) console.log(`[VTON] Loaded garment: ${item.name} (${item.category}), b64 len: ${b64.length}`);
         } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            errors.push(`${item.name}: ${msg}`);
             if (__DEV__) console.warn(`[VTON] Failed to load garment ${item.name}:`, e);
         }
     }
 
     if (clothingImages.length === 0) {
-        throw new Error('No clothing images could be loaded.');
+        throw new Error(`No clothing images could be loaded. Debug: ${errors.join(' | ')}`);
     }
 
     // ─── Strategy 1: google/nano-banana via Replicate (all categories) ───

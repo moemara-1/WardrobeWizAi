@@ -18,7 +18,6 @@ import {
   Plus,
   Settings,
   Shirt,
-  Tag,
   User,
   UserCircle,
   X,
@@ -56,7 +55,6 @@ export default function ProfileScreen() {
   const updateUserProfile = useClosetStore((s) => s.updateUserProfile);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showPostViewer, setShowPostViewer] = useState<UserPost | null>(null);
   const [showAddPostModal, setShowAddPostModal] = useState(false);
 
   const styles = useMemo(() => createProfileStyles(Colors), [Colors]);
@@ -211,7 +209,7 @@ export default function ProfileScreen() {
                 style={styles.gridTile}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowPostViewer(item);
+                  router.push({ pathname: '/post/[id]', params: { id: item.id } } as Href);
                 }}
               >
                 <Image
@@ -294,54 +292,6 @@ export default function ProfileScreen() {
         onSave={(updates) => { updateUserProfile(updates); setShowEditProfile(false); }}
         digitalTwin={digitalTwin}
       />
-
-      {/* Post Viewer Modal */}
-      {showPostViewer && (
-        <Modal visible animationType="fade" transparent>
-          <View style={styles.postViewerOverlay}>
-            <Pressable style={styles.postViewerBackdrop} onPress={() => setShowPostViewer(null)} />
-            <SafeAreaView style={styles.postViewerContent} edges={['top', 'bottom']}>
-              <View style={styles.postViewerHeader}>
-                <View style={styles.postViewerUser}>
-                  {userProfile.pfp_url ? (
-                    <Image source={{ uri: userProfile.pfp_url }} style={styles.postViewerAvatar} />
-                  ) : (
-                    <View style={[styles.postViewerAvatarPlaceholder, { backgroundColor: Colors.cardSurfaceAlt }]}>
-                      <User size={16} color={Colors.textTertiary} />
-                    </View>
-                  )}
-                  <Text style={styles.postViewerUsername}>{userProfile.username}</Text>
-                </View>
-                <Pressable onPress={() => setShowPostViewer(null)}>
-                  <X size={24} color={Colors.textPrimary} />
-                </Pressable>
-              </View>
-              <View style={styles.postViewerImageContainer}>
-                <Image source={{ uri: showPostViewer.image_url }} style={styles.postViewerImage} contentFit="contain" />
-              </View>
-              {showPostViewer.caption && (
-                <Text style={styles.postViewerCaption}>{showPostViewer.caption}</Text>
-              )}
-              {showPostViewer.tagged_item_ids && showPostViewer.tagged_item_ids.length > 0 && (
-                <View style={styles.postViewerTags}>
-                  <Tag size={14} color="#FFFFFF" />
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                    {showPostViewer.tagged_item_ids.map((itemId) => {
-                      const taggedItem = items.find((i) => i.id === itemId);
-                      return taggedItem ? (
-                        <View key={itemId} style={styles.postTagChip}>
-                          <Image source={{ uri: taggedItem.clean_image_url || taggedItem.image_url }} style={styles.postTagThumb} contentFit="contain" />
-                          <Text style={styles.postTagName}>{taggedItem.name}</Text>
-                        </View>
-                      ) : null;
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-            </SafeAreaView>
-          </View>
-        </Modal>
-      )}
 
       {/* Add Post Modal */}
       <AddPostModal
@@ -627,21 +577,5 @@ function createProfileStyles(C: any) {
     neckworthMeta: { flex: 1 },
     neckworthTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
     neckworthSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary, marginTop: 2 },
-    // Post viewer
-    postViewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' },
-    postViewerBackdrop: { ...StyleSheet.absoluteFillObject },
-    postViewerContent: { flex: 1 },
-    postViewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-    postViewerUser: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    postViewerAvatar: { width: 32, height: 32, borderRadius: 16 },
-    postViewerAvatarPlaceholder: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    postViewerUsername: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: '#FFFFFF' },
-    postViewerImageContainer: { flex: 1, justifyContent: 'center' },
-    postViewerImage: { width: '100%', height: '100%' },
-    postViewerCaption: { fontFamily: Typography.bodyFamily, fontSize: 14, color: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 12 },
-    postViewerTags: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
-    postTagChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
-    postTagThumb: { width: 24, height: 24, borderRadius: 4 },
-    postTagName: { fontFamily: Typography.bodyFamily, fontSize: 12, color: '#FFFFFF' },
   });
 }

@@ -29,18 +29,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type SubView = 'explore' | 'discover';
 
-// Masonry photo data — clean fashion photos for Explore (matching .pen)
-const EXPLORE_PHOTOS_LEFT = [
-  { id: 'post-1', imageUrl: 'https://images.unsplash.com/photo-1608635680046-aebf91c1a9c8?w=400', height: 320 },
-  { id: 'post-3', imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400', height: 260 },
-  { id: 'post-4', imageUrl: 'https://images.unsplash.com/photo-1576507169637-cdcff61eb6d5?w=400', height: 300 },
-];
-
-const EXPLORE_PHOTOS_RIGHT = [
-  { id: 'post-2', imageUrl: 'https://images.unsplash.com/photo-1622021211530-7d31fd86862d?w=400', height: 240 },
-  { id: 'post-5', imageUrl: 'https://images.unsplash.com/photo-1683488780206-88ce4240f3da?w=400', height: 340 },
-  { id: 'post-6', imageUrl: 'https://images.unsplash.com/photo-1612694831097-d7cd14379928?w=400', height: 280 },
-];
+interface ExplorePost {
+  id: string;
+  imageUrl: string;
+  username: string;
+  avatarUrl: string | null;
+  height: number;
+}
 
 const SHORTCUTS = [
   { key: 'stylist', label: 'StyleAI', icon: Sparkles, route: '/style-chat' },
@@ -177,48 +172,98 @@ export default function CommunityScreen() {
   );
 }
 
+const MASONRY_HEIGHTS = [320, 260, 300, 240, 340, 280];
+
 function ExploreView() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
+  const [posts, setPosts] = useState<ExplorePost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: rows } = await supabase
+          .from('posts')
+          .select('id, user_id, image_url')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (cancelled || !rows?.length) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+
+        const userIds = [...new Set(rows.map(r => r.user_id as string))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', userIds);
+
+        const profileMap = new Map<string, { username: string; avatar_url?: string }>();
+        profiles?.forEach(p => profileMap.set(p.id, { username: p.username, avatar_url: p.avatar_url }));
+
+        const mapped: ExplorePost[] = rows.map((row, idx) => ({
+          id: row.id,
+          imageUrl: row.image_url,
+          username: profileMap.get(row.user_id)?.username || 'user',
+          avatarUrl: profileMap.get(row.user_id)?.avatar_url || null,
+          height: MASONRY_HEIGHTS[idx % MASONRY_HEIGHTS.length],
+        }));
+
+        if (!cancelled) setPosts(mapped);
+      } catch {
+        // silent fail
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const leftColumn = posts.filter((_, i) => i % 2 === 0);
+  const rightColumn = posts.filter((_, i) => i % 2 === 1);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary }}>Loading posts...</Text>
+      </View>
+    );
+  }
+
+  if (posts.length === 0) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+        <Text style={{ fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, textAlign: 'center' }}>No posts yet</Text>
+        <Text style={{ fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 4 }}>Be the first to share an outfit!</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
       <View style={styles.masonry}>
-        <View style={styles.column}>
-          {EXPLORE_PHOTOS_LEFT.map((photo) => (
-            <Pressable
-              key={photo.id}
-              style={[styles.masonryTile, { height: photo.height }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: '/post/[id]', params: { id: photo.id } } as Href);
-              }}
-            >
-              <Image
-                source={{ uri: photo.imageUrl }}
-                style={styles.masonryImage}
-                contentFit="cover"
-              />
-            </Pressable>
-          ))}
-        </View>
-        <View style={styles.column}>
-          {EXPLORE_PHOTOS_RIGHT.map((photo) => (
-            <Pressable
-              key={photo.id}
-              style={[styles.masonryTile, { height: photo.height }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: '/post/[id]', params: { id: photo.id } } as Href);
-              }}
-            >
-              <Image
-                source={{ uri: photo.imageUrl }}
-                style={styles.masonryImage}
-                contentFit="cover"
-              />
-            </Pressable>
-          ))}
-        </View>
+        {[leftColumn, rightColumn].map((column, colIdx) => (
+          <View key={colIdx} style={styles.column}>
+            {column.map((post) => (
+              <Pressable
+                key={post.id}
+                style={[styles.masonryTile, { height: post.height }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: '/post/[id]', params: { id: post.id } } as Href);
+                }}
+              >
+                <Image source={{ uri: post.imageUrl }} style={styles.masonryImage} contentFit="cover" />
+                <View style={styles.masonryOverlay}>
+                  <Text style={styles.masonryUsername} numberOfLines={1}>@{post.username}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ))}
       </View>
     </ScrollView>
   );
@@ -540,6 +585,8 @@ function createIndexStyles(C: any) {
     column: { flex: 1, gap: 8 },
     masonryTile: { borderRadius: 16, overflow: 'hidden', backgroundColor: C.cardSurfaceAlt },
     masonryImage: { width: '100%', height: '100%' },
+    masonryOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: 'rgba(0,0,0,0.35)', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
+    masonryUsername: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFFFFF' },
     searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.input, marginHorizontal: 16, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
     searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, padding: 0 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },

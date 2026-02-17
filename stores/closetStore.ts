@@ -170,6 +170,29 @@ const syncToSupabase = {
         }
     },
 
+    async upsertPost(post: UserPost, userId: string) {
+        try {
+            await supabase.from('posts').upsert({
+                id: post.id,
+                user_id: userId,
+                image_url: post.image_url,
+                caption: post.caption || null,
+                tagged_item_ids: post.tagged_item_ids || [],
+                created_at: post.created_at,
+            });
+        } catch (e) {
+            if (__DEV__) console.warn('Sync upsertPost failed:', e);
+        }
+    },
+
+    async deletePost(id: string) {
+        try {
+            await supabase.from('posts').delete().eq('id', id);
+        } catch (e) {
+            if (__DEV__) console.warn('Sync deletePost failed:', e);
+        }
+    },
+
     async upsertProfile(profile: UserProfileData, userId: string) {
         try {
             await supabase.from('profiles').upsert({
@@ -300,8 +323,16 @@ export const useClosetStore = create<ClosetState>()(
             deleteSavedFit: (id) => set((state) => ({ savedFits: state.savedFits.filter((f) => f.id !== id) })),
 
             // Posts
-            addPost: (post) => set((state) => ({ posts: [post, ...state.posts] })),
-            deletePost: (id) => set((state) => ({ posts: state.posts.filter((p) => p.id !== id) })),
+            addPost: (post) => {
+                set((state) => ({ posts: [post, ...state.posts] }));
+                const userId = get().userId;
+                if (userId) syncToSupabase.upsertPost(post, userId);
+            },
+            deletePost: (id) => {
+                set((state) => ({ posts: state.posts.filter((p) => p.id !== id) }));
+                const userId = get().userId;
+                if (userId) syncToSupabase.deletePost(id);
+            },
 
             // User Profile
             updateUserProfile: (updates) => {
@@ -338,11 +369,12 @@ export const useClosetStore = create<ClosetState>()(
 
 export async function hydrateFromSupabase(userId: string): Promise<void> {
     try {
-        const [itemsRes, outfitsRes, twinRes, profileRes] = await Promise.all([
+        const [itemsRes, outfitsRes, twinRes, profileRes, postsRes] = await Promise.all([
             supabase.from('items').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
             supabase.from('outfits').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
             supabase.from('digital_twins').select('*').eq('user_id', userId).single(),
             supabase.from('profiles').select('*').eq('id', userId).single(),
+            supabase.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
         ]);
 
         const store = useClosetStore.getState();
@@ -411,6 +443,23 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
                 created_at: row.created_at,
                 updated_at: row.updated_at,
             });
+        }
+
+        if (postsRes.data?.length) {
+            const posts: UserPost[] = postsRes.data.map((row: any) => ({
+                id: row.id,
+                image_url: row.image_url,
+                caption: row.caption || undefined,
+                tagged_item_ids: row.tagged_item_ids || [],
+                created_at: row.created_at,
+            }));
+            const existingIds = new Set(store.posts.map(p => p.id));
+            const newPosts = posts.filter(p => !existingIds.has(p.id));
+            if (newPosts.length > 0) {
+                useClosetStore.setState(state => ({
+                    posts: [...newPosts, ...state.posts],
+                }));
+            }
         }
 
         if (profileRes.data) {

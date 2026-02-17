@@ -128,7 +128,7 @@ export default function ItemDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsEnhancing(true);
     try {
-      const sourceUrl = item.clean_image_url || item.image_url;
+      const sourceUrl = item.original_image_url || item.image_url;
       const newUrl = await regenerateCleanImage(sourceUrl, {
         name: editName || item.name,
         category: item.category,

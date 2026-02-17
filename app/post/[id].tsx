@@ -1,6 +1,8 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { PostComment, useSocialStore } from '@/stores/socialStore';
+import { supabase } from '@/lib/supabase';
+import { useClosetStore } from '@/stores/closetStore';
+import { PostComment, SocialPost, useSocialStore } from '@/stores/socialStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -12,7 +14,7 @@ import {
   Shirt,
   User,
 } from 'lucide-react-native';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   KeyboardAvoidingView,
@@ -32,21 +34,97 @@ export default function PostDetailScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const posts = useSocialStore((s) => s.posts);
+  const socialPosts = useSocialStore((s) => s.posts);
   const likePost = useSocialStore((s) => s.likePost);
   const addComment = useSocialStore((s) => s.addComment);
+  const closetPosts = useClosetStore((s) => s.posts);
+  const closetItems = useClosetStore((s) => s.items);
+  const closetProfile = useClosetStore((s) => s.userProfile);
 
-  const post = useMemo(() => posts.find((p) => p.id === id), [posts, id]);
+  const post = useMemo((): SocialPost | undefined => {
+    const social = socialPosts.find((p) => p.id === id);
+    if (social) return social;
+
+    const userPost = closetPosts.find((p) => p.id === id);
+    if (!userPost) return undefined;
+
+    const taggedPieces = (userPost.tagged_item_ids || [])
+      .map(itemId => closetItems.find(i => i.id === itemId))
+      .filter(Boolean)
+      .map(item => ({
+        name: item!.name,
+        brand: item!.brand || null,
+        category: item!.category,
+        imageUrl: item!.clean_image_url || item!.image_url,
+      }));
+
+    return {
+      id: userPost.id,
+      userId: 'me',
+      username: closetProfile.username,
+      avatarUrl: closetProfile.pfp_url || null,
+      imageUrl: userPost.image_url,
+      caption: userPost.caption || '',
+      clothingPieces: taggedPieces,
+      likes: 0,
+      liked: false,
+      comments: [],
+      createdAt: userPost.created_at,
+    };
+  }, [socialPosts, closetPosts, closetItems, closetProfile, id]);
+
+  const [supabasePost, setSupabasePost] = useState<SocialPost | null>(null);
+  const [fetchedFromDb, setFetchedFromDb] = useState(false);
+
+  useEffect(() => {
+    if (post || fetchedFromDb) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: row } = await supabase.from('posts').select('*').eq('id', id).single();
+        if (cancelled || !row) { setFetchedFromDb(true); return; }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', row.user_id)
+          .single();
+
+        if (!cancelled) {
+          setSupabasePost({
+            id: row.id,
+            userId: row.user_id,
+            username: profile?.username || 'user',
+            avatarUrl: profile?.avatar_url || null,
+            imageUrl: row.image_url,
+            caption: row.caption || '',
+            clothingPieces: [],
+            likes: row.likes_count || 0,
+            liked: false,
+            comments: [],
+            createdAt: row.created_at,
+          });
+        }
+      } catch {
+        // silent
+      } finally {
+        if (!cancelled) setFetchedFromDb(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, post, fetchedFromDb]);
+
+  const resolvedPost = post || supabasePost;
   const [commentText, setCommentText] = useState('');
 
   const handleLike = useCallback(() => {
-    if (!post) return;
+    if (!resolvedPost) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    likePost(post.id);
-  }, [post, likePost]);
+    likePost(resolvedPost.id);
+  }, [resolvedPost, likePost]);
 
   const handleSendComment = useCallback(() => {
-    if (!post || !commentText.trim()) return;
+    if (!resolvedPost || !commentText.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const comment: PostComment = {
       id: `comment-${Date.now()}`,
@@ -56,11 +134,11 @@ export default function PostDetailScreen() {
       text: commentText.trim(),
       createdAt: new Date().toISOString(),
     };
-    addComment(post.id, comment);
+    addComment(resolvedPost.id, comment);
     setCommentText('');
-  }, [post, commentText, addComment]);
+  }, [resolvedPost, commentText, addComment]);
 
-  if (!post) {
+  if (!resolvedPost) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
@@ -73,7 +151,7 @@ export default function PostDetailScreen() {
     );
   }
 
-  const timeAgo = getTimeAgo(post.createdAt);
+  const timeAgo = getTimeAgo(resolvedPost.createdAt);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -97,22 +175,22 @@ export default function PostDetailScreen() {
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Poster info */}
           <View style={styles.posterRow}>
-            {post.avatarUrl ? (
-              <Image source={{ uri: post.avatarUrl }} style={styles.avatar} contentFit="cover" />
+            {resolvedPost.avatarUrl ? (
+              <Image source={{ uri: resolvedPost.avatarUrl }} style={styles.avatar} contentFit="cover" />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <User size={18} color={Colors.textTertiary} />
               </View>
             )}
             <View style={styles.posterInfo}>
-              <Text style={styles.posterName}>{post.username}</Text>
+              <Text style={styles.posterName}>{resolvedPost.username}</Text>
               <Text style={styles.posterTime}>{timeAgo}</Text>
             </View>
           </View>
 
           {/* Post image */}
           <Image
-            source={{ uri: post.imageUrl }}
+            source={{ uri: resolvedPost.imageUrl }}
             style={styles.postImage}
             contentFit="cover"
           />
@@ -122,36 +200,36 @@ export default function PostDetailScreen() {
             <Pressable style={styles.actionBtn} onPress={handleLike}>
               <Heart
                 size={22}
-                color={post.liked ? '#E85A4F' : Colors.textPrimary}
-                fill={post.liked ? '#E85A4F' : 'transparent'}
+                color={resolvedPost.liked ? '#E85A4F' : Colors.textPrimary}
+                fill={resolvedPost.liked ? '#E85A4F' : 'transparent'}
               />
-              <Text style={[styles.actionText, post.liked && { color: '#E85A4F' }]}>
-                {post.likes}
+              <Text style={[styles.actionText, resolvedPost.liked && { color: '#E85A4F' }]}>
+                {resolvedPost.likes}
               </Text>
             </Pressable>
             <View style={styles.actionBtn}>
               <MessageCircle size={22} color={Colors.textPrimary} />
-              <Text style={styles.actionText}>{post.comments.length}</Text>
+              <Text style={styles.actionText}>{resolvedPost.comments.length}</Text>
             </View>
           </View>
 
           {/* Caption */}
-          {post.caption ? (
+          {resolvedPost.caption ? (
             <View style={styles.captionRow}>
-              <Text style={styles.captionUser}>{post.username}</Text>
-              <Text style={styles.captionText}> {post.caption}</Text>
+              <Text style={styles.captionUser}>{resolvedPost.username}</Text>
+              <Text style={styles.captionText}> {resolvedPost.caption}</Text>
             </View>
           ) : null}
 
           {/* Clothing pieces in this post */}
-          {post.clothingPieces.length > 0 && (
+          {resolvedPost.clothingPieces.length > 0 && (
             <View style={styles.piecesSection}>
               <View style={styles.piecesSectionHeader}>
                 <Shirt size={16} color={Colors.textSecondary} />
                 <Text style={styles.piecesSectionTitle}>Clothing in this outfit</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.piecesScroll}>
-                {post.clothingPieces.map((piece, idx) => (
+                {resolvedPost.clothingPieces.map((piece, idx) => (
                   <View key={idx} style={styles.pieceEmblem}>
                     {piece.imageUrl ? (
                       <Image source={{ uri: piece.imageUrl }} style={styles.pieceEmblemImage} contentFit="contain" />
@@ -171,9 +249,9 @@ export default function PostDetailScreen() {
           {/* Comments */}
           <View style={styles.commentsSection}>
             <Text style={styles.commentsSectionTitle}>
-              Comments ({post.comments.length})
+              Comments ({resolvedPost.comments.length})
             </Text>
-            {post.comments.map((comment) => (
+            {resolvedPost.comments.map((comment) => (
               <View key={comment.id} style={styles.commentRow}>
                 {comment.avatarUrl ? (
                   <Image source={{ uri: comment.avatarUrl }} style={styles.commentAvatar} />
@@ -189,7 +267,7 @@ export default function PostDetailScreen() {
                 </View>
               </View>
             ))}
-            {post.comments.length === 0 && (
+            {resolvedPost.comments.length === 0 && (
               <Text style={styles.noComments}>No comments yet</Text>
             )}
           </View>

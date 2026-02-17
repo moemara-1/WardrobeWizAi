@@ -2,16 +2,18 @@ import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { analyzeClothingImage, analyzeOutfitImage, ClothingAnalysis, identifyProduct, ItemResearch, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgroundRemoval';
+import { saveToPermanentStorage } from '@/lib/storage';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, Sparkles, X } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Check, ImageIcon, Sparkles, X } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Pressable,
   Image as RNImage,
@@ -94,6 +96,12 @@ export default function AnalyzeScreen() {
   const [detectedPieces, setDetectedPieces] = useState<DetectedPiece[]>([]);
   const [overallStyle, setOverallStyle] = useState<string | undefined>();
   const [occasion, setOccasion] = useState<string | undefined>();
+  const [lastGenerationTime, setLastGenerationTime] = useState(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const imageDimsRef = useRef<{ width: number; height: number } | null>(null);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const GENERATION_COOLDOWN_MS = 3000;
 
   // ─── Single-item pipeline ───
   const runSinglePipeline = useCallback(async (uri: string) => {
@@ -250,18 +258,16 @@ export default function AnalyzeScreen() {
 
       setDetectedPieces(pieces);
 
-      // Trigger cropping and cleaning for each piece
-      // We need image dimensions first
+      // Get image dimensions for later cropping, auto-generate first piece only
       RNImage.getSize(uri, (width, height) => {
-        pieces.forEach((piece, idx) => {
-          if (piece.box_2d && piece.box_2d.length === 4) {
-            // process in background
-            processPieceImage(uri, piece.id, piece.box_2d!, width, height, piece);
-          }
-        });
-      }, (err) => {
-        console.warn('Failed to get image size', err);
-      });
+        imageDimsRef.current = { width, height };
+        const firstWithBox = pieces.find(p => p.box_2d && p.box_2d.length === 4);
+        if (firstWithBox) {
+          processPieceImage(uri, firstWithBox.id, firstWithBox.box_2d!, width, height, firstWithBox);
+          setLastGenerationTime(Date.now());
+          startCooldownTimer();
+        }
+      }, () => {});
 
       // Research each piece in parallel for better details
       setStage('researching');
@@ -343,6 +349,34 @@ export default function AnalyzeScreen() {
     }
   };
 
+  const startCooldownTimer = useCallback(() => {
+    if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    setCooldownRemaining(GENERATION_COOLDOWN_MS);
+    cooldownTimerRef.current = setInterval(() => {
+      setCooldownRemaining(prev => {
+        if (prev <= 200) {
+          if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+          return 0;
+        }
+        return prev - 200;
+      });
+    }, 200);
+  }, []);
+
+  const generatePieceImage = useCallback((pieceId: string) => {
+    if (!imageUri || !imageDimsRef.current) return;
+    const now = Date.now();
+    if (now - lastGenerationTime < GENERATION_COOLDOWN_MS) return;
+
+    const piece = detectedPieces.find(p => p.id === pieceId);
+    if (!piece?.box_2d || piece.isCleaning || piece.cleanImageUri) return;
+
+    setLastGenerationTime(now);
+    startCooldownTimer();
+    const { width, height } = imageDimsRef.current;
+    processPieceImage(imageUri, pieceId, piece.box_2d, width, height, piece);
+  }, [imageUri, lastGenerationTime, detectedPieces, startCooldownTimer]);
+
   useEffect(() => {
     if (!imageUri) return;
     if (mode === 'fitpic') {
@@ -352,17 +386,30 @@ export default function AnalyzeScreen() {
     }
   }, [imageUri, mode, runSinglePipeline, runMultiPipeline]);
 
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    };
+  }, []);
+
   // ─── Single-item save ───
-  const handleSaveSingle = useCallback(() => {
+  const handleSaveSingle = useCallback(async () => {
     if (!imageUri) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Ensure we save the original image to permanent storage
+    let permanentImageUri = imageUri;
+    // Check if it's a temp file (heuristic) and not already a remote URL
+    if (!imageUri.startsWith('http')) {
+      permanentImageUri = await saveToPermanentStorage(imageUri);
+    }
 
     const newItem: ClosetItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       user_id: 'demo',
-      image_url: imageUri,
+      image_url: permanentImageUri,
       clean_image_url: cleanImageUri || undefined,
-      original_image_url: imageUri,
+      original_image_url: permanentImageUri,
       name: name || 'Clothing Item',
       category,
       brand: brand || undefined,
@@ -383,20 +430,44 @@ export default function AnalyzeScreen() {
   }, [imageUri, cleanImageUri, name, category, brand, colors, confidence, estimatedValue, garmentType, layerType, tags, addItem]);
 
   // ─── Multi-item save ───
-  const handleSaveMulti = useCallback(() => {
+  const handleSaveMulti = useCallback(async () => {
     if (!imageUri) return;
     const selectedPieces = detectedPieces.filter((p) => p.selected);
     if (selectedPieces.length === 0) return;
 
+    const missingClean = selectedPieces.filter(p => !p.cleanImageUri);
+    if (missingClean.length > 0) {
+      return new Promise<void>((resolve) => {
+        Alert.alert(
+          'Missing Clean Images',
+          `${missingClean.length} selected piece${missingClean.length > 1 ? 's' : ''} don't have generated images yet. Save anyway?`,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
+            { text: 'Save Anyway', onPress: () => { doSaveMulti(selectedPieces); resolve(); } },
+          ]
+        );
+      });
+    }
+
+    doSaveMulti(selectedPieces);
+  }, [imageUri, detectedPieces, addItem]);
+
+  const doSaveMulti = useCallback(async (selectedPieces: DetectedPiece[]) => {
+    if (!imageUri) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let permanentOriginalUri = imageUri;
+    if (!imageUri.startsWith('http')) {
+      permanentOriginalUri = await saveToPermanentStorage(imageUri);
+    }
 
     for (const piece of selectedPieces) {
       const newItem: ClosetItem = {
         id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         user_id: 'demo',
-        image_url: piece.cleanImageUri || imageUri, // Use clean image if available
+        image_url: piece.cleanImageUri || permanentOriginalUri,
         clean_image_url: piece.cleanImageUri,
-        original_image_url: imageUri,
+        original_image_url: permanentOriginalUri,
         name: piece.name || 'Clothing Item',
         category: piece.category,
         brand: piece.brand || undefined,
@@ -414,7 +485,7 @@ export default function AnalyzeScreen() {
     }
 
     router.back();
-  }, [imageUri, detectedPieces, addItem]);
+  }, [imageUri, addItem]);
 
   const togglePiece = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -552,6 +623,18 @@ export default function AnalyzeScreen() {
                       <ActivityIndicator size="small" color={Colors.accentGreen} />
                       <Text style={styles.cleaningText}>Generating clean image...</Text>
                     </View>
+                  )}
+                  {!piece.cleanImageUri && !piece.isCleaning && (
+                    <Pressable
+                      style={[styles.generateBtn, cooldownRemaining > 0 && styles.generateBtnDisabled]}
+                      onPress={(e) => { e.stopPropagation(); generatePieceImage(piece.id); }}
+                      disabled={cooldownRemaining > 0}
+                    >
+                      <ImageIcon size={14} color={cooldownRemaining > 0 ? Colors.textTertiary : Colors.accentGreen} />
+                      <Text style={[styles.generateBtnText, cooldownRemaining > 0 && styles.generateBtnTextDisabled]}>
+                        {cooldownRemaining > 0 ? `Wait ${Math.ceil(cooldownRemaining / 1000)}s...` : 'Generate Image'}
+                      </Text>
+                    </Pressable>
                   )}
                   {piece.estimatedValue ? (
                     <Text style={styles.pieceValue}>~${piece.estimatedValue}</Text>
@@ -782,5 +865,9 @@ function createStyles(C: any) {
     cleanImageThumb: { width: '100%', height: '100%' },
     cleaningIndicator: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
     cleaningText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textTertiary },
+    generateBtn: { marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: Radius.md, borderWidth: 1, borderColor: C.accentGreen, backgroundColor: `${C.accentGreen}10` },
+    generateBtnDisabled: { borderColor: C.border, backgroundColor: C.cardSurfaceAlt },
+    generateBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.accentGreen },
+    generateBtnTextDisabled: { color: C.textTertiary },
   });
 }
