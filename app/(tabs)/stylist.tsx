@@ -3,6 +3,7 @@ import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { generateOutfitTwin, OutfitTwinItem } from '@/lib/ai';
+import { classifyGarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, GeneratedLook, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +23,7 @@ import {
     ActivityIndicator,
     Alert,
     Animated,
+    Dimensions,
     FlatList,
     GestureResponderEvent,
     KeyboardAvoidingView,
@@ -40,6 +42,53 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const CANVAS_ITEM_DEFAULT = 120;
 const CANVAS_ITEM_MIN = 60;
 const CANVAS_ITEM_MAX = 280;
+
+const SLOT_ORDER = ['headwear', 'top', 'bottom', 'footwear'] as const;
+
+function getVerticalPosition(index: number, total: number): { x: number; y: number } {
+  const spacing = CANVAS_ITEM_DEFAULT + 8;
+  const centerX = (Dimensions.get('window').width - 32 - CANVAS_ITEM_DEFAULT) / 2;
+  const totalHeight = total * spacing;
+  const startY = Math.max(10, (380 - totalHeight) / 2);
+  return { x: centerX, y: startY + index * spacing };
+}
+
+function pickRandomBySlot(items: ClosetItem[]): ClosetItem[] {
+  const buckets: Record<string, ClosetItem[]> = {};
+  for (const item of items) {
+    const slot = classifyGarmentSlot(item.category, item.garment_type);
+    if (!buckets[slot]) buckets[slot] = [];
+    buckets[slot].push(item);
+  }
+
+  const picked: ClosetItem[] = [];
+  for (const slot of SLOT_ORDER) {
+    const bucket = buckets[slot];
+    if (bucket && bucket.length > 0) {
+      picked.push(bucket[Math.floor(Math.random() * bucket.length)]);
+    }
+  }
+
+  if (picked.length === 0 && buckets['full-body']?.length) {
+    picked.push(buckets['full-body'][Math.floor(Math.random() * buckets['full-body'].length)]);
+  }
+
+  if (picked.length === 0) {
+    const all = Object.values(buckets).flat();
+    return all.sort(() => Math.random() - 0.5).slice(0, Math.min(all.length, 4));
+  }
+
+  return picked;
+}
+
+function buildVerticalEntries(items: ClosetItem[]): CanvasItemEntry[] {
+  return items.map((item, i) => ({
+    id: `canvas_${item.id}_${Date.now()}_${i}`,
+    item,
+    defaultX: getVerticalPosition(i, items.length).x,
+    defaultY: getVerticalPosition(i, items.length).y,
+  }));
+}
 
 interface CanvasItemEntry {
   id: string;
@@ -195,21 +244,11 @@ export default function StylistScreen() {
   const canvasOutfit = useClosetStore((s) => s.canvasOutfit);
   const clearCanvasOutfit = useClosetStore((s) => s.clearCanvasOutfit);
 
-  const nextPositionRef = useRef(0);
-
-  const getStaggeredPosition = useCallback(() => {
-    const idx = nextPositionRef.current++;
-    const col = idx % 3;
-    const row = Math.floor(idx / 3);
-    const x = 20 + col * (CANVAS_ITEM_DEFAULT + 10);
-    const y = 20 + row * (CANVAS_ITEM_DEFAULT + 10);
-    return { x, y };
-  }, []);
-
   const addItemToCanvas = useCallback((item: ClosetItem) => {
     setCanvasItems((prev) => {
       if (prev.some((c) => c.item.id === item.id)) return prev;
-      const pos = getStaggeredPosition();
+      const nextIdx = prev.length;
+      const pos = getVerticalPosition(nextIdx, nextIdx + 1);
       return [...prev, {
         id: `canvas_${item.id}_${Date.now()}`,
         item,
@@ -218,7 +257,7 @@ export default function StylistScreen() {
       }];
     });
     setSavedThisOutfit(false);
-  }, [getStaggeredPosition]);
+  }, []);
 
   const removeCanvasItem = useCallback((canvasId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -243,20 +282,10 @@ export default function StylistScreen() {
       const resolvedItems = canvasOutfit.item_ids
         .map((oid) => items.find((i) => i.id === oid))
         .filter(Boolean) as ClosetItem[];
-      nextPositionRef.current = 0;
-      const entries: CanvasItemEntry[] = resolvedItems.map((item) => {
-        const pos = getStaggeredPosition();
-        return {
-          id: `canvas_${item.id}_${Date.now()}`,
-          item,
-          defaultX: pos.x,
-          defaultY: pos.y,
-        };
-      });
-      setCanvasItems(entries);
+      setCanvasItems(buildVerticalEntries(resolvedItems));
       clearCanvasOutfit();
     }
-  }, [canvasOutfit, items, getStaggeredPosition, clearCanvasOutfit]);
+  }, [canvasOutfit, items, clearCanvasOutfit]);
 
   const currentOutfitItems = useMemo(
     () => canvasItems.map((c) => c.item),
@@ -272,20 +301,9 @@ export default function StylistScreen() {
       return;
     }
 
-    const count = Math.min(items.length, 4);
-    const shuffled = [...items].sort(() => Math.random() - 0.5).slice(0, count);
-    nextPositionRef.current = 0;
-    const entries: CanvasItemEntry[] = shuffled.map((item) => {
-      const pos = getStaggeredPosition();
-      return {
-        id: `canvas_${item.id}_${Date.now()}`,
-        item,
-        defaultX: pos.x,
-        defaultY: pos.y,
-      };
-    });
-    setCanvasItems(entries);
-  }, [items, getStaggeredPosition]);
+    const picked = pickRandomBySlot(items);
+    setCanvasItems(buildVerticalEntries(picked));
+  }, [items]);
 
   const handleSave = useCallback(() => {
     if (currentOutfitItems.length === 0) {
@@ -338,18 +356,8 @@ export default function StylistScreen() {
     const resolvedItems = outfit.item_ids
       .map((oid) => items.find((i) => i.id === oid))
       .filter(Boolean) as ClosetItem[];
-    nextPositionRef.current = 0;
-    const entries: CanvasItemEntry[] = resolvedItems.map((item) => {
-      const pos = getStaggeredPosition();
-      return {
-        id: `canvas_${item.id}_${Date.now()}`,
-        item,
-        defaultX: pos.x,
-        defaultY: pos.y,
-      };
-    });
-    setCanvasItems(entries);
-  }, [items, getStaggeredPosition]);
+    setCanvasItems(buildVerticalEntries(resolvedItems));
+  }, [items]);
 
   const handleClosetSelect = useCallback((selected: ClosetItem[]) => {
     setShowClosetPicker(false);
@@ -603,15 +611,17 @@ export default function StylistScreen() {
             contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
             renderItem={({ item: outfit }) => (
               <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fitsPickerItems}>
-                  {outfit.items.slice(0, 5).map((piece) => (
-                    <View key={piece.id} style={styles.fitsPickerThumb}>
-                      <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} contentFit="contain" />
+                <View style={styles.fitsPickerStack}>
+                  {outfit.items.slice(0, 4).map((piece, idx) => (
+                    <View key={piece.id} style={[styles.fitsPickerStackItem, { zIndex: 10 - idx }]}>
+                      <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerStackImage} contentFit="contain" />
                     </View>
                   ))}
-                </ScrollView>
-                <Text style={styles.fitsPickerName}>{outfit.name}</Text>
-                <Text style={styles.fitsPickerSub}>{outfit.items.length} pieces</Text>
+                </View>
+                <View style={styles.fitsPickerInfo}>
+                  <Text style={styles.fitsPickerName}>{outfit.name}</Text>
+                  <Text style={styles.fitsPickerSub}>{outfit.items.length} pieces</Text>
+                </View>
               </Pressable>
             )}
           />
@@ -654,10 +664,11 @@ const styles = StyleSheet.create({
   fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
   fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textSecondary },
   fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
-  fitsPickerCard: { marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border },
-  fitsPickerItems: { flexDirection: 'row', marginBottom: 10 },
-  fitsPickerThumb: { width: 60, height: 60, marginRight: 8, backgroundColor: '#FFFFFF', borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-  fitsPickerImage: { width: '90%', height: '90%' },
+  fitsPickerCard: { flexDirection: 'row', marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, gap: 14 },
+  fitsPickerStack: { width: 80, alignItems: 'center' },
+  fitsPickerStackItem: { width: 70, height: 70, marginBottom: -30, backgroundColor: '#FFFFFF' },
+  fitsPickerStackImage: { width: '100%', height: '100%' },
+  fitsPickerInfo: { flex: 1, justifyContent: 'center' },
   fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
   fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 });
