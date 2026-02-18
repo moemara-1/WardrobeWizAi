@@ -1,10 +1,10 @@
 -- Posts table for community sharing
 CREATE TABLE posts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   image_url TEXT NOT NULL,
   caption TEXT,
-  tagged_item_ids UUID[] DEFAULT '{}',
+  tagged_item_ids TEXT[] DEFAULT '{}',
   likes_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

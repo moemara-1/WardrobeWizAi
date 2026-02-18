@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
-import { ChevronDown, Pencil, Play, Plus, Sparkles, Trash2, X } from 'lucide-react-native';
+import { ChevronDown, Pencil, Play, Plus, Search, Sparkles, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
     Alert,
@@ -43,6 +43,7 @@ export default function ClosetScreen() {
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [editingItem, setEditingItem] = useState<ClosetItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [activeFilterKey, setActiveFilterKey] = useState<FilterKey | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<Record<FilterKey, string | null>>({
@@ -80,13 +81,24 @@ export default function ClosetScreen() {
 
   const displayItems = useMemo(() => {
     let filtered = items;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((i) =>
+        i.name.toLowerCase().includes(q) ||
+        i.brand?.toLowerCase().includes(q) ||
+        i.category.toLowerCase().includes(q) ||
+        i.garment_type?.toLowerCase().includes(q) ||
+        i.tags.some(t => t.toLowerCase().includes(q)) ||
+        i.colors.some(c => c.toLowerCase().includes(q))
+      );
+    }
     if (favoritesOnly) filtered = filtered.filter((i) => i.favorite);
     if (selectedFilters.category) filtered = filtered.filter((i) => i.category === selectedFilters.category);
     if (selectedFilters.garment_type) filtered = filtered.filter((i) => i.garment_type === selectedFilters.garment_type);
     if (selectedFilters.color) filtered = filtered.filter((i) => i.colors.includes(selectedFilters.color!));
     if (selectedFilters.brand) filtered = filtered.filter((i) => i.brand === selectedFilters.brand);
     return filtered;
-  }, [items, favoritesOnly, selectedFilters]);
+  }, [items, searchQuery, favoritesOnly, selectedFilters]);
 
   const hasActiveFilters = Object.values(selectedFilters).some(Boolean) || favoritesOnly;
 
@@ -155,6 +167,23 @@ export default function ClosetScreen() {
 
       {activeTab === 'pieces' && (
         <>
+          <View style={styles.searchBar}>
+            <Search size={16} color={Colors.textTertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search items..."
+              placeholderTextColor={Colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <X size={14} color={Colors.textTertiary} />
+              </Pressable>
+            )}
+          </View>
           <View style={styles.filterWrapper}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               <Pressable
@@ -516,6 +545,8 @@ const styles = StyleSheet.create({
   topTabText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textTertiary },
   topTabTextActive: { fontFamily: Typography.bodyFamilyBold, color: Colors.textPrimary },
   topTabIndicator: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 2, backgroundColor: Colors.textPrimary, borderRadius: 1 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 10, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border },
+  searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, padding: 0 },
   filterWrapper: { borderBottomWidth: 1, borderBottomColor: Colors.border },
   filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
   filterPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border, height: 36 },

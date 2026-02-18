@@ -179,6 +179,8 @@ function ExploreView() {
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
   const [posts, setPosts] = useState<ExplorePost[]>([]);
   const [loading, setLoading] = useState(true);
+  const localPosts = useClosetStore((s) => s.posts);
+  const localProfile = useClosetStore((s) => s.userProfile);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,31 +192,28 @@ function ExploreView() {
           .order('created_at', { ascending: false })
           .limit(20);
 
-        if (cancelled || !rows?.length) {
-          if (!cancelled) setLoading(false);
-          return;
+        if (!cancelled && rows?.length) {
+          const userIds = [...new Set(rows.map(r => r.user_id as string))];
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', userIds);
+
+          const profileMap = new Map<string, { username: string; avatar_url?: string }>();
+          profiles?.forEach(p => profileMap.set(p.id, { username: p.username, avatar_url: p.avatar_url }));
+
+          const mapped: ExplorePost[] = rows.map((row, idx) => ({
+            id: row.id,
+            imageUrl: row.image_url,
+            username: profileMap.get(row.user_id)?.username || 'user',
+            avatarUrl: profileMap.get(row.user_id)?.avatar_url || null,
+            height: MASONRY_HEIGHTS[idx % MASONRY_HEIGHTS.length],
+          }));
+
+          if (!cancelled) setPosts(mapped);
         }
-
-        const userIds = [...new Set(rows.map(r => r.user_id as string))];
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url')
-          .in('id', userIds);
-
-        const profileMap = new Map<string, { username: string; avatar_url?: string }>();
-        profiles?.forEach(p => profileMap.set(p.id, { username: p.username, avatar_url: p.avatar_url }));
-
-        const mapped: ExplorePost[] = rows.map((row, idx) => ({
-          id: row.id,
-          imageUrl: row.image_url,
-          username: profileMap.get(row.user_id)?.username || 'user',
-          avatarUrl: profileMap.get(row.user_id)?.avatar_url || null,
-          height: MASONRY_HEIGHTS[idx % MASONRY_HEIGHTS.length],
-        }));
-
-        if (!cancelled) setPosts(mapped);
       } catch {
-        // silent fail
+        // silent fail — local posts will still show below
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -222,10 +221,24 @@ function ExploreView() {
     return () => { cancelled = true; };
   }, []);
 
-  const leftColumn = posts.filter((_, i) => i % 2 === 0);
-  const rightColumn = posts.filter((_, i) => i % 2 === 1);
+  const allPosts = useMemo(() => {
+    const supabaseIds = new Set(posts.map(p => p.id));
+    const localMapped: ExplorePost[] = localPosts
+      .filter(p => !supabaseIds.has(p.id))
+      .map((p, idx) => ({
+        id: p.id,
+        imageUrl: p.image_url,
+        username: localProfile.username,
+        avatarUrl: localProfile.pfp_url || null,
+        height: MASONRY_HEIGHTS[(posts.length + idx) % MASONRY_HEIGHTS.length],
+      }));
+    return [...posts, ...localMapped];
+  }, [posts, localPosts, localProfile]);
 
-  if (loading) {
+  const leftColumn = allPosts.filter((_, i) => i % 2 === 0);
+  const rightColumn = allPosts.filter((_, i) => i % 2 === 1);
+
+  if (loading && allPosts.length === 0) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Text style={{ fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary }}>Loading posts...</Text>
@@ -233,7 +246,7 @@ function ExploreView() {
     );
   }
 
-  if (posts.length === 0) {
+  if (allPosts.length === 0) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
         <Text style={{ fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, textAlign: 'center' }}>No posts yet</Text>
@@ -359,7 +372,7 @@ function DiscoverView({
               .select('twin_image_url, selfie_url')
               .eq('user_id', uid)
               .single();
-            twinUrl = twin?.selfie_url || twin?.twin_image_url || undefined;
+            twinUrl = twin?.selfie_url || undefined;
           }
 
           users.push({
@@ -540,9 +553,9 @@ function MyClosetProfileCard() {
               style={styles.profileAvatarImage}
               contentFit="cover"
             />
-          ) : digitalTwin?.twin_image_url ? (
+          ) : digitalTwin?.selfie_url ? (
             <Image
-              source={{ uri: digitalTwin.twin_image_url }}
+              source={{ uri: digitalTwin.selfie_url }}
               style={styles.profileAvatarImage}
               contentFit="cover"
             />

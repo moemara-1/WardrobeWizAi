@@ -816,8 +816,7 @@ export async function regenerateCleanImage(
             if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
 
         } else {
-            // Pipeline 1: Bria Fibo Edit (DeepInfra)
-            // Replaces Replicate Bria + Rembg with single DeepInfra call -> NOW RESTORED TO CHAIN WITH REMBG
+            // Pipeline 1: Bria Fibo Edit (DeepInfra) + Rembg
             if (__DEV__) console.log('Pipeline 1: Calling DeepInfra Bria/fibo_edit...');
 
             const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
@@ -827,17 +826,13 @@ export async function regenerateCleanImage(
                 prompt: prompt,
             });
 
-            // Update currentImage for Step 2
-            currentImageUri = resultUri;
+            // Pipeline 1 only: remove background on the Bria output
+            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
+            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                image: resultUri,
+            });
+            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
         }
-
-        // Step 2: Remove Background using `rembg` on Replicate
-        // Common step for both pipelines to ensure transparency.
-        if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
-        const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
-            image: currentImageUri,
-        });
-        resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
 
         if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
         const fileName = `clean_${Date.now()}.png`;
