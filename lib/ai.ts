@@ -768,9 +768,10 @@ export async function regenerateCleanImage(
     pipelineType: 'add-item-bria' | 'detect-fit-seedream' = 'add-item-bria'
 ): Promise<string> {
 
+    const resizeTarget = pipelineType === 'detect-fit-seedream' ? 512 : 1024;
     const { uri: resizedUri } = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 1024, height: 1024 } }],
+        [{ resize: { width: resizeTarget, height: resizeTarget } }],
         { compress: 0.9, format: SaveFormat.JPEG }
     );
     const base64 = await FileSystem.readAsStringAsync(resizedUri, {
@@ -784,12 +785,13 @@ export async function regenerateCleanImage(
         if (pipelineType === 'detect-fit-seedream') {
             if (__DEV__) console.log('Pipeline 2: Calling Replicate Seedream-4...');
 
-            const colorInfo = _product.colors.length > 0 ? ` The exact colors are: ${_product.colors.join(', ')}.` : '';
-            const prompt = `Photograph this exact ${_product.description || _product.name} on a clean white studio background. PRESERVE the EXACT colors, patterns, textures, and design details of the original garment — do NOT change or reinterpret anything.${colorInfo} Product photography style, high quality, 8k.`;
+            const prompt = `Remove the background and isolate this ${_product.description || _product.name} on a plain white background. Keep the garment exactly as-is — same colors, patterns, textures, shape. Clean product photo.`;
 
             const seedreamOutput = await callReplicate('bytedance/seedream-4', {
                 image: currentImageUri,
                 prompt: prompt,
+                strength: 0.35,
+                guidance_scale: 7.5,
             });
 
             let seedreamResult = Array.isArray(seedreamOutput) ? seedreamOutput[0] : seedreamOutput;
