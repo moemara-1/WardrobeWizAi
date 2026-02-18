@@ -144,19 +144,14 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
     // For standard DeepInfra inference API (not openai compat):
     // images: ["base64..."]
 
-    // RMBG-2.0 returns { image: "base64..." }
-    if (result.image && typeof result.image === 'string') {
-        const img = result.image;
-        if (img.startsWith('http')) return img;
-        return img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
-    }
-
     if (result.images && result.images.length > 0) {
         const img = result.images[0];
         if (img.startsWith('http')) return img;
+        // Check if base64 header is present, if not add it
         return img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
     }
 
+    // Some endpoints wrap in 'output'
     if (result.output && Array.isArray(result.output)) {
         return result.output[0];
     }
@@ -368,28 +363,24 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
         encoding: FileSystem.EncodingType.Base64,
     });
 
-    const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item and accessory.
+    const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item.
 
 Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
 
-For EACH item:
-- "name": Be VERY specific and descriptive (e.g. "bright yellow bodycon midi dress" NOT just "dress")
-- "colors": List ALL visible colors precisely (e.g. ["bright yellow", "gold"] NOT just ["yellow"])
-- "brand": Identify if recognizable
-- "box_2d": Bounding box as [ymin, xmin, ymax, xmax] using 0-100 scale
+For EACH item, provide details and its BOUNDING BOX (box_2d) as [ymin, xmin, ymax, xmax] using 0-100 scale.
 You MUST find at least 1 item.
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact format:
 {
   "detections": [
     {
-      "name": "specific descriptive name with color and style",
+      "name": "descriptive name",
       "category": "top",
       "brand": "Brand",
       "brandConfidence": 0.8,
       "modelName": "Model",
       "estimatedValue": 50,
-      "colors": ["exact color 1", "exact color 2"],
+      "colors": ["color"],
       "confidence": 0.9,
       "box_2d": [10, 10, 50, 50]
     }
@@ -398,7 +389,7 @@ Return ONLY valid JSON:
   "occasion": "casual"
 }
 
-CRITICAL: Return ONLY raw JSON. No markdown. No explanation.`;
+CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
 
     if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision)...');
 
@@ -718,7 +709,6 @@ export async function generateOutfitTwin(
                 mode: 'vton',
                 imageBase64: twinB64ForVton,
                 selfieBase64: selfieB64,
-                prompt: textPrompt,
                 garments: clothingImages.map(img => ({
                     base64: img.base64,
                     category: img.category,
@@ -822,8 +812,7 @@ export async function regenerateCleanImage(
         if (pipelineType === 'detect-fit-seedream') {
             if (__DEV__) console.log('Step 1 (Pipeline 2): Calling Replicate Seedream-4...');
 
-            const colorInfo = _product.colors.length > 0 ? ` The exact colors are: ${_product.colors.join(', ')}.` : '';
-            const prompt = `Photograph this exact ${_product.description || _product.name} on a clean white studio background. PRESERVE the EXACT colors, patterns, textures, and design details of the original garment — do NOT change or reinterpret anything.${colorInfo} Product photography style, high quality, 8k.`;
+            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}. High quality, 8k.`;
 
             const seedreamOutput = await callReplicate('bytedance/seedream-4', {
                 image: currentImageUri,
@@ -839,34 +828,43 @@ export async function regenerateCleanImage(
             }
             if (__DEV__) console.log('Seedream complete, result:', seedreamResult.slice(0, 80));
 
+            // Rembg is optional — seedream already generates on white background
             try {
-                if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
-                resultUri = await callDeepInfraImage('briaai/RMBG-2.0', {
+                if (__DEV__) console.log('Step 2: Removing background with Rembg...');
+                const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
                     image: seedreamResult,
                 });
+                const rembgResult = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
+                if (rembgResult) {
+                    resultUri = rembgResult;
+                } else {
+                    resultUri = seedreamResult;
+                }
             } catch (rembgErr) {
-                if (__DEV__) console.warn('RMBG-2.0 failed, using seedream output directly:', rembgErr);
+                if (__DEV__) console.warn('Rembg failed, using seedream output directly:', rembgErr);
                 resultUri = seedreamResult;
             }
 
         } else {
+            // Pipeline 1: Bria Fibo Edit (DeepInfra) + Rembg
             if (__DEV__) console.log('Pipeline 1: Calling DeepInfra Bria/fibo_edit...');
 
-            const colorInfo = _product.colors.length > 0 ? ` Exact colors: ${_product.colors.join(', ')}.` : '';
-            const prompt = `Isolate this exact ${_product.description || _product.name} on a pure white background. KEEP the original colors, patterns, and all visual details identical — do NOT alter, recolor, or reinterpret the garment.${colorInfo}`;
+            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
 
             resultUri = await callDeepInfraImage('Bria/fibo_edit', {
                 image: currentImageUri,
                 prompt: prompt,
             });
 
-            if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
-            resultUri = await callDeepInfraImage('briaai/RMBG-2.0', {
+            // Pipeline 1 only: remove background on the Bria output
+            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
+            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
                 image: resultUri,
             });
+            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
         }
 
-        if (!resultUri) throw new Error('Background removal returned no output');
+        if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
         const fileName = `clean_${Date.now()}.png`;
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
@@ -885,22 +883,16 @@ export async function regenerateCleanImage(
     } catch (e) {
         if (__DEV__) console.warn('Clean pipeline failed:', e);
 
-        if (__DEV__) console.log('Falling back to DeepInfra RMBG-2.0 on original...');
+        // Fallback: If AI fails, use basic remove-bg on original
+        if (__DEV__) console.log('Falling back to basic remove-bg on original...');
         try {
-            const fallbackUri = await callDeepInfraImage('briaai/RMBG-2.0', {
+            const fallbackOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
                 image: `data:image/jpeg;base64,${base64}`,
             });
+            const fallbackUri = Array.isArray(fallbackOutput) ? fallbackOutput[0] : fallbackOutput;
 
             const fileName = `clean_fallback_${Date.now()}.png`;
             const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-
-            if (fallbackUri.startsWith('data:')) {
-                const b64Data = fallbackUri.split(',')[1];
-                await FileSystem.writeAsStringAsync(fileUri, b64Data, {
-                    encoding: FileSystem.EncodingType.Base64,
-                });
-                return fileUri;
-            }
             const downloadRes = await FileSystem.downloadAsync(fallbackUri, fileUri);
             return downloadRes.uri;
         } catch (err2) {

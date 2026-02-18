@@ -122,7 +122,7 @@ export default function AnalyzeScreen() {
       if (analysisResult.status === 'fulfilled') {
         analysis = analysisResult.value;
       } else {
-        throw new Error('Could not identify this piece. Try a clearer photo or zoom in on the item.');
+        throw new Error('Vision analysis failed');
       }
 
       if (productResult.status === 'fulfilled') {
@@ -221,7 +221,7 @@ export default function AnalyzeScreen() {
 
     } catch (err) {
       setStage('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Could not identify this piece. Try a clearer photo or zoom in on the item.');
+      setErrorMsg(err instanceof Error ? err.message : 'Vision analysis failed');
       return;
     }
   }, []);
@@ -291,7 +291,7 @@ export default function AnalyzeScreen() {
       setStage('done');
     } catch (err) {
       setStage('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Could not detect pieces in this photo. Try a clearer image or zoom in closer.');
+      setErrorMsg(err instanceof Error ? err.message : 'Outfit analysis failed');
     }
   }, []);
 
@@ -329,10 +329,7 @@ export default function AnalyzeScreen() {
       // Clean
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: true } : p));
 
-      const colorDesc = piece.colors.length > 0 ? piece.colors.join(' and ') : '';
-      const brandDesc = piece.brand ? `${piece.brand} ` : '';
-      const richDescription = `${brandDesc}${colorDesc} ${piece.name}`.trim();
-
+      // Construct a minimal product object for the cleaner prompt
       const tempProduct: ProductIdentification = {
         name: piece.name,
         brand: piece.brand || null,
@@ -340,7 +337,7 @@ export default function AnalyzeScreen() {
         garment_type: piece.garmentType || null,
         colors: piece.colors,
         material: null,
-        description: richDescription,
+        description: piece.name
       };
 
       const cleanUri = await regenerateCleanImage(cropped.uri, tempProduct, 'detect-fit-seedream');
