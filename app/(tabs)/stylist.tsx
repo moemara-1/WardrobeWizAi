@@ -23,6 +23,7 @@ import {
     Alert,
     Animated,
     FlatList,
+    GestureResponderEvent,
     KeyboardAvoidingView,
     Modal,
     PanResponder,
@@ -39,13 +40,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const CANVAS_ITEM_DEFAULT = 120;
 const CANVAS_ITEM_MIN = 60;
 const CANVAS_ITEM_MAX = 280;
-const RESIZE_HANDLE = 28;
 
 interface CanvasItemEntry {
   id: string;
   item: ClosetItem;
   defaultX: number;
   defaultY: number;
+}
+
+function getFingerDistance(touches: { pageX: number; pageY: number }[]) {
+  const [a, b] = [touches[0], touches[1]];
+  return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
 }
 
 function DraggableCanvasItem({
@@ -63,7 +68,9 @@ function DraggableCanvasItem({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [size, setSize] = useState(CANVAS_ITEM_DEFAULT);
   const sizeRef = useRef(CANVAS_ITEM_DEFAULT);
-  const sizeAtStart = useRef(CANVAS_ITEM_DEFAULT);
+  const isPinching = useRef(false);
+  const pinchBaseDistance = useRef(0);
+  const pinchBaseSize = useRef(CANVAS_ITEM_DEFAULT);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -72,13 +79,14 @@ function DraggableCanvasItem({
       onPanResponderGrant: () => {
         isDragging.current = false;
         longPressTimer.current = setTimeout(() => {
-          if (!isDragging.current) {
+          if (!isDragging.current && !isPinching.current) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
             onRemove(entry.id);
           }
         }, 600);
       },
       onPanResponderMove: (_, gs) => {
+        if (isPinching.current) return;
         if (Math.abs(gs.dx) > 5 || Math.abs(gs.dy) > 5) {
           isDragging.current = true;
           if (longPressTimer.current) {
@@ -96,6 +104,10 @@ function DraggableCanvasItem({
           clearTimeout(longPressTimer.current);
           longPressTimer.current = null;
         }
+        if (isPinching.current) {
+          isPinching.current = false;
+          return;
+        }
         lastOffset.current = {
           x: lastOffset.current.x + gs.dx,
           y: lastOffset.current.y + gs.dy,
@@ -107,22 +119,33 @@ function DraggableCanvasItem({
     })
   ).current;
 
-  const resizeResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        sizeAtStart.current = sizeRef.current;
-      },
-      onPanResponderMove: (_, gs) => {
-        const delta = Math.max(gs.dx, gs.dy);
-        const next = Math.min(CANVAS_ITEM_MAX, Math.max(CANVAS_ITEM_MIN, sizeAtStart.current + delta));
-        sizeRef.current = next;
-        setSize(next);
-      },
-      onPanResponderRelease: () => {},
-    })
-  ).current;
+  const handleTouchStart = useCallback((e: GestureResponderEvent) => {
+    if (e.nativeEvent.touches.length === 2) {
+      isPinching.current = true;
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+      pinchBaseDistance.current = getFingerDistance(e.nativeEvent.touches);
+      pinchBaseSize.current = sizeRef.current;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: GestureResponderEvent) => {
+    if (e.nativeEvent.touches.length === 2 && isPinching.current) {
+      const dist = getFingerDistance(e.nativeEvent.touches);
+      const scale = dist / pinchBaseDistance.current;
+      const next = Math.min(CANVAS_ITEM_MAX, Math.max(CANVAS_ITEM_MIN, pinchBaseSize.current * scale));
+      sizeRef.current = next;
+      setSize(next);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e: GestureResponderEvent) => {
+    if (e.nativeEvent.touches.length < 2) {
+      isPinching.current = false;
+    }
+  }, []);
 
   return (
     <Animated.View
@@ -131,18 +154,15 @@ function DraggableCanvasItem({
         { width: size, height: size, transform: pan.getTranslateTransform() },
       ]}
       {...panResponder.panHandlers}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       <Image
         source={{ uri: entry.item.clean_image_url || entry.item.image_url }}
         style={styles.canvasItemImage}
         contentFit="contain"
       />
-      <View
-        style={styles.resizeHandle}
-        {...resizeResponder.panHandlers}
-      >
-        <View style={styles.resizeGrip} />
-      </View>
     </Animated.View>
   );
 }
@@ -480,7 +500,7 @@ export default function StylistScreen() {
               <Sparkles size={32} color={Colors.textTertiary} strokeWidth={1.2} />
               <Text style={styles.canvasTitle}>Your Outfit Board</Text>
               <Text style={styles.canvasSubtitle}>
-                Tap + to add items, drag to arrange{'\n'}Long-press to remove
+                Tap + to add items, drag to arrange{'\n'}Pinch to resize, long-press to remove
               </Text>
             </View>
           )}
@@ -618,8 +638,6 @@ const styles = StyleSheet.create({
   canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary, textAlign: 'center' },
   canvasItemWrapper: { position: 'absolute' },
   canvasItemImage: { width: '100%', height: '100%' },
-  resizeHandle: { position: 'absolute', bottom: -4, right: -4, width: RESIZE_HANDLE, height: RESIZE_HANDLE, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
-  resizeGrip: { width: 12, height: 12, borderRightWidth: 2.5, borderBottomWidth: 2.5, borderColor: 'rgba(0,0,0,0.5)', borderBottomRightRadius: 2 },
   accessoryBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
   accessoryBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF' },
   fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },

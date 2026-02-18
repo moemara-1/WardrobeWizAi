@@ -6,15 +6,11 @@ import {
     Cloud,
     CloudRain,
     CloudSnow,
-    Columns2,
     Dumbbell,
     Flame,
-    Grid2x2,
     Home,
-    LayoutGrid,
     Shirt,
     Snowflake,
-    Square,
     Thermometer,
     Wine,
     Zap
@@ -47,7 +43,6 @@ export interface FilterState {
   style: string[];
   color: string[];
   weather: string[];
-  layout: string;
 }
 
 const STYLE_OPTIONS = [
@@ -77,19 +72,11 @@ const WEATHER_OPTIONS = [
   { key: 'transitional', label: 'Transitional', icon: Cloud },
 ] as const;
 
-const LAYOUT_OPTIONS = [
-  { key: '4pieces', label: '4 Pieces', desc: 'Head · Top · Bottom · Shoes', icon: LayoutGrid },
-  { key: '3pieces', label: '3 Pieces', desc: 'Top · Bottom · Shoes', icon: Grid2x2 },
-  { key: '2pieces', label: '2 Pieces', desc: 'Top · Bottom', icon: Columns2 },
-  { key: 'full', label: 'Full Piece', desc: 'Dress / Jumpsuit', icon: Square },
-] as const;
 
 export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps) {
   const [selectedStyle, setSelectedStyle] = useState<string[]>([]);
   const [selectedColor, setSelectedColor] = useState<string[]>([]);
   const [selectedWeather, setSelectedWeather] = useState<string[]>([]);
-  const [selectedLayout, setSelectedLayout] = useState('4pieces');
-
   if (!visible) return null;
 
   const toggleMulti = (key: string, setter: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -104,16 +91,15 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
     setSelectedStyle([]);
     setSelectedColor([]);
     setSelectedWeather([]);
-    setSelectedLayout('4pieces');
   };
 
   const handleApply = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onApply({ style: selectedStyle, color: selectedColor, weather: selectedWeather, layout: selectedLayout });
+    onApply({ style: selectedStyle, color: selectedColor, weather: selectedWeather });
     onClose();
   };
 
-  const activeCount = selectedStyle.length + selectedColor.length + selectedWeather.length + (selectedLayout !== '4pieces' ? 1 : 0);
+  const activeCount = selectedStyle.length + selectedColor.length + selectedWeather.length;
 
   return (
     <View style={styles.overlay}>
@@ -208,27 +194,6 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
             })}
           </View>
 
-          {/* Layout */}
-          <Text style={styles.sectionTitle}>Layout</Text>
-          <View style={styles.layoutRow}>
-            {LAYOUT_OPTIONS.map(({ key, label, desc, icon: Icon }) => {
-              const active = selectedLayout === key;
-              return (
-                <Pressable
-                  key={key}
-                  style={[styles.layoutCard, active && styles.layoutCardActive]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setSelectedLayout(key);
-                  }}
-                >
-                  <Icon size={20} color={active ? Colors.accentGreen : Colors.textSecondary} />
-                  <Text style={[styles.layoutLabel, active && styles.layoutLabelActive]}>{label}</Text>
-                  <Text style={[styles.layoutDesc, active && styles.layoutDescActive]}>{desc}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
         </ScrollView>
       </Animated.View>
     </View>
@@ -366,44 +331,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   colorLabelActive: {
-    color: Colors.accentGreen,
-  },
-  // Layout
-  layoutRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  layoutCard: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.cardSurfaceAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  layoutCardActive: {
-    borderColor: Colors.accentGreen,
-    backgroundColor: 'rgba(50, 213, 131, 0.08)',
-  },
-  layoutLabel: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  layoutLabelActive: {
-    color: Colors.accentGreen,
-  },
-  layoutDesc: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 9,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-  },
-  layoutDescActive: {
     color: Colors.accentGreen,
   },
 });
