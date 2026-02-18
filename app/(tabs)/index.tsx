@@ -270,9 +270,6 @@ function ExploreView() {
                 }}
               >
                 <Image source={{ uri: post.imageUrl }} style={styles.masonryImage} contentFit="cover" />
-                <View style={styles.masonryOverlay}>
-                  <Text style={styles.masonryUsername} numberOfLines={1}>@{post.username}</Text>
-                </View>
               </Pressable>
             ))}
           </View>
@@ -598,8 +595,6 @@ function createIndexStyles(C: any) {
     column: { flex: 1, gap: 8 },
     masonryTile: { borderRadius: 16, overflow: 'hidden', backgroundColor: C.cardSurfaceAlt },
     masonryImage: { width: '100%', height: '100%' },
-    masonryOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: 'rgba(0,0,0,0.35)', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
-    masonryUsername: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFFFFF' },
     searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.input, marginHorizontal: 16, paddingHorizontal: 14, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: C.border },
     searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, padding: 0 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },

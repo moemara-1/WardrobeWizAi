@@ -144,14 +144,19 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
     // For standard DeepInfra inference API (not openai compat):
     // images: ["base64..."]
 
+    // RMBG-2.0 returns { image: "base64..." }
+    if (result.image && typeof result.image === 'string') {
+        const img = result.image;
+        if (img.startsWith('http')) return img;
+        return img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
+    }
+
     if (result.images && result.images.length > 0) {
         const img = result.images[0];
         if (img.startsWith('http')) return img;
-        // Check if base64 header is present, if not add it
         return img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
     }
 
-    // Some endpoints wrap in 'output'
     if (result.output && Array.isArray(result.output)) {
         return result.output[0];
     }
@@ -829,20 +834,13 @@ export async function regenerateCleanImage(
             }
             if (__DEV__) console.log('Seedream complete, result:', seedreamResult.slice(0, 80));
 
-            // Rembg is optional — seedream already generates on white background
             try {
-                if (__DEV__) console.log('Step 2: Removing background with Rembg...');
-                const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
+                resultUri = await callDeepInfraImage('briaai/RMBG-2.0', {
                     image: seedreamResult,
                 });
-                const rembgResult = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
-                if (rembgResult) {
-                    resultUri = rembgResult;
-                } else {
-                    resultUri = seedreamResult;
-                }
             } catch (rembgErr) {
-                if (__DEV__) console.warn('Rembg failed, using seedream output directly:', rembgErr);
+                if (__DEV__) console.warn('RMBG-2.0 failed, using seedream output directly:', rembgErr);
                 resultUri = seedreamResult;
             }
 
@@ -857,15 +855,13 @@ export async function regenerateCleanImage(
                 prompt: prompt,
             });
 
-            // Pipeline 1 only: remove background on the Bria output
-            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
-            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+            if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
+            resultUri = await callDeepInfraImage('briaai/RMBG-2.0', {
                 image: resultUri,
             });
-            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
         }
 
-        if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
+        if (!resultUri) throw new Error('Background removal returned no output');
         const fileName = `clean_${Date.now()}.png`;
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
@@ -884,16 +880,22 @@ export async function regenerateCleanImage(
     } catch (e) {
         if (__DEV__) console.warn('Clean pipeline failed:', e);
 
-        // Fallback: If AI fails, use basic remove-bg on original
-        if (__DEV__) console.log('Falling back to basic remove-bg on original...');
+        if (__DEV__) console.log('Falling back to DeepInfra RMBG-2.0 on original...');
         try {
-            const fallbackOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+            const fallbackUri = await callDeepInfraImage('briaai/RMBG-2.0', {
                 image: `data:image/jpeg;base64,${base64}`,
             });
-            const fallbackUri = Array.isArray(fallbackOutput) ? fallbackOutput[0] : fallbackOutput;
 
             const fileName = `clean_fallback_${Date.now()}.png`;
             const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+            if (fallbackUri.startsWith('data:')) {
+                const b64Data = fallbackUri.split(',')[1];
+                await FileSystem.writeAsStringAsync(fileUri, b64Data, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+                return fileUri;
+            }
             const downloadRes = await FileSystem.downloadAsync(fallbackUri, fileUri);
             return downloadRes.uri;
         } catch (err2) {

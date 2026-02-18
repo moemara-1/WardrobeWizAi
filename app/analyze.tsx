@@ -122,7 +122,7 @@ export default function AnalyzeScreen() {
       if (analysisResult.status === 'fulfilled') {
         analysis = analysisResult.value;
       } else {
-        throw new Error('Vision analysis failed');
+        throw new Error('Could not identify this piece. Try a clearer photo or zoom in on the item.');
       }
 
       if (productResult.status === 'fulfilled') {
@@ -221,7 +221,7 @@ export default function AnalyzeScreen() {
 
     } catch (err) {
       setStage('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Vision analysis failed');
+      setErrorMsg(err instanceof Error ? err.message : 'Could not identify this piece. Try a clearer photo or zoom in on the item.');
       return;
     }
   }, []);
@@ -291,7 +291,7 @@ export default function AnalyzeScreen() {
       setStage('done');
     } catch (err) {
       setStage('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Outfit analysis failed');
+      setErrorMsg(err instanceof Error ? err.message : 'Could not detect pieces in this photo. Try a clearer image or zoom in closer.');
     }
   }, []);
 
