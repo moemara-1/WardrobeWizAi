@@ -47,20 +47,16 @@ async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
 }
 
 function parseJSON<T>(text: string): T {
-    // Try to extract JSON from markdown code blocks first
     const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (codeBlock) {
         return JSON.parse(codeBlock[1].trim());
     }
-    // Then try raw JSON object
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error(`No JSON found in response: ${text.slice(0, 200)}`);
-    // Attempt to fix common JSON errors (like trailing commas)
     let jsonStr = match[0];
     try {
         return JSON.parse(jsonStr);
     } catch (e) {
-        // Very basic fix attempt: remove trailing commas before closing braces/brackets
         jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
         return JSON.parse(jsonStr);
     }
@@ -98,7 +94,6 @@ async function callReplicate(model: string, input: Record<string, unknown>): Pro
 
         prediction = await response.json();
     } catch (fetchErr: unknown) {
-        // Prefer: wait may timeout on iOS — fall back to create-then-poll
         if (__DEV__) console.warn('Prefer:wait fetch failed, trying without:', fetchErr);
         const createRes = await fetch(url, {
             method: 'POST',
@@ -114,7 +109,6 @@ async function callReplicate(model: string, input: Record<string, unknown>): Pro
         prediction = await createRes.json();
     }
 
-    // Poll until complete (handles both Prefer:wait timeout and standard async)
     const MAX_POLLS = 120;
     let polls = 0;
     while ((prediction.status === 'starting' || prediction.status === 'processing') && polls < MAX_POLLS) {
@@ -174,40 +168,30 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
     throw new Error(`Unexpected DeepInfra response format: ${JSON.stringify(result).slice(0, 100)}...`);
 }
 
-/**
- * Prepares an image for upload/processing by ensuring it's accessible.
- * On iOS, images from ImagePicker might be in a temp location we can't read later.
- * This function copies the file to the app's cache directory to ensure ownership.
- */
 async function prepareImageForUpload(uri: string): Promise<string> {
     if (!uri) return uri;
     if (uri.startsWith('http') || uri.startsWith('data:')) return uri;
 
     try {
-        // Ensure standard file:// prefix
         let safeUri = uri;
         if (!safeUri.startsWith('file://') && safeUri.startsWith('/')) {
             safeUri = `file://${safeUri}`;
         }
 
-        // Check if file exists and is accessible
         const info = await FileSystem.getInfoAsync(safeUri);
         if (!info.exists) {
             console.warn(`[prepareImage] File does not exist at: ${safeUri}`);
-            // Attempt to use original URI if safeUri failed (fallback)
             const infoOriginal = await FileSystem.getInfoAsync(uri);
             if (infoOriginal.exists) {
-                safeUri = uri; // Original was actually correct
+                safeUri = uri;
             } else {
                 throw new Error(`File not found at ${uri}`);
             }
         }
 
-        // Generate a new path in our cache directory
         const filename = safeUri.split('/').pop() || `temp_${Date.now()}.jpg`;
         const destPath = `${FileSystem.cacheDirectory}upload_${Date.now()}_${filename}`;
 
-        // Copy file to ensure we have read permissions
         await FileSystem.copyAsync({
             from: safeUri,
             to: destPath
@@ -356,7 +340,7 @@ export interface OutfitDetection {
     estimatedValue: number | null;
     colors: string[];
     confidence: number;
-    box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-100
+    box_2d?: [number, number, number, number];
 }
 
 export interface OutfitAnalysis {
@@ -367,7 +351,6 @@ export interface OutfitAnalysis {
 
 export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalysis> {
     const preparedUri = await prepareImageForUpload(imageUri);
-    // Resize to max 1024x1024 to avoid huge payloads/timeouts
     const { uri: resizedUri } = await manipulateAsync(
         preparedUri,
         [{ resize: { width: 1024, height: 1024 } }],
@@ -432,14 +415,13 @@ CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
             ],
         }],
         max_tokens: 2000,
-        temperature: 0.2, // Low temp for valid JSON
+        temperature: 0.2,
     });
 
     if (__DEV__) console.log('[DetectFit] Raw output:', content.slice(0, 100) + '...');
 
     const parsed = parseJSON<OutfitAnalysis>(content);
 
-    // Validate
     if (!parsed.detections || !Array.isArray(parsed.detections)) {
         parsed.detections = [];
     }
@@ -460,9 +442,6 @@ export interface DigitalTwinAnalysis {
     twin_image_url: string;
 }
 
-/**
- * Save a base64-encoded image to the local filesystem.
- */
 async function saveBase64Image(b64: string): Promise<string> {
     const fileName = `twin_${Date.now()}.jpg`;
     const fileUri = `${FileSystem.documentDirectory}${fileName}`;
@@ -472,10 +451,6 @@ async function saveBase64Image(b64: string): Promise<string> {
     return fileUri;
 }
 
-/**
- * Generate a digital twin using Nano Banana + cdingram/face-swap pipeline.
- * No vision model needed — uses user-provided selfie, skin color, hair color directly.
- */
 export async function generateDigitalTwin(
     selfieUri: string,
     skinColor: string,
@@ -496,7 +471,6 @@ export async function generateDigitalTwin(
         });
     }
 
-    // Call edge function with Nano Banana + face-swap pipeline
     const { data, error } = await supabase.functions.invoke('ai-image', {
         body: {
             mode: 'twin',
@@ -538,14 +512,9 @@ export interface ProductIdentification {
     colors: string[];
     material: string | null;
     description: string;
-    box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-100
+    box_2d?: [number, number, number, number];
 }
 
-/**
- * Step 1: Identify the product using vision model.
- * This acts like a "Google Lens" — identifies what the clothing item is,
- * its brand, specific model, colors, and material.
- */
 export async function identifyProduct(imageUri: string): Promise<ProductIdentification> {
     const preparedUri = await prepareImageForUpload(imageUri);
     const base64 = await FileSystem.readAsStringAsync(preparedUri, {
@@ -606,15 +575,6 @@ Return ONLY valid JSON:
     return parsed;
 }
 
-/**
- * Generate an outfit try-on image using the digital twin.
- *
- * Strategy:
- *   1. PRIMARY — google/nano-banana (Gemini 2.5 Flash Image) via Replicate
- *      Sends person image + ALL garment images in a single call.
- *      Supports ALL categories: top, bottom, outerwear, dress, shoes, accessories, etc.
- *   2. FALLBACK — FLUX Kontext with collage (if Replicate is unavailable)
- */
 export interface OutfitTwinItem {
     name: string;
     category: string;
@@ -627,10 +587,8 @@ export async function generateOutfitTwin(
     textPrompt?: string,
     selfieUrl?: string,
 ): Promise<string> {
-    // Read the twin base image (handle both local and remote URLs)
     let twinBase64: string;
     if (twinImageUrl.startsWith('http://') || twinImageUrl.startsWith('https://')) {
-        // Remote URL — download to a temp file first
         const tmpPath = `${FileSystem.cacheDirectory}tmp_twin_${Date.now()}.jpg`;
         const downloadResult = await FileSystem.downloadAsync(twinImageUrl, tmpPath);
         twinBase64 = await FileSystem.readAsStringAsync(downloadResult.uri, {
@@ -643,19 +601,16 @@ export async function generateOutfitTwin(
         });
     }
 
-    // Resize all clothing images and convert to base64
     const clothingImages: { base64: string; name: string; category: string }[] = [];
     const errors: string[] = [];
     for (const item of outfitItems) {
         try {
             let sourceUri = item.imageUri;
-            // Handle remote URLs — download first
             if (sourceUri.startsWith('http://') || sourceUri.startsWith('https://')) {
                 const tmpPath = `${FileSystem.cacheDirectory}tmp_garment_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
                 const dl = await FileSystem.downloadAsync(sourceUri, tmpPath);
                 sourceUri = dl.uri;
             } else {
-                // Ensure local file is accessible (iOS permission fix)
                 sourceUri = await prepareImageForUpload(sourceUri);
             }
             const resized = await manipulateAsync(
@@ -681,7 +636,6 @@ export async function generateOutfitTwin(
 
     // ─── Strategy 1: google/nano-banana via Replicate (all categories) ───
     try {
-        // Resize twin image to reduce payload (VTON doesn't need huge images)
         const twinResized = await manipulateAsync(
             twinImageUrl.startsWith('http') ? twinImageUrl : twinImageUrl,
             [{ resize: { width: 384 } }],
@@ -693,8 +647,6 @@ export async function generateOutfitTwin(
 
         const totalPayloadChars = twinB64ForVton.length + clothingImages.reduce((s, g) => s + g.base64.length, 0);
 
-        // Read the selfie photo for face-swap if provided
-        // Fall back to using the twin image URL if no selfie is available
         let selfieB64: string | undefined;
         const effectiveSelfieUrl = selfieUrl || twinImageUrl;
         if (__DEV__) console.log(`[VTON] selfieUrl param: ${selfieUrl ? selfieUrl.slice(0, 80) + '...' : 'NOT PROVIDED'}`);
@@ -749,8 +701,6 @@ export async function generateOutfitTwin(
             });
         }
 
-        // supabase.functions.invoke puts response body in `data` even on non-2xx
-        // The `error` is a generic wrapper — actual error details are in data.error
         if (resp.data?.error) {
             throw new Error(`VTON server: ${resp.data.error}`);
         }
@@ -809,8 +759,8 @@ CRITICAL RULES:
 }
 
 /**
- * Pipeline 1 (Add Item): RMBG-2.0 only — fast bg removal on cropped image
- * Pipeline 2 (Detect Fit): Seedream → RMBG-2.0 — regenerate + clean
+ * Pipeline 1 (Add Item): Bria Fibo Edit (DeepInfra) → Rembg (Replicate)
+ * Pipeline 2 (Detect Fit): Seedream (Replicate) → Rembg (Replicate)
  */
 export async function regenerateCleanImage(
     imageUri: string,
@@ -818,10 +768,9 @@ export async function regenerateCleanImage(
     pipelineType: 'add-item-bria' | 'detect-fit-seedream' = 'add-item-bria'
 ): Promise<string> {
 
-    const resizeWidth = pipelineType === 'add-item-bria' ? 512 : 1024;
     const { uri: resizedUri } = await manipulateAsync(
         imageUri,
-        [{ resize: { width: resizeWidth, height: resizeWidth } }],
+        [{ resize: { width: 1024, height: 1024 } }],
         { compress: 0.9, format: SaveFormat.JPEG }
     );
     const base64 = await FileSystem.readAsStringAsync(resizedUri, {
@@ -852,26 +801,34 @@ export async function regenerateCleanImage(
             }
             if (__DEV__) console.log('Seedream complete, result:', seedreamResult.slice(0, 80));
 
-            // Download Seedream URL to base64 for RMBG-2.0
             try {
-                if (__DEV__) console.log('Step 2: Removing background with RMBG-2.0...');
-                let rmbgInput = seedreamResult;
-                if (seedreamResult.startsWith('http')) {
-                    const tmpPath = `${FileSystem.cacheDirectory}tmp_seedream_${Date.now()}.jpg`;
-                    const dl = await FileSystem.downloadAsync(seedreamResult, tmpPath);
-                    const dlB64 = await FileSystem.readAsStringAsync(dl.uri, { encoding: FileSystem.EncodingType.Base64 });
-                    rmbgInput = `data:image/jpeg;base64,${dlB64}`;
-                }
-                resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: rmbgInput });
-            } catch (rmbgErr) {
-                if (__DEV__) console.warn('RMBG failed, using seedream output directly:', rmbgErr);
+                if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
+                const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                    image: seedreamResult,
+                });
+                const rembgResult = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
+                resultUri = rembgResult || seedreamResult;
+            } catch (rembgErr) {
+                if (__DEV__) console.warn('Rembg failed, using seedream output directly:', rembgErr);
                 resultUri = seedreamResult;
             }
 
         } else {
-            // Pipeline 1: Just RMBG-2.0 — fast bg removal
-            if (__DEV__) console.log('Pipeline 1: RMBG-2.0 bg removal...');
-            resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: currentImageUri });
+            // Pipeline 1: Bria Fibo Edit (DeepInfra) + Rembg (Replicate)
+            if (__DEV__) console.log('Pipeline 1: Calling DeepInfra Bria/fibo_edit...');
+
+            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
+
+            resultUri = await callDeepInfraImage('Bria/fibo_edit', {
+                image: currentImageUri,
+                prompt: prompt,
+            });
+
+            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
+            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                image: resultUri,
+            });
+            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
         }
 
         if (!resultUri) throw new Error('No result from clean pipeline');
@@ -892,6 +849,20 @@ export async function regenerateCleanImage(
 
     } catch (e) {
         if (__DEV__) console.warn('Clean pipeline failed:', e);
-        throw new Error(`Clean pipeline failed: ${e instanceof Error ? e.message : String(e)}`);
+
+        if (__DEV__) console.log('Falling back to Rembg on original...');
+        try {
+            const fallbackOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                image: currentImageUri,
+            });
+            const fallbackUri = Array.isArray(fallbackOutput) ? fallbackOutput[0] : fallbackOutput;
+
+            const fileName = `clean_fallback_${Date.now()}.png`;
+            const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+            const downloadRes = await FileSystem.downloadAsync(fallbackUri, fileUri);
+            return downloadRes.uri;
+        } catch (err2) {
+            throw new Error(`Clean pipeline failed completely: ${e}`);
+        }
     }
 }
