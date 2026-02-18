@@ -385,11 +385,19 @@ Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, o
 For EACH item, provide details and its BOUNDING BOX (box_2d) as [ymin, xmin, ymax, xmax] using 0-100 scale.
 You MUST find at least 1 item.
 
+IMPORTANT for "name": Be VERY specific and descriptive. Include color, style and type.
+  Good: "bright yellow bodycon midi dress", "white chunky platform sneakers", "oversized black leather bomber jacket"
+  Bad: "dress", "shoes", "jacket"
+
+IMPORTANT for "colors": List ALL visible colors precisely.
+  Good: ["bright yellow", "gold"], ["off-white", "cream"]
+  Bad: ["yellow"], ["white"]
+
 Return ONLY valid JSON in this exact format:
 {
   "detections": [
     {
-      "name": "descriptive name",
+      "name": "very specific descriptive name with colors",
       "category": "top",
       "brand": "Brand",
       "brandConfidence": 0.8,
@@ -801,8 +809,8 @@ CRITICAL RULES:
 }
 
 /**
- * Pipeline 1: Bria Fibo Edit (Replicate) -> Rembg (Replicate) [For Add Item]
- * Pipeline 2: Seedream (Replicate) -> Rembg (Replicate) [For Detect Fit]
+ * Pipeline 1 (Add Item): RMBG-2.0 only — fast bg removal on cropped image
+ * Pipeline 2 (Detect Fit): Seedream → RMBG-2.0 — regenerate + clean
  */
 export async function regenerateCleanImage(
     imageUri: string,
@@ -810,24 +818,25 @@ export async function regenerateCleanImage(
     pipelineType: 'add-item-bria' | 'detect-fit-seedream' = 'add-item-bria'
 ): Promise<string> {
 
-    // Resize image to max 1024x1024 (Replicate handles larger, but let's be safe/fast)
+    const resizeWidth = pipelineType === 'add-item-bria' ? 512 : 1024;
     const { uri: resizedUri } = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 1024, height: 1024 } }],
+        [{ resize: { width: resizeWidth, height: resizeWidth } }],
         { compress: 0.9, format: SaveFormat.JPEG }
     );
     const base64 = await FileSystem.readAsStringAsync(resizedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
-    let currentImageUri = `data:image/jpeg;base64,${base64}`;
+    const currentImageUri = `data:image/jpeg;base64,${base64}`;
 
     try {
         let resultUri: string;
 
         if (pipelineType === 'detect-fit-seedream') {
-            if (__DEV__) console.log('Step 1 (Pipeline 2): Calling Replicate Seedream-4...');
+            if (__DEV__) console.log('Pipeline 2: Calling Replicate Seedream-4...');
 
-            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}. High quality, 8k.`;
+            const colorInfo = _product.colors.length > 0 ? ` The exact colors are: ${_product.colors.join(', ')}.` : '';
+            const prompt = `Photograph this exact ${_product.description || _product.name} on a clean white studio background. PRESERVE the EXACT colors, patterns, textures, and design details of the original garment — do NOT change or reinterpret anything.${colorInfo} Product photography style, high quality, 8k.`;
 
             const seedreamOutput = await callReplicate('bytedance/seedream-4', {
                 image: currentImageUri,
@@ -843,30 +852,29 @@ export async function regenerateCleanImage(
             }
             if (__DEV__) console.log('Seedream complete, result:', seedreamResult.slice(0, 80));
 
+            // Download Seedream URL to base64 for RMBG-2.0
             try {
-                if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
-                resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: seedreamResult });
-            } catch (rembgErr) {
-                if (__DEV__) console.warn('RMBG failed, using seedream output directly:', rembgErr);
+                if (__DEV__) console.log('Step 2: Removing background with RMBG-2.0...');
+                let rmbgInput = seedreamResult;
+                if (seedreamResult.startsWith('http')) {
+                    const tmpPath = `${FileSystem.cacheDirectory}tmp_seedream_${Date.now()}.jpg`;
+                    const dl = await FileSystem.downloadAsync(seedreamResult, tmpPath);
+                    const dlB64 = await FileSystem.readAsStringAsync(dl.uri, { encoding: FileSystem.EncodingType.Base64 });
+                    rmbgInput = `data:image/jpeg;base64,${dlB64}`;
+                }
+                resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: rmbgInput });
+            } catch (rmbgErr) {
+                if (__DEV__) console.warn('RMBG failed, using seedream output directly:', rmbgErr);
                 resultUri = seedreamResult;
             }
 
         } else {
-            // Pipeline 1: Bria Fibo Edit (DeepInfra) + Rembg
-            if (__DEV__) console.log('Pipeline 1: Calling DeepInfra Bria/fibo_edit...');
-
-            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
-
-            resultUri = await callDeepInfraImage('Bria/fibo_edit', {
-                image: currentImageUri,
-                prompt: prompt,
-            });
-
-            if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
-            resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: resultUri });
+            // Pipeline 1: Just RMBG-2.0 — fast bg removal
+            if (__DEV__) console.log('Pipeline 1: RMBG-2.0 bg removal...');
+            resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: currentImageUri });
         }
 
-        if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
+        if (!resultUri) throw new Error('No result from clean pipeline');
         const fileName = `clean_${Date.now()}.png`;
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
 
@@ -884,27 +892,6 @@ export async function regenerateCleanImage(
 
     } catch (e) {
         if (__DEV__) console.warn('Clean pipeline failed:', e);
-
-        if (__DEV__) console.log('Falling back to DeepInfra RMBG-2.0 on original...');
-        try {
-            const rmbgUri = await callDeepInfraImage('briaai/RMBG-2.0', {
-                image: `data:image/jpeg;base64,${base64}`,
-            });
-
-            const fileName = `clean_fallback_${Date.now()}.png`;
-            const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-
-            if (rmbgUri.startsWith('data:')) {
-                const b64Data = rmbgUri.split(',')[1];
-                await FileSystem.writeAsStringAsync(fileUri, b64Data, {
-                    encoding: FileSystem.EncodingType.Base64,
-                });
-                return fileUri;
-            }
-            const downloadRes = await FileSystem.downloadAsync(rmbgUri, fileUri);
-            return downloadRes.uri;
-        } catch (err2) {
-            throw new Error(`Clean pipeline failed completely: ${e}`);
-        }
+        throw new Error(`Clean pipeline failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 }
