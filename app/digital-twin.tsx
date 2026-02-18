@@ -365,14 +365,23 @@ export default function DigitalTwinScreen() {
                 )}
             </ScrollView>
 
-            <Modal visible={!!previewLook} animationType="fade" transparent>
+            <Modal visible={!!previewLook} animationType="fade" transparent statusBarTranslucent>
                 <View style={styles.previewOverlay}>
-                    <SafeAreaView edges={['top']} style={styles.previewHeader}>
-                        <Pressable style={styles.previewClose} onPress={() => setPreviewLook(null)}>
+                    {previewLook && (
+                        <Image source={{ uri: previewLook.image_url }} style={styles.previewImage} contentFit="contain" />
+                    )}
+                    {previewLook?.prompt && (
+                        <View style={styles.previewPromptBadge}>
+                            <Text style={styles.previewPromptText}>{previewLook.prompt}</Text>
+                        </View>
+                    )}
+                    <View style={styles.previewHeader}>
+                        <Pressable style={styles.previewClose} onPress={() => setPreviewLook(null)} hitSlop={12}>
                             <X size={22} color="#FFF" />
                         </Pressable>
                         <Pressable
                             style={styles.previewDelete}
+                            hitSlop={12}
                             onPress={() => {
                                 if (!previewLook) return;
                                 Alert.alert('Delete Look', 'Remove this generated look?', [
@@ -388,15 +397,7 @@ export default function DigitalTwinScreen() {
                         >
                             <Trash2 size={20} color="#FFF" />
                         </Pressable>
-                    </SafeAreaView>
-                    {previewLook && (
-                        <Image source={{ uri: previewLook.image_url }} style={styles.previewImage} contentFit="contain" />
-                    )}
-                    {previewLook?.prompt && (
-                        <View style={styles.previewPromptBadge}>
-                            <Text style={styles.previewPromptText}>{previewLook.prompt}</Text>
-                        </View>
-                    )}
+                    </View>
                 </View>
             </Modal>
 
@@ -465,9 +466,9 @@ const styles = StyleSheet.create({
     galleryItem: { width: GALLERY_ITEM_SIZE, height: GALLERY_ITEM_SIZE, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.cardSurface },
     galleryImage: { width: '100%', height: '100%' },
     previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
-    previewHeader: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8, zIndex: 10 },
-    previewClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-    previewDelete: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    previewHeader: { position: 'absolute', top: 60, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
+    previewClose: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+    previewDelete: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
     previewImage: { width: SCREEN_WIDTH - 32, height: SCREEN_WIDTH * 1.3 },
     previewPromptBadge: { position: 'absolute', bottom: 80, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, maxWidth: SCREEN_WIDTH - 64 },
     previewPromptText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: '#FFF', textAlign: 'center' },

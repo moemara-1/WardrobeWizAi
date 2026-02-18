@@ -36,7 +36,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const CANVAS_ITEM_SIZE = 120;
+const CANVAS_ITEM_DEFAULT = 120;
+const CANVAS_ITEM_MIN = 60;
+const CANVAS_ITEM_MAX = 280;
+const RESIZE_HANDLE = 28;
 
 interface CanvasItemEntry {
   id: string;
@@ -58,6 +61,9 @@ function DraggableCanvasItem({
   const lastOffset = useRef({ x: entry.defaultX, y: entry.defaultY });
   const isDragging = useRef(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [size, setSize] = useState(CANVAS_ITEM_DEFAULT);
+  const sizeRef = useRef(CANVAS_ITEM_DEFAULT);
+  const sizeAtStart = useRef(CANVAS_ITEM_DEFAULT);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -101,11 +107,28 @@ function DraggableCanvasItem({
     })
   ).current;
 
+  const resizeResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        sizeAtStart.current = sizeRef.current;
+      },
+      onPanResponderMove: (_, gs) => {
+        const delta = Math.max(gs.dx, gs.dy);
+        const next = Math.min(CANVAS_ITEM_MAX, Math.max(CANVAS_ITEM_MIN, sizeAtStart.current + delta));
+        sizeRef.current = next;
+        setSize(next);
+      },
+      onPanResponderRelease: () => {},
+    })
+  ).current;
+
   return (
     <Animated.View
       style={[
         styles.canvasItemWrapper,
-        { transform: pan.getTranslateTransform() },
+        { width: size, height: size, transform: pan.getTranslateTransform() },
       ]}
       {...panResponder.panHandlers}
     >
@@ -114,6 +137,12 @@ function DraggableCanvasItem({
         style={styles.canvasItemImage}
         contentFit="contain"
       />
+      <View
+        style={styles.resizeHandle}
+        {...resizeResponder.panHandlers}
+      >
+        <View style={styles.resizeGrip} />
+      </View>
     </Animated.View>
   );
 }
@@ -152,8 +181,8 @@ export default function StylistScreen() {
     const idx = nextPositionRef.current++;
     const col = idx % 3;
     const row = Math.floor(idx / 3);
-    const x = 20 + col * (CANVAS_ITEM_SIZE + 10);
-    const y = 20 + row * (CANVAS_ITEM_SIZE + 10);
+    const x = 20 + col * (CANVAS_ITEM_DEFAULT + 10);
+    const y = 20 + row * (CANVAS_ITEM_DEFAULT + 10);
     return { x, y };
   }, []);
 
@@ -587,8 +616,10 @@ const styles = StyleSheet.create({
   canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: Colors.textTertiary },
   canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary, textAlign: 'center' },
-  canvasItemWrapper: { position: 'absolute', width: CANVAS_ITEM_SIZE, height: CANVAS_ITEM_SIZE },
+  canvasItemWrapper: { position: 'absolute' },
   canvasItemImage: { width: '100%', height: '100%' },
+  resizeHandle: { position: 'absolute', bottom: -4, right: -4, width: RESIZE_HANDLE, height: RESIZE_HANDLE, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  resizeGrip: { width: 12, height: 12, borderRightWidth: 2.5, borderBottomWidth: 2.5, borderColor: 'rgba(0,0,0,0.5)', borderBottomRightRadius: 2 },
   accessoryBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
   accessoryBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF' },
   fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },
