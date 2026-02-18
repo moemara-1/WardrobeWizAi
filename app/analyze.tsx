@@ -326,21 +326,10 @@ export default function AnalyzeScreen() {
         { format: SaveFormat.JPEG, compress: 0.9 }
       );
 
-      // Clean
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: true } : p));
 
-      // Construct a minimal product object for the cleaner prompt
-      const tempProduct: ProductIdentification = {
-        name: piece.name,
-        brand: piece.brand || null,
-        category: piece.category,
-        garment_type: piece.garmentType || null,
-        colors: piece.colors,
-        material: null,
-        description: piece.name
-      };
-
-      const cleanUri = await regenerateCleanImage(cropped.uri, tempProduct, 'detect-fit-seedream');
+      const bgResult = await removeBackground(cropped.uri);
+      const cleanUri = bgResult.success && bgResult.cleanImageUri ? bgResult.cleanImageUri : cropped.uri;
 
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
 
