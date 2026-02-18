@@ -51,7 +51,6 @@ function parseJSON<T>(text: string): T {
 }
 
 async function callReplicate(model: string, input: Record<string, unknown>): Promise<any> {
-    const start = Date.now();
     const token = process.env.EXPO_PUBLIC_REPLICATE_API_TOKEN;
     if (!token) throw new Error('Missing EXPO_PUBLIC_REPLICATE_API_TOKEN');
 
@@ -63,27 +62,48 @@ async function callReplicate(model: string, input: Record<string, unknown>): Pro
     const body: any = { input };
     if (isVersion) body.version = model;
 
-    // Start prediction
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'wait', // Wait for result
-        },
-        body: JSON.stringify(body),
-    });
+    let prediction: any;
 
-    if (response.status !== 200 && response.status !== 201) {
-        let errorBody = await response.text();
-        throw new Error(`Replicate API error (${response.status}): ${errorBody}`);
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'wait',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (response.status !== 200 && response.status !== 201) {
+            const errorBody = await response.text();
+            throw new Error(`Replicate API error (${response.status}): ${errorBody}`);
+        }
+
+        prediction = await response.json();
+    } catch (fetchErr: unknown) {
+        // Prefer: wait may timeout on iOS — fall back to create-then-poll
+        if (__DEV__) console.warn('Prefer:wait fetch failed, trying without:', fetchErr);
+        const createRes = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+        if (!createRes.ok) {
+            throw new Error(`Replicate create error (${createRes.status}): ${await createRes.text()}`);
+        }
+        prediction = await createRes.json();
     }
 
-    let prediction = await response.json();
-
-    // If still processing, we might need to poll (if 'Prefer: wait' timed out or wasn't respected fully)
-    while (prediction.status === 'starting' || prediction.status === 'processing') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    // Poll until complete (handles both Prefer:wait timeout and standard async)
+    const MAX_POLLS = 120;
+    let polls = 0;
+    while ((prediction.status === 'starting' || prediction.status === 'processing') && polls < MAX_POLLS) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        polls++;
         const pollRes = await fetch(prediction.urls.get, {
             headers: { 'Authorization': `Bearer ${token}` },
         });
@@ -93,7 +113,7 @@ async function callReplicate(model: string, input: Record<string, unknown>): Pro
     if (prediction.status === 'succeeded') {
         return prediction.output;
     } else {
-        throw new Error(`Replicate prediction failed: ${prediction.error}`);
+        throw new Error(`Replicate prediction failed (status=${prediction.status}): ${prediction.error || 'timeout'}`);
     }
 }
 
@@ -790,7 +810,6 @@ export async function regenerateCleanImage(
         let resultUri: string;
 
         if (pipelineType === 'detect-fit-seedream') {
-            // Pipeline 2: Seedream (Replicate) -> Rembg (Replicate)
             if (__DEV__) console.log('Step 1 (Pipeline 2): Calling Replicate Seedream-4...');
 
             const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}. High quality, 8k.`;
@@ -801,19 +820,30 @@ export async function regenerateCleanImage(
             });
 
             let seedreamResult = Array.isArray(seedreamOutput) ? seedreamOutput[0] : seedreamOutput;
-            if (!seedreamResult || typeof seedreamResult !== 'string') {
-                throw new Error('Seedream failed');
+            if (seedreamResult && typeof seedreamResult === 'object' && 'url' in seedreamResult) {
+                seedreamResult = (seedreamResult as { url: string }).url;
             }
-            if (__DEV__) console.log('Seedream generation complete.');
+            if (!seedreamResult || typeof seedreamResult !== 'string') {
+                throw new Error(`Seedream returned unexpected format: ${JSON.stringify(seedreamOutput).slice(0, 200)}`);
+            }
+            if (__DEV__) console.log('Seedream complete, result:', seedreamResult.slice(0, 80));
 
-            // Step 2: Remove Background using `rembg` on Replicate
-            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
-            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
-                image: seedreamResult,
-            });
-            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
-
-            if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
+            // Rembg is optional — seedream already generates on white background
+            try {
+                if (__DEV__) console.log('Step 2: Removing background with Rembg...');
+                const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                    image: seedreamResult,
+                });
+                const rembgResult = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
+                if (rembgResult) {
+                    resultUri = rembgResult;
+                } else {
+                    resultUri = seedreamResult;
+                }
+            } catch (rembgErr) {
+                if (__DEV__) console.warn('Rembg failed, using seedream output directly:', rembgErr);
+                resultUri = seedreamResult;
+            }
 
         } else {
             // Pipeline 1: Bria Fibo Edit (DeepInfra) + Rembg

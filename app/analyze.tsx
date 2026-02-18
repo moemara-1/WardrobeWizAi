@@ -66,6 +66,7 @@ interface DetectedPiece {
   box_2d?: [number, number, number, number];
   cleanImageUri?: string;
   isCleaning?: boolean;
+  cleanError?: string;
 }
 
 export default function AnalyzeScreen() {
@@ -344,8 +345,9 @@ export default function AnalyzeScreen() {
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
 
     } catch (e) {
-      console.warn('Failed to clean piece image:', e);
-      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: false } : p));
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn('Failed to clean piece image:', msg);
+      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: false, cleanError: msg } : p));
     }
   };
 
@@ -373,6 +375,7 @@ export default function AnalyzeScreen() {
 
     setLastGenerationTime(now);
     startCooldownTimer();
+    setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanError: undefined } : p));
     const { width, height } = imageDimsRef.current;
     processPieceImage(imageUri, pieceId, piece.box_2d, width, height, piece);
   }, [imageUri, lastGenerationTime, detectedPieces, startCooldownTimer]);
@@ -462,11 +465,16 @@ export default function AnalyzeScreen() {
     }
 
     for (const piece of selectedPieces) {
+      let permanentCleanUri = piece.cleanImageUri;
+      if (permanentCleanUri && !permanentCleanUri.startsWith('http')) {
+        permanentCleanUri = await saveToPermanentStorage(permanentCleanUri);
+      }
+
       const newItem: ClosetItem = {
         id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         user_id: 'demo',
-        image_url: piece.cleanImageUri || permanentOriginalUri,
-        clean_image_url: piece.cleanImageUri,
+        image_url: permanentCleanUri || permanentOriginalUri,
+        clean_image_url: permanentCleanUri,
         original_image_url: permanentOriginalUri,
         name: piece.name || 'Clothing Item',
         category: piece.category,
@@ -625,16 +633,21 @@ export default function AnalyzeScreen() {
                     </View>
                   )}
                   {!piece.cleanImageUri && !piece.isCleaning && (
-                    <Pressable
-                      style={[styles.generateBtn, cooldownRemaining > 0 && styles.generateBtnDisabled]}
-                      onPress={(e) => { e.stopPropagation(); generatePieceImage(piece.id); }}
-                      disabled={cooldownRemaining > 0}
-                    >
-                      <ImageIcon size={14} color={cooldownRemaining > 0 ? Colors.textTertiary : Colors.accentGreen} />
-                      <Text style={[styles.generateBtnText, cooldownRemaining > 0 && styles.generateBtnTextDisabled]}>
-                        {cooldownRemaining > 0 ? `Wait ${Math.ceil(cooldownRemaining / 1000)}s...` : 'Generate Image'}
-                      </Text>
-                    </Pressable>
+                    <View>
+                      {piece.cleanError && (
+                        <Text style={styles.pieceErrorText}>{piece.cleanError}</Text>
+                      )}
+                      <Pressable
+                        style={[styles.generateBtn, cooldownRemaining > 0 && styles.generateBtnDisabled]}
+                        onPress={(e) => { e.stopPropagation(); generatePieceImage(piece.id); }}
+                        disabled={cooldownRemaining > 0}
+                      >
+                        <ImageIcon size={14} color={cooldownRemaining > 0 ? Colors.textTertiary : Colors.accentGreen} />
+                        <Text style={[styles.generateBtnText, cooldownRemaining > 0 && styles.generateBtnTextDisabled]}>
+                          {cooldownRemaining > 0 ? `Wait ${Math.ceil(cooldownRemaining / 1000)}s...` : piece.cleanError ? 'Retry' : 'Generate Image'}
+                        </Text>
+                      </Pressable>
+                    </View>
                   )}
                   {piece.estimatedValue ? (
                     <Text style={styles.pieceValue}>~${piece.estimatedValue}</Text>
@@ -869,5 +882,6 @@ function createStyles(C: any) {
     generateBtnDisabled: { borderColor: C.border, backgroundColor: C.cardSurfaceAlt },
     generateBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.accentGreen },
     generateBtnTextDisabled: { color: C.textTertiary },
+    pieceErrorText: { fontFamily: Typography.bodyFamily, fontSize: 11, color: C.accentCoral, marginTop: 4, marginBottom: 2 },
   });
 }
