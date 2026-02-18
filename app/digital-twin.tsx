@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
+import { GeneratedLook } from '@/types';
 import {
     ArrowLeft,
     Camera,
@@ -12,13 +13,17 @@ import {
     FileText,
     Palette,
     Scan,
+    Trash2,
     Upload,
     UserCircle,
+    X,
 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
+    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -27,6 +32,11 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const GALLERY_COLUMNS = 3;
+const GALLERY_GAP = 8;
+const GALLERY_ITEM_SIZE = (SCREEN_WIDTH - 32 - GALLERY_GAP * (GALLERY_COLUMNS - 1)) / GALLERY_COLUMNS;
 
 const DEFAULT_SKIN_COLORS = ['#FDDBB4', '#E8B889', '#C48C5C', '#8D5524', '#3B1F0B'];
 const DEFAULT_HAIR_COLORS = ['#FAF0BE', '#D2691E', '#8B0000', '#2C1A0E', '#1C1C1C'];
@@ -48,6 +58,9 @@ async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
 
 export default function DigitalTwinScreen() {
     const { digitalTwin, setDigitalTwin, twinGenerating, setTwinGenerating, setTwinProgress, twinProgress } = useClosetStore();
+    const generatedLooks = useClosetStore((s) => s.generatedLooks);
+    const deleteGeneratedLook = useClosetStore((s) => s.deleteGeneratedLook);
+    const [previewLook, setPreviewLook] = useState<GeneratedLook | null>(null);
     const [selfieUri, setSelfieUri] = useState<string | null>(digitalTwin?.selfie_url ?? null);
     const [bodyUri, setBodyUri] = useState<string | null>(digitalTwin?.body_url ?? null);
     const [skinColor, setSkinColor] = useState<string | null>(digitalTwin?.skin_color ?? null);
@@ -326,7 +339,66 @@ export default function DigitalTwinScreen() {
                         textAlignVertical="top"
                     />
                 </View>
+                {generatedLooks.length > 0 && (
+                    <>
+                        <View style={styles.divider} />
+                        <Text style={styles.sectionTitle}>Generated Looks</Text>
+                        <View style={styles.galleryGrid}>
+                            {generatedLooks.map((look) => (
+                                <Pressable
+                                    key={look.id}
+                                    style={styles.galleryItem}
+                                    onPress={() => setPreviewLook(look)}
+                                    onLongPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                        Alert.alert('Delete Look', 'Remove this generated look?', [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            { text: 'Delete', style: 'destructive', onPress: () => deleteGeneratedLook(look.id) },
+                                        ]);
+                                    }}
+                                >
+                                    <Image source={{ uri: look.image_url }} style={styles.galleryImage} contentFit="cover" />
+                                </Pressable>
+                            ))}
+                        </View>
+                    </>
+                )}
             </ScrollView>
+
+            <Modal visible={!!previewLook} animationType="fade" transparent>
+                <View style={styles.previewOverlay}>
+                    <SafeAreaView edges={['top']} style={styles.previewHeader}>
+                        <Pressable style={styles.previewClose} onPress={() => setPreviewLook(null)}>
+                            <X size={22} color="#FFF" />
+                        </Pressable>
+                        <Pressable
+                            style={styles.previewDelete}
+                            onPress={() => {
+                                if (!previewLook) return;
+                                Alert.alert('Delete Look', 'Remove this generated look?', [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    {
+                                        text: 'Delete', style: 'destructive', onPress: () => {
+                                            deleteGeneratedLook(previewLook.id);
+                                            setPreviewLook(null);
+                                        },
+                                    },
+                                ]);
+                            }}
+                        >
+                            <Trash2 size={20} color="#FFF" />
+                        </Pressable>
+                    </SafeAreaView>
+                    {previewLook && (
+                        <Image source={{ uri: previewLook.image_url }} style={styles.previewImage} contentFit="contain" />
+                    )}
+                    {previewLook?.prompt && (
+                        <View style={styles.previewPromptBadge}>
+                            <Text style={styles.previewPromptText}>{previewLook.prompt}</Text>
+                        </View>
+                    )}
+                </View>
+            </Modal>
 
             <SafeAreaView edges={['bottom']} style={styles.ctaWrapper}>
                 <Pressable
@@ -389,4 +461,14 @@ const styles = StyleSheet.create({
     saveBtnDisabled: { opacity: 0.4 },
     saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
     generatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GALLERY_GAP },
+    galleryItem: { width: GALLERY_ITEM_SIZE, height: GALLERY_ITEM_SIZE, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.cardSurface },
+    galleryImage: { width: '100%', height: '100%' },
+    previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
+    previewHeader: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8, zIndex: 10 },
+    previewClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    previewDelete: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    previewImage: { width: SCREEN_WIDTH - 32, height: SCREEN_WIDTH * 1.3 },
+    previewPromptBadge: { position: 'absolute', bottom: 80, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, maxWidth: SCREEN_WIDTH - 64 },
+    previewPromptText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: '#FFF', textAlign: 'center' },
 });

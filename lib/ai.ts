@@ -709,6 +709,7 @@ export async function generateOutfitTwin(
                 mode: 'vton',
                 imageBase64: twinB64ForVton,
                 selfieBase64: selfieB64,
+                prompt: textPrompt,
                 garments: clothingImages.map(img => ({
                     base64: img.base64,
                     category: img.category,

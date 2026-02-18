@@ -3,9 +3,8 @@ import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { generateOutfitTwin, OutfitTwinItem } from '@/lib/ai';
-import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
-import { ClosetItem, ClothingCategory, Outfit } from '@/types';
+import { ClosetItem, ClothingCategory, GeneratedLook, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
@@ -22,11 +21,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
-    Animated,
     FlatList,
     KeyboardAvoidingView,
     Modal,
-    PanResponder,
     Platform,
     Pressable,
     ScrollView,
@@ -35,15 +32,104 @@ import {
     TextInput,
     View
 } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Slot definitions in vertical order (top to bottom on the board)
-const OUTFIT_SLOTS: { slot: GarmentSlot; label: string; heightRatio: number; category?: ClothingCategory }[] = [
-  { slot: 'headwear', label: 'Headwear', heightRatio: 0.18, category: 'hat' },
-  { slot: 'top', label: 'Top', heightRatio: 0.32, category: 'top' },
-  { slot: 'bottom', label: 'Bottom', heightRatio: 0.28, category: 'bottom' },
-  { slot: 'footwear', label: 'Footwear', heightRatio: 0.22, category: 'shoe' },
-];
+const CANVAS_ITEM_SIZE = 120;
+
+interface CanvasItemEntry {
+  id: string;
+  item: ClosetItem;
+  defaultX: number;
+  defaultY: number;
+}
+
+function DraggableCanvasItem({
+  entry,
+  onTap,
+  onRemove,
+}: {
+  entry: CanvasItemEntry;
+  onTap: (item: ClosetItem) => void;
+  onRemove: (id: string) => void;
+}) {
+  const translateX = useSharedValue(entry.defaultX);
+  const translateY = useSharedValue(entry.defaultY);
+  const scale = useSharedValue(1);
+  const savedTranslateX = useSharedValue(entry.defaultX);
+  const savedTranslateY = useSharedValue(entry.defaultY);
+  const savedScale = useSharedValue(1);
+  const isPressed = useSharedValue(false);
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      isPressed.value = true;
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    })
+    .onUpdate((e) => {
+      translateX.value = savedTranslateX.value + e.translationX;
+      translateY.value = savedTranslateY.value + e.translationY;
+    })
+    .onEnd(() => {
+      isPressed.value = false;
+    })
+    .minDistance(5);
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      savedScale.value = scale.value;
+    })
+    .onUpdate((e) => {
+      scale.value = Math.min(Math.max(savedScale.value * e.scale, 0.4), 2.5);
+    });
+
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => {
+      runOnJS(onTap)(entry.item);
+    });
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500)
+    .onEnd((_e, success) => {
+      if (success) {
+        runOnJS(onRemove)(entry.id);
+      }
+    });
+
+  const composed = Gesture.Race(
+    Gesture.Simultaneous(panGesture, pinchGesture),
+    longPressGesture,
+    tapGesture,
+  );
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: withSpring(isPressed.value ? scale.value * 1.05 : scale.value, { damping: 15, stiffness: 150 }) },
+    ],
+    zIndex: isPressed.value ? 100 : 1,
+  }));
+
+  return (
+    <GestureDetector gesture={composed}>
+      <Animated.View style={[styles.canvasItemWrapper, animatedStyle]}>
+        <Image
+          source={{ uri: entry.item.clean_image_url || entry.item.image_url }}
+          style={styles.canvasItemImage}
+          contentFit="contain"
+        />
+      </Animated.View>
+    </GestureDetector>
+  );
+}
 
 export default function StylistScreen() {
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -51,20 +137,14 @@ export default function StylistScreen() {
   const [styleFilter, setStyleFilter] = useState<string[]>([]);
   const [colorFilter, setColorFilter] = useState<string[]>([]);
   const [weatherFilter, setWeatherFilter] = useState<string[]>([]);
-  const [layoutFilter, setLayoutFilter] = useState('4pieces');
   const [showClosetPicker, setShowClosetPicker] = useState(false);
   const [closetPickerCategory, setClosetPickerCategory] = useState<ClothingCategory | undefined>();
   const [closetPickerTitle, setClosetPickerTitle] = useState('Add from Closet');
   const [chatMessage, setChatMessage] = useState('');
   const [savedThisOutfit, setSavedThisOutfit] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [selectedAccessories, setSelectedAccessories] = useState<ClosetItem[]>([]);
   const [showFitsPicker, setShowFitsPicker] = useState(false);
-
-  // Each slot tracks which item index is currently shown
-  const [slotIndices, setSlotIndices] = useState<Record<GarmentSlot, number>>({
-    headwear: 0, top: 0, bottom: 0, footwear: 0, accessory: 0, 'full-body': 0, unknown: 0,
-  });
+  const [canvasItems, setCanvasItems] = useState<CanvasItemEntry[]>([]);
 
   const items = useClosetStore((s) => s.items);
   const outfits = useClosetStore((s) => s.outfits);
@@ -73,247 +153,108 @@ export default function StylistScreen() {
   const setTwinGenerating = useClosetStore((s) => s.setTwinGenerating);
   const setTwinProgress = useClosetStore((s) => s.setTwinProgress);
   const setDigitalTwin = useClosetStore((s) => s.setDigitalTwin);
+  const addGeneratedLook = useClosetStore((s) => s.addGeneratedLook);
   const canvasItem = useClosetStore((s) => s.canvasItem);
   const clearCanvasItem = useClosetStore((s) => s.clearCanvasItem);
   const canvasOutfit = useClosetStore((s) => s.canvasOutfit);
   const clearCanvasOutfit = useClosetStore((s) => s.clearCanvasOutfit);
 
-  // Consume canvasItem passed from item detail "Try on Canvas"
+  const nextPositionRef = useRef(0);
+
+  const getStaggeredPosition = useCallback(() => {
+    const idx = nextPositionRef.current++;
+    const col = idx % 3;
+    const row = Math.floor(idx / 3);
+    const x = 20 + col * (CANVAS_ITEM_SIZE + 10);
+    const y = 20 + row * (CANVAS_ITEM_SIZE + 10);
+    return { x, y };
+  }, []);
+
+  const addItemToCanvas = useCallback((item: ClosetItem) => {
+    setCanvasItems((prev) => {
+      if (prev.some((c) => c.item.id === item.id)) return prev;
+      const pos = getStaggeredPosition();
+      return [...prev, {
+        id: `canvas_${item.id}_${Date.now()}`,
+        item,
+        defaultX: pos.x,
+        defaultY: pos.y,
+      }];
+    });
+    setSavedThisOutfit(false);
+  }, [getStaggeredPosition]);
+
+  const removeCanvasItem = useCallback((canvasId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setCanvasItems((prev) => prev.filter((c) => c.id !== canvasId));
+    setSavedThisOutfit(false);
+  }, []);
+
+  const handleCanvasItemTap = useCallback((item: ClosetItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/item/${item.id}` as Href);
+  }, []);
+
   useEffect(() => {
     if (canvasItem) {
-      const { slot, item: passedItem } = canvasItem;
-      const slotItems = itemsBySlot[slot as GarmentSlot];
-      const idx = slotItems.findIndex((i) => i.id === passedItem.id);
-      if (idx >= 0) {
-        setSlotIndices((prev) => ({ ...prev, [slot]: idx }));
-      }
+      addItemToCanvas(canvasItem.item);
       clearCanvasItem();
     }
-  }, [canvasItem]);
+  }, [canvasItem, addItemToCanvas, clearCanvasItem]);
 
-  // Consume canvasOutfit passed from closet fits "Load to Canvas"
   useEffect(() => {
     if (canvasOutfit) {
       const resolvedItems = canvasOutfit.item_ids
         .map((oid) => items.find((i) => i.id === oid))
         .filter(Boolean) as ClosetItem[];
-
-      const newIndices = { ...slotIndices };
-      for (const piece of resolvedItems) {
-        const slot = classifyGarmentSlot(piece.category, piece.garment_type || undefined);
-        const slotItems = itemsBySlot[slot];
-        const idx = slotItems.findIndex((i) => i.id === piece.id);
-        if (idx >= 0) {
-          newIndices[slot] = idx;
-        }
-      }
-      setSlotIndices(newIndices);
+      nextPositionRef.current = 0;
+      const entries: CanvasItemEntry[] = resolvedItems.map((item) => {
+        const pos = getStaggeredPosition();
+        return {
+          id: `canvas_${item.id}_${Date.now()}`,
+          item,
+          defaultX: pos.x,
+          defaultY: pos.y,
+        };
+      });
+      setCanvasItems(entries);
       clearCanvasOutfit();
     }
-  }, [canvasOutfit]);
+  }, [canvasOutfit, items, getStaggeredPosition, clearCanvasOutfit]);
 
-  // Group closet items by garment slot
-  const itemsBySlot = useMemo(() => {
-    const grouped: Record<GarmentSlot, ClosetItem[]> = {
-      headwear: [], top: [], bottom: [], footwear: [], accessory: [], 'full-body': [], unknown: [],
-    };
-    for (const item of items) {
-      const slot = classifyGarmentSlot(item.category, item.garment_type || undefined);
-      grouped[slot].push(item);
-    }
-    return grouped;
-  }, [items]);
-
-  // Multi-filter item scoring (style + color + weather)
-  const filteredItemsBySlot = useMemo(() => {
-    const hasFilters = styleFilter.length > 0 || colorFilter.length > 0 || weatherFilter.length > 0;
-    if (!hasFilters) return itemsBySlot;
-
-    // Style tags
-    const styleTags: Record<string, string[]> = {
-      casual: ['casual', 'everyday', 'relaxed', 'basic'],
-      streetwear: ['street', 'streetwear', 'urban', 'graphic', 'oversized'],
-      'smart-casual': ['smart', 'polished', 'chino', 'blazer', 'loafer'],
-      athleisure: ['athletic', 'sport', 'gym', 'jogger', 'sneaker', 'track'],
-      formal: ['formal', 'dress', 'suit', 'elegant', 'tailored'],
-      'going-out': ['going out', 'night', 'party', 'club', 'evening', 'glam'],
-    };
-
-    // Color palette families
-    const colorFamilies: Record<string, string[]> = {
-      light: ['white', 'cream', 'beige', 'ivory', 'light', 'pastel', 'lavender', 'pink', 'sky'],
-      dark: ['black', 'navy', 'charcoal', 'dark', 'deep', 'midnight'],
-      bright: ['red', 'orange', 'yellow', 'bright', 'neon', 'vivid', 'electric'],
-      monochrome: ['black', 'white', 'grey', 'gray', 'charcoal', 'silver'],
-      colorful: ['multicolor', 'pattern', 'print', 'colorful', 'stripe', 'plaid', 'floral'],
-    };
-
-    // Weather tags
-    const weatherTags: Record<string, string[]> = {
-      cold: ['winter', 'warm', 'cozy', 'wool', 'fleece', 'heavy'],
-      warm: ['spring', 'fall', 'light', 'layer', 'cotton'],
-      hot: ['summer', 'light', 'breathable', 'linen', 'short'],
-      snow: ['winter', 'waterproof', 'insulated', 'warm', 'heavy'],
-      rain: ['waterproof', 'rain', 'resistant'],
-      indoor: ['casual', 'comfort', 'lounge'],
-      transitional: ['layer', 'versatile', 'light'],
-    };
-
-    const activeStyleTags = styleFilter.flatMap(s => styleTags[s] || []);
-    const activeColorTags = colorFilter.flatMap(c => colorFamilies[c] || []);
-    const activeWeatherTags = weatherFilter.flatMap(w => weatherTags[w] || []);
-
-    const filtered: Record<GarmentSlot, ClosetItem[]> = {
-      headwear: [], top: [], bottom: [], footwear: [], accessory: [], 'full-body': [], unknown: [],
-    };
-
-    for (const [slot, slotItems] of Object.entries(itemsBySlot)) {
-      const scored = slotItems.map(item => {
-        const itemTags = [...(item.tags || []), item.category, item.garment_type || ''].map(t => t.toLowerCase());
-        const itemColors = (item.colors || []).map(c => c.toLowerCase());
-        const allSearchable = [...itemTags, ...itemColors, (item.name || '').toLowerCase()];
-
-        let score = 0;
-        if (activeStyleTags.length > 0)
-          score += activeStyleTags.filter(tag => allSearchable.some(s => s.includes(tag))).length;
-        if (activeColorTags.length > 0)
-          score += activeColorTags.filter(tag => allSearchable.some(s => s.includes(tag))).length;
-        if (activeWeatherTags.length > 0)
-          score += activeWeatherTags.filter(tag => allSearchable.some(s => s.includes(tag))).length;
-
-        return { item, score };
-      });
-      scored.sort((a, b) => b.score - a.score);
-      filtered[slot as GarmentSlot] = scored.map(s => s.item);
-    }
-
-    return filtered;
-  }, [itemsBySlot, styleFilter, colorFilter, weatherFilter]);
-
-  // Determine visible slots based on layout filter
-  const visibleSlots = useMemo(() => {
-    switch (layoutFilter) {
-      case '3pieces':
-        return OUTFIT_SLOTS.filter(s => s.slot !== 'headwear');
-      case '2pieces':
-        return OUTFIT_SLOTS.filter(s => s.slot === 'top' || s.slot === 'bottom');
-      case 'full':
-        return [{ slot: 'full-body' as GarmentSlot, label: 'Full Outfit', heightRatio: 1.0, category: 'dress' as ClothingCategory }];
-      case '4pieces':
-      default:
-        return OUTFIT_SLOTS;
-    }
-  }, [layoutFilter]);
-
-  // Get currently selected item for each slot
-  const getSlotItem = useCallback((slot: GarmentSlot): ClosetItem | null => {
-    const slotItems = filteredItemsBySlot[slot];
-    if (slotItems.length === 0) return null;
-    const idx = slotIndices[slot] % slotItems.length;
-    return slotItems[idx] || null;
-  }, [filteredItemsBySlot, slotIndices]);
-
-  // Swipe to next/prev item in a slot with animation
-  const swipeAnimValues = useRef<Record<string, Animated.Value>>(
-    Object.fromEntries(OUTFIT_SLOTS.map(({ slot }) => [slot, new Animated.Value(0)]))
-  ).current;
-
-  const swipeSlot = useCallback((slot: GarmentSlot, direction: 1 | -1) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const count = filteredItemsBySlot[slot].length;
-    if (count === 0) return;
-    const anim = swipeAnimValues[slot];
-    // Animate out
-    Animated.timing(anim, {
-      toValue: direction * -120,
-      duration: 120,
-      useNativeDriver: true,
-    }).start(() => {
-      // Switch item
-      setSlotIndices((prev) => ({
-        ...prev,
-        [slot]: (prev[slot] + direction + count) % count,
-      }));
-      setSavedThisOutfit(false);
-      // Reset to offscreen opposite side, then animate in
-      anim.setValue(direction * 120);
-      Animated.spring(anim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 120,
-        friction: 14,
-      }).start();
-    });
-  }, [filteredItemsBySlot, swipeAnimValues]);
-
-  // Pan responders for each slot to detect horizontal swipes
-  const swipeSlotRef = useRef(swipeSlot);
-  swipeSlotRef.current = swipeSlot;
-  const itemsBySlotRef = useRef(filteredItemsBySlot);
-  itemsBySlotRef.current = filteredItemsBySlot;
-
-  const slotPanResponders = useMemo(() => {
-    const responders: Record<string, ReturnType<typeof PanResponder.create>> = {};
-    for (const { slot } of OUTFIT_SLOTS) {
-      responders[slot] = PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dy) < Math.abs(gestureState.dx);
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const count = itemsBySlotRef.current[slot].length;
-          if (count <= 1) return;
-          if (Math.abs(gestureState.dx) > 30) {
-            swipeSlotRef.current(slot, gestureState.dx < 0 ? 1 : -1);
-          }
-        },
-      });
-    }
-    return responders;
-  }, []);
-
-  // Get all current outfit items
-  const currentOutfitItems = useMemo(() => {
-    const outfitItems: ClosetItem[] = [];
-    for (const { slot } of OUTFIT_SLOTS) {
-      const item = getSlotItem(slot);
-      if (item) outfitItems.push(item);
-    }
-    return outfitItems;
-  }, [getSlotItem]);
-
-  const hasAnyItems = useMemo(() =>
-    visibleSlots.some(({ slot }) => filteredItemsBySlot[slot].length > 0),
-    [filteredItemsBySlot, visibleSlots]
+  const currentOutfitItems = useMemo(
+    () => canvasItems.map((c) => c.item),
+    [canvasItems],
   );
 
-  // Randomize: pick random index for each slot
   const handleRandomize = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setSavedThisOutfit(false);
 
-    if (!hasAnyItems) {
+    if (items.length === 0) {
       Alert.alert('No items', 'Add items to your closet first to build outfits.');
       return;
     }
 
-    setIsGenerating(true);
-    const newIndices = { ...slotIndices };
-    for (const { slot } of visibleSlots) {
-      const count = filteredItemsBySlot[slot].length;
-      if (count > 0) {
-        newIndices[slot] = Math.floor(Math.random() * count);
-      }
-    }
-    setSlotIndices(newIndices);
-    setTimeout(() => setIsGenerating(false), 300);
-  }, [hasAnyItems, filteredItemsBySlot, visibleSlots, slotIndices]);
+    const count = Math.min(items.length, 4);
+    const shuffled = [...items].sort(() => Math.random() - 0.5).slice(0, count);
+    nextPositionRef.current = 0;
+    const entries: CanvasItemEntry[] = shuffled.map((item) => {
+      const pos = getStaggeredPosition();
+      return {
+        id: `canvas_${item.id}_${Date.now()}`,
+        item,
+        defaultX: pos.x,
+        defaultY: pos.y,
+      };
+    });
+    setCanvasItems(entries);
+  }, [items, getStaggeredPosition]);
 
-  // Save current outfit
   const handleSave = useCallback(() => {
     if (currentOutfitItems.length === 0) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('No outfit', 'Swipe through items or tap dice to build an outfit first.');
+      Alert.alert('No outfit', 'Add items to the canvas first.');
       return;
     }
 
@@ -334,21 +275,17 @@ export default function StylistScreen() {
     addOutfit(outfit);
   }, [currentOutfitItems, addOutfit]);
 
-  // Handle add menu item selection
   const handleAddMenuItem = useCallback((action: string) => {
     setShowAddMenu(false);
     if (action === 'pieces') {
-      // Add tops / bottoms / headwear / shoes to canvas
       setClosetPickerCategory(undefined);
       setClosetPickerTitle('Add Piece');
       setShowClosetPicker(true);
     } else if (action === 'accessories') {
-      // Add accessories (bags, jewelry, etc.) — tracked for AI, not on canvas
       setClosetPickerCategory('accessory' as ClothingCategory);
       setClosetPickerTitle('Select Accessories');
       setShowClosetPicker(true);
     } else if (action === 'fits') {
-      // Show saved outfits picker
       if (outfits.length === 0) {
         Alert.alert('No saved fits', 'Save outfits from the canvas first to load them here.');
         return;
@@ -357,30 +294,33 @@ export default function StylistScreen() {
     }
   }, [outfits]);
 
-  // Load a saved outfit onto the canvas
   const handleLoadFit = useCallback((outfit: Outfit) => {
     setShowFitsPicker(false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSavedThisOutfit(false);
 
-    for (const item of outfit.items) {
-      const slot = classifyGarmentSlot(item.category, item.garment_type || undefined);
-      const slotItems = itemsBySlot[slot];
-      const idx = slotItems.findIndex((si) => si.id === item.id);
-      if (idx >= 0) {
-        setSlotIndices((prev) => ({ ...prev, [slot]: idx }));
-      }
-    }
-  }, [itemsBySlot]);
+    const resolvedItems = outfit.item_ids
+      .map((oid) => items.find((i) => i.id === oid))
+      .filter(Boolean) as ClosetItem[];
+    nextPositionRef.current = 0;
+    const entries: CanvasItemEntry[] = resolvedItems.map((item) => {
+      const pos = getStaggeredPosition();
+      return {
+        id: `canvas_${item.id}_${Date.now()}`,
+        item,
+        defaultX: pos.x,
+        defaultY: pos.y,
+      };
+    });
+    setCanvasItems(entries);
+  }, [items, getStaggeredPosition]);
 
-  // Handle closet picker selection — place item in matching slot or track accessories
   const handleClosetSelect = useCallback((selected: ClosetItem[]) => {
     setShowClosetPicker(false);
     if (selected.length === 0) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSavedThisOutfit(false);
 
-    // If accessories mode, just track them for AI context
     if (closetPickerCategory === ('accessory' as ClothingCategory)) {
       setSelectedAccessories(selected);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -388,14 +328,9 @@ export default function StylistScreen() {
     }
 
     for (const item of selected) {
-      const slot = classifyGarmentSlot(item.category, item.garment_type || undefined);
-      const slotItems = itemsBySlot[slot];
-      const idx = slotItems.findIndex((si) => si.id === item.id);
-      if (idx >= 0) {
-        setSlotIndices((prev) => ({ ...prev, [slot]: idx }));
-      }
+      addItemToCanvas(item);
     }
-  }, [itemsBySlot, closetPickerCategory]);
+  }, [closetPickerCategory, addItemToCanvas]);
 
   const handleSend = useCallback(async () => {
     if (!chatMessage.trim() && currentOutfitItems.length === 0) return;
@@ -413,7 +348,6 @@ export default function StylistScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Build outfit items list with their images for the AI
     const allItems = [...currentOutfitItems, ...selectedAccessories];
     const outfitItemsForAI: OutfitTwinItem[] = allItems.map(item => ({
       name: item.name,
@@ -424,7 +358,6 @@ export default function StylistScreen() {
     const scenePrompt = chatMessage.trim() || undefined;
     setChatMessage('');
 
-    // Generate in background
     setTwinGenerating(true);
     setTwinProgress('Dressing your twin in this fit...');
 
@@ -433,6 +366,7 @@ export default function StylistScreen() {
         digitalTwin.twin_image_url,
         outfitItemsForAI,
         scenePrompt,
+        digitalTwin.selfie_url,
       );
 
       setDigitalTwin({
@@ -440,15 +374,28 @@ export default function StylistScreen() {
         twin_image_url: newTwinImageUrl,
         updated_at: new Date().toISOString(),
       });
+
+      const look: GeneratedLook = {
+        id: `look_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        image_url: newTwinImageUrl,
+        outfit_item_ids: allItems.map(i => i.id),
+        prompt: scenePrompt,
+        created_at: new Date().toISOString(),
+      };
+      addGeneratedLook(look);
+
       setTwinProgress('New fit generated!');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => setTwinGenerating(false), 2000);
-    } catch (e: any) {
+      setTimeout(() => {
+        setTwinGenerating(false);
+        router.push('/digital-twin-preview' as Href);
+      }, 500);
+    } catch (e: unknown) {
       setTwinGenerating(false);
       setTwinProgress(null);
-      Alert.alert('Generation failed', e?.message || 'Something went wrong');
+      Alert.alert('Generation failed', e instanceof Error ? e.message : 'Something went wrong');
     }
-  }, [chatMessage, currentOutfitItems, selectedAccessories, digitalTwin, setTwinGenerating, setTwinProgress, setDigitalTwin]);
+  }, [chatMessage, currentOutfitItems, selectedAccessories, digitalTwin, setTwinGenerating, setTwinProgress, setDigitalTwin, addGeneratedLook]);
 
   const handleOpenStyleChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -458,204 +405,185 @@ export default function StylistScreen() {
   const twinGenerating = useClosetStore((s) => s.twinGenerating);
   const twinProgress = useClosetStore((s) => s.twinProgress);
 
-  // Accessory indicator for canvas/chat (shows which accessories are selected for AI)
   const accessoryCount = selectedAccessories.length;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <SafeAreaView edges={['top']} style={styles.topBar}>
-        <Pressable
-          style={styles.topBarBtn}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowFilters(true);
-          }}
-        >
-          <SlidersHorizontal size={20} color={Colors.textPrimary} />
-        </Pressable>
-
-        <Pressable style={styles.titlePill} onPress={handleOpenStyleChat}>
-          <Sparkles size={14} color={Colors.accentGreen} />
-          <Text style={styles.titleText}>StyleAI</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.avatarCircle}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/digital-twin' as Href);
-          }}
-        >
-          <Text style={styles.avatarText}>U</Text>
-        </Pressable>
-      </SafeAreaView>
-
-      {twinGenerating && (
-        <View style={styles.twinBanner}>
-          <ActivityIndicator size="small" color={Colors.accentGreen} />
-          <Text style={styles.twinBannerText}>{twinProgress || 'Generating twin...'}</Text>
-        </View>
-      )}
-
-      {/* Outfit Canvas — vertical board layout */}
-      <View style={styles.canvasArea}>
-        <View style={styles.canvas}>
-          {hasAnyItems ? (
-            <View style={styles.slotsColumn}>
-              {visibleSlots.map(({ slot, label, heightRatio, category }) => {
-                const slotItems = filteredItemsBySlot[slot];
-                const currentItem = getSlotItem(slot);
-
-                return (
-                  <View key={slot} style={[styles.slotRow, { flex: heightRatio }]} {...slotPanResponders[slot].panHandlers}>
-                    <View style={styles.slotCenter}>
-                      {currentItem ? (
-                        <Animated.View style={[styles.slotImageWrapper, { transform: [{ translateX: swipeAnimValues[slot] }] }]}>
-                          <Pressable
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              router.push(`/item/${currentItem.id}` as Href);
-                            }}
-                            style={styles.slotImagePressable}
-                          >
-                            <Image
-                              source={{ uri: currentItem.clean_image_url || currentItem.image_url }}
-                              style={styles.slotImage}
-                              contentFit="contain"
-                            />
-                          </Pressable>
-                        </Animated.View>
-                      ) : (
-                        <View style={styles.slotEmptySpace} />
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.canvasPlaceholder}>
-              <Sparkles size={32} color={Colors.textTertiary} strokeWidth={1.2} />
-              <Text style={styles.canvasTitle}>Your Outfit Board</Text>
-              <Text style={styles.canvasSubtitle}>
-                Add items to your closet to start{'\n'}building outfits here
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* FABs on right side */}
-      <View style={styles.fabColumn}>
-        <Pressable
-          style={styles.fabPlus}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setShowAddMenu(true);
-          }}
-        >
-          <Plus size={22} color="#fff" />
-        </Pressable>
-        <Pressable
-          style={[styles.fab, isGenerating && { opacity: 0.5 }]}
-          onPress={handleRandomize}
-          disabled={isGenerating}
-        >
-          <Dices size={20} color={Colors.textPrimary} />
-        </Pressable>
-        <Pressable style={[styles.fab, savedThisOutfit && styles.fabSaved]} onPress={handleSave}>
-          {savedThisOutfit
-            ? <BookmarkCheck size={20} color={Colors.accentGreen} />
-            : <Bookmark size={20} color={Colors.textPrimary} />
-          }
-        </Pressable>
-      </View>
-
-      {/* Chat bar at bottom */}
-      <SafeAreaView edges={['bottom']} style={styles.chatBarWrapper}>
-        <View style={styles.chatBar}>
-          <Pressable style={styles.chatPlusBtn} onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setShowAddMenu(true);
-          }}>
-            <Plus size={18} color={Colors.textSecondary} />
+    <GestureHandlerRootView style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+        <SafeAreaView edges={['top']} style={styles.topBar}>
+          <Pressable
+            style={styles.topBarBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowFilters(true);
+            }}
+          >
+            <SlidersHorizontal size={20} color={Colors.textPrimary} />
           </Pressable>
-          <TextInput
-            style={styles.chatInput}
-            placeholder="Describe a scene or use 'Studio'..."
-            placeholderTextColor={Colors.textTertiary}
-            value={chatMessage}
-            onChangeText={setChatMessage}
-          />
-          <Pressable style={styles.sendBtn} onPress={handleSend}>
-            <Send size={16} color={Colors.background} />
+
+          <Pressable style={styles.titlePill} onPress={handleOpenStyleChat}>
+            <Sparkles size={14} color={Colors.accentGreen} />
+            <Text style={styles.titleText}>StyleAI</Text>
           </Pressable>
-        </View>
-      </SafeAreaView>
 
-      <OutfitFilters
-        visible={showFilters}
-        onClose={() => setShowFilters(false)}
-        onApply={(filters) => {
-          setStyleFilter(filters.style);
-          setColorFilter(filters.color);
-          setWeatherFilter(filters.weather);
-          setLayoutFilter(filters.layout);
-          setShowFilters(false);
-        }}
-      />
-
-      {showAddMenu && (
-        <AddMenuPopover
-          onClose={() => setShowAddMenu(false)}
-          onSelect={handleAddMenuItem}
-        />
-      )}
-
-      <ClosetPickerSheet
-        visible={showClosetPicker}
-        onClose={() => setShowClosetPicker(false)}
-        onSelect={handleClosetSelect}
-        filterCategory={closetPickerCategory}
-        title={closetPickerTitle}
-        multiSelect={closetPickerCategory === ('accessory' as ClothingCategory)}
-      />
-
-      {/* Saved Fits Picker */}
-      <Modal visible={showFitsPicker} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.fitsPickerContainer} edges={['top']}>
-          <View style={styles.fitsPickerHeader}>
-            <Pressable onPress={() => setShowFitsPicker(false)} style={styles.fitsPickerClose}>
-              <Text style={styles.fitsPickerCloseText}>Cancel</Text>
-            </Pressable>
-            <Text style={styles.fitsPickerTitle}>Load Saved Fit</Text>
-            <View style={{ width: 64 }} />
-          </View>
-          <FlatList
-            data={outfits}
-            keyExtractor={(o) => o.id}
-            contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
-            renderItem={({ item: outfit }) => (
-              <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fitsPickerItems}>
-                  {outfit.items.slice(0, 5).map((piece) => (
-                    <View key={piece.id} style={styles.fitsPickerThumb}>
-                      <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} contentFit="contain" />
-                    </View>
-                  ))}
-                </ScrollView>
-                <Text style={styles.fitsPickerName}>{outfit.name}</Text>
-                <Text style={styles.fitsPickerSub}>{outfit.items.length} pieces</Text>
-              </Pressable>
-            )}
-          />
+          <Pressable
+            style={styles.avatarCircle}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/digital-twin' as Href);
+            }}
+          >
+            <Text style={styles.avatarText}>U</Text>
+          </Pressable>
         </SafeAreaView>
-      </Modal>
-    </KeyboardAvoidingView>
+
+        {twinGenerating && (
+          <View style={styles.twinBanner}>
+            <ActivityIndicator size="small" color={Colors.accentGreen} />
+            <Text style={styles.twinBannerText}>{twinProgress || 'Generating twin...'}</Text>
+          </View>
+        )}
+
+        {/* Free-position Canvas */}
+        <View style={styles.canvasArea}>
+          <View style={styles.canvas}>
+            {canvasItems.length > 0 ? (
+              canvasItems.map((entry) => (
+                <DraggableCanvasItem
+                  key={entry.id}
+                  entry={entry}
+                  onTap={handleCanvasItemTap}
+                  onRemove={removeCanvasItem}
+                />
+              ))
+            ) : (
+              <View style={styles.canvasPlaceholder}>
+                <Sparkles size={32} color={Colors.textTertiary} strokeWidth={1.2} />
+                <Text style={styles.canvasTitle}>Your Outfit Board</Text>
+                <Text style={styles.canvasSubtitle}>
+                  Tap + to add items, drag to arrange{'\n'}Pinch to resize, long-press to remove
+                </Text>
+              </View>
+            )}
+
+            {accessoryCount > 0 && (
+              <View style={styles.accessoryBadge}>
+                <Text style={styles.accessoryBadgeText}>+{accessoryCount} accessories</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* FABs on right side */}
+        <View style={styles.fabColumn}>
+          <Pressable
+            style={styles.fabPlus}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setShowAddMenu(true);
+            }}
+          >
+            <Plus size={22} color="#fff" />
+          </Pressable>
+          <Pressable
+            style={styles.fab}
+            onPress={handleRandomize}
+          >
+            <Dices size={20} color={Colors.textPrimary} />
+          </Pressable>
+          <Pressable style={[styles.fab, savedThisOutfit && styles.fabSaved]} onPress={handleSave}>
+            {savedThisOutfit
+              ? <BookmarkCheck size={20} color={Colors.accentGreen} />
+              : <Bookmark size={20} color={Colors.textPrimary} />
+            }
+          </Pressable>
+        </View>
+
+        {/* Chat bar at bottom */}
+        <SafeAreaView edges={['bottom']} style={styles.chatBarWrapper}>
+          <View style={styles.chatBar}>
+            <Pressable style={styles.chatPlusBtn} onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setShowAddMenu(true);
+            }}>
+              <Plus size={18} color={Colors.textSecondary} />
+            </Pressable>
+            <TextInput
+              style={styles.chatInput}
+              placeholder="Describe a scene or use 'Studio'..."
+              placeholderTextColor={Colors.textTertiary}
+              value={chatMessage}
+              onChangeText={setChatMessage}
+            />
+            <Pressable style={styles.sendBtn} onPress={handleSend}>
+              <Send size={16} color={Colors.background} />
+            </Pressable>
+          </View>
+        </SafeAreaView>
+
+        <OutfitFilters
+          visible={showFilters}
+          onClose={() => setShowFilters(false)}
+          onApply={(filters) => {
+            setStyleFilter(filters.style);
+            setColorFilter(filters.color);
+            setWeatherFilter(filters.weather);
+            setShowFilters(false);
+          }}
+        />
+
+        {showAddMenu && (
+          <AddMenuPopover
+            onClose={() => setShowAddMenu(false)}
+            onSelect={handleAddMenuItem}
+          />
+        )}
+
+        <ClosetPickerSheet
+          visible={showClosetPicker}
+          onClose={() => setShowClosetPicker(false)}
+          onSelect={handleClosetSelect}
+          filterCategory={closetPickerCategory}
+          title={closetPickerTitle}
+          multiSelect={closetPickerCategory === ('accessory' as ClothingCategory)}
+        />
+
+        {/* Saved Fits Picker */}
+        <Modal visible={showFitsPicker} animationType="slide" presentationStyle="pageSheet">
+          <SafeAreaView style={styles.fitsPickerContainer} edges={['top']}>
+            <View style={styles.fitsPickerHeader}>
+              <Pressable onPress={() => setShowFitsPicker(false)} style={styles.fitsPickerClose}>
+                <Text style={styles.fitsPickerCloseText}>Cancel</Text>
+              </Pressable>
+              <Text style={styles.fitsPickerTitle}>Load Saved Fit</Text>
+              <View style={{ width: 64 }} />
+            </View>
+            <FlatList
+              data={outfits}
+              keyExtractor={(o) => o.id}
+              contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+              renderItem={({ item: outfit }) => (
+                <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fitsPickerItems}>
+                    {outfit.items.slice(0, 5).map((piece) => (
+                      <View key={piece.id} style={styles.fitsPickerThumb}>
+                        <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} contentFit="contain" />
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <Text style={styles.fitsPickerName}>{outfit.name}</Text>
+                  <Text style={styles.fitsPickerSub}>{outfit.items.length} pieces</Text>
+                </Pressable>
+              )}
+            />
+          </SafeAreaView>
+        </Modal>
+      </KeyboardAvoidingView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -674,13 +602,10 @@ const styles = StyleSheet.create({
   canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: Colors.textTertiary },
   canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary, textAlign: 'center' },
-  slotsColumn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8 },
-  slotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  slotCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  slotImageWrapper: { width: '65%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  slotImagePressable: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  slotImage: { width: '100%', height: '100%' },
-  slotEmptySpace: { width: 40, height: 40 },
+  canvasItemWrapper: { position: 'absolute', width: CANVAS_ITEM_SIZE, height: CANVAS_ITEM_SIZE },
+  canvasItemImage: { width: '100%', height: '100%' },
+  accessoryBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
+  accessoryBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF' },
   fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },
   fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#32D583', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
@@ -690,7 +615,6 @@ const styles = StyleSheet.create({
   chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurface, alignItems: 'center', justifyContent: 'center' },
   chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textPrimary, paddingVertical: 0 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
-  // Saved fits picker
   fitsPickerContainer: { flex: 1, backgroundColor: Colors.background },
   fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },

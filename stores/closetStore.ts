@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { ClosetItem, ClothingCategory, DigitalTwin, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
+import { ClosetItem, ClothingCategory, DigitalTwin, GeneratedLook, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -38,6 +38,11 @@ interface ClosetState {
 
     // Saved Fits
     savedFits: SavedFit[];
+
+    // Generated Looks (VTON results)
+    generatedLooks: GeneratedLook[];
+    addGeneratedLook: (look: GeneratedLook) => void;
+    deleteGeneratedLook: (id: string) => void;
 
     // Canvas pass-through (item detail -> stylist)
     canvasItem: { slot: string; item: ClosetItem } | null;
@@ -228,6 +233,7 @@ export const useClosetStore = create<ClosetState>()(
             canvasItem: null,
             canvasOutfit: null,
             savedFits: [],
+            generatedLooks: [],
             posts: [],
             userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
 
@@ -322,6 +328,10 @@ export const useClosetStore = create<ClosetState>()(
             addSavedFit: (fit) => set((state) => ({ savedFits: [fit, ...state.savedFits] })),
             deleteSavedFit: (id) => set((state) => ({ savedFits: state.savedFits.filter((f) => f.id !== id) })),
 
+            // Generated Looks
+            addGeneratedLook: (look) => set((state) => ({ generatedLooks: [look, ...state.generatedLooks] })),
+            deleteGeneratedLook: (id) => set((state) => ({ generatedLooks: state.generatedLooks.filter((l) => l.id !== id) })),
+
             // Posts
             addPost: (post) => {
                 set((state) => ({ posts: [post, ...state.posts] }));
@@ -353,6 +363,7 @@ export const useClosetStore = create<ClosetState>()(
                 outfits: state.outfits,
                 digitalTwin: state.digitalTwin,
                 savedFits: state.savedFits,
+                generatedLooks: state.generatedLooks,
                 posts: state.posts,
                 userProfile: state.userProfile,
             }),

@@ -18,6 +18,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.wardrobewizai.app",
       "buildNumber": "6",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "WardrobeWizAi needs camera access to photograph your clothing items for analysis.",
         "NSPhotoLibraryUsageDescription": "WardrobeWizAi needs photo library access to import your clothing photos.",
@@ -56,7 +57,8 @@
           "photosPermission": "Allow WardrobeWizAi to access your photos to import clothing images."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "updates": {
       "url": "https://u.expo.dev/be04d0ab-fc16-4fd0-816f-506f3f2bf5a3"

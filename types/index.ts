@@ -140,6 +140,14 @@ export interface SavedFit {
     created_at: string;
 }
 
+export interface GeneratedLook {
+    id: string;
+    image_url: string;
+    outfit_item_ids: string[];
+    prompt?: string;
+    created_at: string;
+}
+
 export interface UserPost {
     id: string;
     image_url: string;
