@@ -368,24 +368,28 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
         encoding: FileSystem.EncodingType.Base64,
     });
 
-    const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item.
+    const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item and accessory.
 
 Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
 
-For EACH item, provide details and its BOUNDING BOX (box_2d) as [ymin, xmin, ymax, xmax] using 0-100 scale.
+For EACH item:
+- "name": Be VERY specific and descriptive (e.g. "bright yellow bodycon midi dress" NOT just "dress")
+- "colors": List ALL visible colors precisely (e.g. ["bright yellow", "gold"] NOT just ["yellow"])
+- "brand": Identify if recognizable
+- "box_2d": Bounding box as [ymin, xmin, ymax, xmax] using 0-100 scale
 You MUST find at least 1 item.
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {
   "detections": [
     {
-      "name": "descriptive name",
+      "name": "specific descriptive name with color and style",
       "category": "top",
       "brand": "Brand",
       "brandConfidence": 0.8,
       "modelName": "Model",
       "estimatedValue": 50,
-      "colors": ["color"],
+      "colors": ["exact color 1", "exact color 2"],
       "confidence": 0.9,
       "box_2d": [10, 10, 50, 50]
     }
@@ -394,7 +398,7 @@ Return ONLY valid JSON in this exact format:
   "occasion": "casual"
 }
 
-CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
+CRITICAL: Return ONLY raw JSON. No markdown. No explanation.`;
 
     if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision)...');
 
@@ -818,7 +822,8 @@ export async function regenerateCleanImage(
         if (pipelineType === 'detect-fit-seedream') {
             if (__DEV__) console.log('Step 1 (Pipeline 2): Calling Replicate Seedream-4...');
 
-            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}. High quality, 8k.`;
+            const colorInfo = _product.colors.length > 0 ? ` The exact colors are: ${_product.colors.join(', ')}.` : '';
+            const prompt = `Photograph this exact ${_product.description || _product.name} on a clean white studio background. PRESERVE the EXACT colors, patterns, textures, and design details of the original garment — do NOT change or reinterpret anything.${colorInfo} Product photography style, high quality, 8k.`;
 
             const seedreamOutput = await callReplicate('bytedance/seedream-4', {
                 image: currentImageUri,
@@ -845,10 +850,10 @@ export async function regenerateCleanImage(
             }
 
         } else {
-            // Pipeline 1: Bria Fibo Edit (DeepInfra) + Rembg
             if (__DEV__) console.log('Pipeline 1: Calling DeepInfra Bria/fibo_edit...');
 
-            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
+            const colorInfo = _product.colors.length > 0 ? ` Exact colors: ${_product.colors.join(', ')}.` : '';
+            const prompt = `Isolate this exact ${_product.description || _product.name} on a pure white background. KEEP the original colors, patterns, and all visual details identical — do NOT alter, recolor, or reinterpret the garment.${colorInfo}`;
 
             resultUri = await callDeepInfraImage('Bria/fibo_edit', {
                 image: currentImageUri,

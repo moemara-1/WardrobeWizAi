@@ -329,7 +329,10 @@ export default function AnalyzeScreen() {
       // Clean
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: true } : p));
 
-      // Construct a minimal product object for the cleaner prompt
+      const colorDesc = piece.colors.length > 0 ? piece.colors.join(' and ') : '';
+      const brandDesc = piece.brand ? `${piece.brand} ` : '';
+      const richDescription = `${brandDesc}${colorDesc} ${piece.name}`.trim();
+
       const tempProduct: ProductIdentification = {
         name: piece.name,
         brand: piece.brand || null,
@@ -337,7 +340,7 @@ export default function AnalyzeScreen() {
         garment_type: piece.garmentType || null,
         colors: piece.colors,
         material: null,
-        description: piece.name
+        description: richDescription,
       };
 
       const cleanUri = await regenerateCleanImage(cropped.uri, tempProduct, 'detect-fit-seedream');
