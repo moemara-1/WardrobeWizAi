@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 
 export type GarmentSlot = 'headwear' | 'top' | 'bottom' | 'footwear' | 'accessory' | 'full-body' | 'unknown';
@@ -50,38 +49,40 @@ export function classifyGarmentSlot(category: string, garmentType?: string): Gar
     return 'unknown';
 }
 
-/**
- * Remove background from an image using Supabase Edge Function
- * Returns a new image with white background
- */
 export async function removeBackground(imageUri: string): Promise<BackgroundRemovalResult> {
     try {
+        const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
+        if (!token) return { success: false, error: 'Missing EXPO_PUBLIC_DEEPINFRA_KEY' };
+
         const base64 = await FileSystem.readAsStringAsync(imageUri, {
             encoding: FileSystem.EncodingType.Base64,
         });
 
-        const { data, error } = await supabase.functions.invoke('remove-bg', {
-            body: { imageBase64: base64 },
+        const response = await fetch('https://api.deepinfra.com/v1/inference/briaai/RMBG-2.0', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ image: `data:image/jpeg;base64,${base64}` }),
         });
 
-        if (error) {
-            return { success: false, error: `API error: ${error.message}` };
+        if (!response.ok) {
+            return { success: false, error: `DeepInfra RMBG error (${response.status})` };
         }
 
-        if (data.error) {
-            return { success: false, error: data.error };
-        }
-
-        const resultBase64 = data.imageBase64;
-        if (!resultBase64) {
+        const result = await response.json();
+        const resultBase64 = result.image;
+        if (!resultBase64 || typeof resultBase64 !== 'string') {
             return { success: false, error: 'No image data in response' };
         }
 
+        const raw = resultBase64.startsWith('data:') ? resultBase64.split(',')[1] : resultBase64;
         const filename = `clean_${Date.now()}.png`;
         const cacheDir = FileSystem.cacheDirectory || '';
         const cleanImageUri = `${cacheDir}${filename}`;
 
-        await FileSystem.writeAsStringAsync(cleanImageUri, resultBase64, {
+        await FileSystem.writeAsStringAsync(cleanImageUri, raw, {
             encoding: FileSystem.EncodingType.Base64,
         });
 

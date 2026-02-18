@@ -25,8 +25,24 @@ export interface ItemResearch {
 }
 
 async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
-    const { data, error } = await supabase.functions.invoke('ai-analyze', { body });
-    if (error) throw new Error(`AI API error: ${error.message}`);
+    const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
+    if (!token) throw new Error('Missing EXPO_PUBLIC_DEEPINFRA_KEY');
+
+    const response = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`DeepInfra API error (${response.status}): ${errorBody}`);
+    }
+
+    const data = await response.json();
     return data.choices?.[0]?.message?.content || '';
 }
 
@@ -139,19 +155,18 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
 
     const result = await response.json();
 
-    // DeepInfra Flux output usually contains an 'images' array with base64 strings or URLs
-    // Or key 'output' or 'images' depending on model wrapper.
-    // For standard DeepInfra inference API (not openai compat):
-    // images: ["base64..."]
-
     if (result.images && result.images.length > 0) {
         const img = result.images[0];
         if (img.startsWith('http')) return img;
-        // Check if base64 header is present, if not add it
         return img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`;
     }
 
-    // Some endpoints wrap in 'output'
+    if (result.image && typeof result.image === 'string') {
+        const img = result.image;
+        if (img.startsWith('http')) return img;
+        return img.startsWith('data:') ? img : `data:image/png;base64,${img}`;
+    }
+
     if (result.output && Array.isArray(result.output)) {
         return result.output[0];
     }
@@ -828,20 +843,11 @@ export async function regenerateCleanImage(
             }
             if (__DEV__) console.log('Seedream complete, result:', seedreamResult.slice(0, 80));
 
-            // Rembg is optional — seedream already generates on white background
             try {
-                if (__DEV__) console.log('Step 2: Removing background with Rembg...');
-                const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
-                    image: seedreamResult,
-                });
-                const rembgResult = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
-                if (rembgResult) {
-                    resultUri = rembgResult;
-                } else {
-                    resultUri = seedreamResult;
-                }
+                if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
+                resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: seedreamResult });
             } catch (rembgErr) {
-                if (__DEV__) console.warn('Rembg failed, using seedream output directly:', rembgErr);
+                if (__DEV__) console.warn('RMBG failed, using seedream output directly:', rembgErr);
                 resultUri = seedreamResult;
             }
 
@@ -856,12 +862,8 @@ export async function regenerateCleanImage(
                 prompt: prompt,
             });
 
-            // Pipeline 1 only: remove background on the Bria output
-            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
-            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
-                image: resultUri,
-            });
-            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
+            if (__DEV__) console.log('Step 2: Removing background with DeepInfra RMBG-2.0...');
+            resultUri = await callDeepInfraImage('briaai/RMBG-2.0', { image: resultUri });
         }
 
         if (!resultUri) throw new Error('Unexpected Replicate output format from rembg');
@@ -883,17 +885,23 @@ export async function regenerateCleanImage(
     } catch (e) {
         if (__DEV__) console.warn('Clean pipeline failed:', e);
 
-        // Fallback: If AI fails, use basic remove-bg on original
-        if (__DEV__) console.log('Falling back to basic remove-bg on original...');
+        if (__DEV__) console.log('Falling back to DeepInfra RMBG-2.0 on original...');
         try {
-            const fallbackOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+            const rmbgUri = await callDeepInfraImage('briaai/RMBG-2.0', {
                 image: `data:image/jpeg;base64,${base64}`,
             });
-            const fallbackUri = Array.isArray(fallbackOutput) ? fallbackOutput[0] : fallbackOutput;
 
             const fileName = `clean_fallback_${Date.now()}.png`;
             const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-            const downloadRes = await FileSystem.downloadAsync(fallbackUri, fileUri);
+
+            if (rmbgUri.startsWith('data:')) {
+                const b64Data = rmbgUri.split(',')[1];
+                await FileSystem.writeAsStringAsync(fileUri, b64Data, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+                return fileUri;
+            }
+            const downloadRes = await FileSystem.downloadAsync(rmbgUri, fileUri);
             return downloadRes.uri;
         } catch (err2) {
             throw new Error(`Clean pipeline failed completely: ${e}`);
