@@ -21,9 +21,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     FlatList,
     KeyboardAvoidingView,
     Modal,
+    PanResponder,
     Platform,
     Pressable,
     ScrollView,
@@ -32,13 +34,6 @@ import {
     TextInput,
     View
 } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-    runOnJS,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const CANVAS_ITEM_SIZE = 120;
@@ -59,75 +54,67 @@ function DraggableCanvasItem({
   onTap: (item: ClosetItem) => void;
   onRemove: (id: string) => void;
 }) {
-  const translateX = useSharedValue(entry.defaultX);
-  const translateY = useSharedValue(entry.defaultY);
-  const scale = useSharedValue(1);
-  const savedTranslateX = useSharedValue(entry.defaultX);
-  const savedTranslateY = useSharedValue(entry.defaultY);
-  const savedScale = useSharedValue(1);
-  const isPressed = useSharedValue(false);
+  const pan = useRef(new Animated.ValueXY({ x: entry.defaultX, y: entry.defaultY })).current;
+  const lastOffset = useRef({ x: entry.defaultX, y: entry.defaultY });
+  const isDragging = useRef(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      isPressed.value = true;
-      savedTranslateX.value = translateX.value;
-      savedTranslateY.value = translateY.value;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 5 || Math.abs(gs.dy) > 5,
+      onPanResponderGrant: () => {
+        isDragging.current = false;
+        longPressTimer.current = setTimeout(() => {
+          if (!isDragging.current) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            onRemove(entry.id);
+          }
+        }, 600);
+      },
+      onPanResponderMove: (_, gs) => {
+        if (Math.abs(gs.dx) > 5 || Math.abs(gs.dy) > 5) {
+          isDragging.current = true;
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+          }
+        }
+        pan.setValue({
+          x: lastOffset.current.x + gs.dx,
+          y: lastOffset.current.y + gs.dy,
+        });
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+        lastOffset.current = {
+          x: lastOffset.current.x + gs.dx,
+          y: lastOffset.current.y + gs.dy,
+        };
+        if (!isDragging.current) {
+          onTap(entry.item);
+        }
+      },
     })
-    .onUpdate((e) => {
-      translateX.value = savedTranslateX.value + e.translationX;
-      translateY.value = savedTranslateY.value + e.translationY;
-    })
-    .onEnd(() => {
-      isPressed.value = false;
-    })
-    .minDistance(5);
-
-  const pinchGesture = Gesture.Pinch()
-    .onStart(() => {
-      savedScale.value = scale.value;
-    })
-    .onUpdate((e) => {
-      scale.value = Math.min(Math.max(savedScale.value * e.scale, 0.4), 2.5);
-    });
-
-  const tapGesture = Gesture.Tap()
-    .onEnd(() => {
-      runOnJS(onTap)(entry.item);
-    });
-
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(500)
-    .onEnd((_e, success) => {
-      if (success) {
-        runOnJS(onRemove)(entry.id);
-      }
-    });
-
-  const composed = Gesture.Race(
-    Gesture.Simultaneous(panGesture, pinchGesture),
-    longPressGesture,
-    tapGesture,
-  );
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: withSpring(isPressed.value ? scale.value * 1.05 : scale.value, { damping: 15, stiffness: 150 }) },
-    ],
-    zIndex: isPressed.value ? 100 : 1,
-  }));
+  ).current;
 
   return (
-    <GestureDetector gesture={composed}>
-      <Animated.View style={[styles.canvasItemWrapper, animatedStyle]}>
-        <Image
-          source={{ uri: entry.item.clean_image_url || entry.item.image_url }}
-          style={styles.canvasItemImage}
-          contentFit="contain"
-        />
-      </Animated.View>
-    </GestureDetector>
+    <Animated.View
+      style={[
+        styles.canvasItemWrapper,
+        { transform: pan.getTranslateTransform() },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <Image
+        source={{ uri: entry.item.clean_image_url || entry.item.image_url }}
+        style={styles.canvasItemImage}
+        contentFit="contain"
+      />
+    </Animated.View>
   );
 }
 
@@ -408,182 +395,180 @@ export default function StylistScreen() {
   const accessoryCount = selectedAccessories.length;
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
-        <SafeAreaView edges={['top']} style={styles.topBar}>
-          <Pressable
-            style={styles.topBarBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowFilters(true);
-            }}
-          >
-            <SlidersHorizontal size={20} color={Colors.textPrimary} />
-          </Pressable>
-
-          <Pressable style={styles.titlePill} onPress={handleOpenStyleChat}>
-            <Sparkles size={14} color={Colors.accentGreen} />
-            <Text style={styles.titleText}>StyleAI</Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.avatarCircle}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/digital-twin' as Href);
-            }}
-          >
-            <Text style={styles.avatarText}>U</Text>
-          </Pressable>
-        </SafeAreaView>
-
-        {twinGenerating && (
-          <View style={styles.twinBanner}>
-            <ActivityIndicator size="small" color={Colors.accentGreen} />
-            <Text style={styles.twinBannerText}>{twinProgress || 'Generating twin...'}</Text>
-          </View>
-        )}
-
-        {/* Free-position Canvas */}
-        <View style={styles.canvasArea}>
-          <View style={styles.canvas}>
-            {canvasItems.length > 0 ? (
-              canvasItems.map((entry) => (
-                <DraggableCanvasItem
-                  key={entry.id}
-                  entry={entry}
-                  onTap={handleCanvasItemTap}
-                  onRemove={removeCanvasItem}
-                />
-              ))
-            ) : (
-              <View style={styles.canvasPlaceholder}>
-                <Sparkles size={32} color={Colors.textTertiary} strokeWidth={1.2} />
-                <Text style={styles.canvasTitle}>Your Outfit Board</Text>
-                <Text style={styles.canvasSubtitle}>
-                  Tap + to add items, drag to arrange{'\n'}Pinch to resize, long-press to remove
-                </Text>
-              </View>
-            )}
-
-            {accessoryCount > 0 && (
-              <View style={styles.accessoryBadge}>
-                <Text style={styles.accessoryBadgeText}>+{accessoryCount} accessories</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* FABs on right side */}
-        <View style={styles.fabColumn}>
-          <Pressable
-            style={styles.fabPlus}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setShowAddMenu(true);
-            }}
-          >
-            <Plus size={22} color="#fff" />
-          </Pressable>
-          <Pressable
-            style={styles.fab}
-            onPress={handleRandomize}
-          >
-            <Dices size={20} color={Colors.textPrimary} />
-          </Pressable>
-          <Pressable style={[styles.fab, savedThisOutfit && styles.fabSaved]} onPress={handleSave}>
-            {savedThisOutfit
-              ? <BookmarkCheck size={20} color={Colors.accentGreen} />
-              : <Bookmark size={20} color={Colors.textPrimary} />
-            }
-          </Pressable>
-        </View>
-
-        {/* Chat bar at bottom */}
-        <SafeAreaView edges={['bottom']} style={styles.chatBarWrapper}>
-          <View style={styles.chatBar}>
-            <Pressable style={styles.chatPlusBtn} onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setShowAddMenu(true);
-            }}>
-              <Plus size={18} color={Colors.textSecondary} />
-            </Pressable>
-            <TextInput
-              style={styles.chatInput}
-              placeholder="Describe a scene or use 'Studio'..."
-              placeholderTextColor={Colors.textTertiary}
-              value={chatMessage}
-              onChangeText={setChatMessage}
-            />
-            <Pressable style={styles.sendBtn} onPress={handleSend}>
-              <Send size={16} color={Colors.background} />
-            </Pressable>
-          </View>
-        </SafeAreaView>
-
-        <OutfitFilters
-          visible={showFilters}
-          onClose={() => setShowFilters(false)}
-          onApply={(filters) => {
-            setStyleFilter(filters.style);
-            setColorFilter(filters.color);
-            setWeatherFilter(filters.weather);
-            setShowFilters(false);
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
+    >
+      <SafeAreaView edges={['top']} style={styles.topBar}>
+        <Pressable
+          style={styles.topBarBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowFilters(true);
           }}
-        />
+        >
+          <SlidersHorizontal size={20} color={Colors.textPrimary} />
+        </Pressable>
 
-        {showAddMenu && (
-          <AddMenuPopover
-            onClose={() => setShowAddMenu(false)}
-            onSelect={handleAddMenuItem}
-          />
-        )}
+        <Pressable style={styles.titlePill} onPress={handleOpenStyleChat}>
+          <Sparkles size={14} color={Colors.accentGreen} />
+          <Text style={styles.titleText}>StyleAI</Text>
+        </Pressable>
 
-        <ClosetPickerSheet
-          visible={showClosetPicker}
-          onClose={() => setShowClosetPicker(false)}
-          onSelect={handleClosetSelect}
-          filterCategory={closetPickerCategory}
-          title={closetPickerTitle}
-          multiSelect={closetPickerCategory === ('accessory' as ClothingCategory)}
-        />
+        <Pressable
+          style={styles.avatarCircle}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/digital-twin' as Href);
+          }}
+        >
+          <Text style={styles.avatarText}>U</Text>
+        </Pressable>
+      </SafeAreaView>
 
-        {/* Saved Fits Picker */}
-        <Modal visible={showFitsPicker} animationType="slide" presentationStyle="pageSheet">
-          <SafeAreaView style={styles.fitsPickerContainer} edges={['top']}>
-            <View style={styles.fitsPickerHeader}>
-              <Pressable onPress={() => setShowFitsPicker(false)} style={styles.fitsPickerClose}>
-                <Text style={styles.fitsPickerCloseText}>Cancel</Text>
-              </Pressable>
-              <Text style={styles.fitsPickerTitle}>Load Saved Fit</Text>
-              <View style={{ width: 64 }} />
+      {twinGenerating && (
+        <View style={styles.twinBanner}>
+          <ActivityIndicator size="small" color={Colors.accentGreen} />
+          <Text style={styles.twinBannerText}>{twinProgress || 'Generating twin...'}</Text>
+        </View>
+      )}
+
+      {/* Free-position Canvas */}
+      <View style={styles.canvasArea}>
+        <View style={styles.canvas}>
+          {canvasItems.length > 0 ? (
+            canvasItems.map((entry) => (
+              <DraggableCanvasItem
+                key={entry.id}
+                entry={entry}
+                onTap={handleCanvasItemTap}
+                onRemove={removeCanvasItem}
+              />
+            ))
+          ) : (
+            <View style={styles.canvasPlaceholder}>
+              <Sparkles size={32} color={Colors.textTertiary} strokeWidth={1.2} />
+              <Text style={styles.canvasTitle}>Your Outfit Board</Text>
+              <Text style={styles.canvasSubtitle}>
+                Tap + to add items, drag to arrange{'\n'}Long-press to remove
+              </Text>
             </View>
-            <FlatList
-              data={outfits}
-              keyExtractor={(o) => o.id}
-              contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
-              renderItem={({ item: outfit }) => (
-                <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fitsPickerItems}>
-                    {outfit.items.slice(0, 5).map((piece) => (
-                      <View key={piece.id} style={styles.fitsPickerThumb}>
-                        <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} contentFit="contain" />
-                      </View>
-                    ))}
-                  </ScrollView>
-                  <Text style={styles.fitsPickerName}>{outfit.name}</Text>
-                  <Text style={styles.fitsPickerSub}>{outfit.items.length} pieces</Text>
-                </Pressable>
-              )}
-            />
-          </SafeAreaView>
-        </Modal>
-      </KeyboardAvoidingView>
-    </GestureHandlerRootView>
+          )}
+
+          {accessoryCount > 0 && (
+            <View style={styles.accessoryBadge}>
+              <Text style={styles.accessoryBadgeText}>+{accessoryCount} accessories</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* FABs on right side */}
+      <View style={styles.fabColumn}>
+        <Pressable
+          style={styles.fabPlus}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setShowAddMenu(true);
+          }}
+        >
+          <Plus size={22} color="#fff" />
+        </Pressable>
+        <Pressable
+          style={styles.fab}
+          onPress={handleRandomize}
+        >
+          <Dices size={20} color={Colors.textPrimary} />
+        </Pressable>
+        <Pressable style={[styles.fab, savedThisOutfit && styles.fabSaved]} onPress={handleSave}>
+          {savedThisOutfit
+            ? <BookmarkCheck size={20} color={Colors.accentGreen} />
+            : <Bookmark size={20} color={Colors.textPrimary} />
+          }
+        </Pressable>
+      </View>
+
+      {/* Chat bar at bottom */}
+      <SafeAreaView edges={['bottom']} style={styles.chatBarWrapper}>
+        <View style={styles.chatBar}>
+          <Pressable style={styles.chatPlusBtn} onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setShowAddMenu(true);
+          }}>
+            <Plus size={18} color={Colors.textSecondary} />
+          </Pressable>
+          <TextInput
+            style={styles.chatInput}
+            placeholder="Describe a scene or use 'Studio'..."
+            placeholderTextColor={Colors.textTertiary}
+            value={chatMessage}
+            onChangeText={setChatMessage}
+          />
+          <Pressable style={styles.sendBtn} onPress={handleSend}>
+            <Send size={16} color={Colors.background} />
+          </Pressable>
+        </View>
+      </SafeAreaView>
+
+      <OutfitFilters
+        visible={showFilters}
+        onClose={() => setShowFilters(false)}
+        onApply={(filters) => {
+          setStyleFilter(filters.style);
+          setColorFilter(filters.color);
+          setWeatherFilter(filters.weather);
+          setShowFilters(false);
+        }}
+      />
+
+      {showAddMenu && (
+        <AddMenuPopover
+          onClose={() => setShowAddMenu(false)}
+          onSelect={handleAddMenuItem}
+        />
+      )}
+
+      <ClosetPickerSheet
+        visible={showClosetPicker}
+        onClose={() => setShowClosetPicker(false)}
+        onSelect={handleClosetSelect}
+        filterCategory={closetPickerCategory}
+        title={closetPickerTitle}
+        multiSelect={closetPickerCategory === ('accessory' as ClothingCategory)}
+      />
+
+      {/* Saved Fits Picker */}
+      <Modal visible={showFitsPicker} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.fitsPickerContainer} edges={['top']}>
+          <View style={styles.fitsPickerHeader}>
+            <Pressable onPress={() => setShowFitsPicker(false)} style={styles.fitsPickerClose}>
+              <Text style={styles.fitsPickerCloseText}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.fitsPickerTitle}>Load Saved Fit</Text>
+            <View style={{ width: 64 }} />
+          </View>
+          <FlatList
+            data={outfits}
+            keyExtractor={(o) => o.id}
+            contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+            renderItem={({ item: outfit }) => (
+              <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fitsPickerItems}>
+                  {outfit.items.slice(0, 5).map((piece) => (
+                    <View key={piece.id} style={styles.fitsPickerThumb}>
+                      <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerImage} contentFit="contain" />
+                    </View>
+                  ))}
+                </ScrollView>
+                <Text style={styles.fitsPickerName}>{outfit.name}</Text>
+                <Text style={styles.fitsPickerSub}>{outfit.items.length} pieces</Text>
+              </Pressable>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 }
 
