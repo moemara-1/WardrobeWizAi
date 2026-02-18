@@ -157,7 +157,7 @@ export default function AnalyzeScreen() {
           });
 
           // Add some padding (margin)
-          const padding = 5; // 5%
+          const padding = 18;
           const y1 = Math.max(0, ymin - padding);
           const x1 = Math.max(0, xmin - padding);
           const y2 = Math.min(100, ymax + padding);
@@ -308,7 +308,7 @@ export default function AnalyzeScreen() {
       const [ymin, xmin, ymax, xmax] = box;
 
       // Add some padding (margin) to the crop to ensure we don't cut off edges
-      const padding = 5; // 5% padding
+      const padding = 18;
       const y1 = Math.max(0, ymin - padding);
       const x1 = Math.max(0, xmin - padding);
       const y2 = Math.min(100, ymax + padding);
