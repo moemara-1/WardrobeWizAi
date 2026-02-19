@@ -1,6 +1,7 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
+import { useSocialStore } from '@/stores/socialStore';
 import { UserPost } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -54,6 +55,10 @@ export default function ProfileScreen() {
   const userProfile = useClosetStore((s) => s.userProfile);
   const updateUserProfile = useClosetStore((s) => s.updateUserProfile);
 
+  const socialFollowers = useSocialStore((s) => s.followers);
+  const socialFollowing = useSocialStore((s) => s.following);
+  const likedPosts = useSocialStore((s) => s.likedPosts);
+
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddPostModal, setShowAddPostModal] = useState(false);
 
@@ -67,18 +72,19 @@ export default function ProfileScreen() {
   const gridData = activeTab === 'closet' ? items
     : activeTab === 'looks' ? outfits
       : activeTab === 'posts' ? posts
-        : [];
+        : activeTab === 'liked' ? likedPosts
+          : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
         data={gridData}
         keyExtractor={(item) => item.id}
-        numColumns={activeTab === 'closet' || activeTab === 'posts' ? GRID_COLUMNS : 1}
+        numColumns={(activeTab === 'closet' || activeTab === 'posts' || activeTab === 'liked') ? GRID_COLUMNS : 1}
         key={activeTab}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.gridContent}
-        columnWrapperStyle={(activeTab === 'closet' || activeTab === 'posts') ? styles.gridRow : undefined}
+        columnWrapperStyle={(activeTab === 'closet' || activeTab === 'posts' || activeTab === 'liked') ? styles.gridRow : undefined}
         ListHeaderComponent={
           <>
             {/* Header row */}
@@ -122,12 +128,12 @@ export default function ProfileScreen() {
             {/* Stats row */}
             <View style={styles.statsRow}>
               <View style={styles.statBlock}>
-                <Text style={styles.statValue}>{userProfile.followers}</Text>
+                <Text style={styles.statValue}>{socialFollowers.length}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statBlock}>
-                <Text style={styles.statValue}>{userProfile.following}</Text>
+                <Text style={styles.statValue}>{socialFollowing.length}</Text>
                 <Text style={styles.statLabel}>Following</Text>
               </View>
               <View style={styles.statDivider} />
@@ -203,6 +209,20 @@ export default function ProfileScreen() {
           </>
         }
         renderItem={({ item }: { item: any }) => {
+          if (activeTab === 'liked') {
+            return (
+              <Pressable
+                style={styles.gridTile}
+                onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+              >
+                <Image
+                  source={{ uri: item.imageUrl || item.image_url }}
+                  style={styles.gridImage}
+                  contentFit="cover"
+                />
+              </Pressable>
+            );
+          }
           if (activeTab === 'posts') {
             return (
               <Pressable

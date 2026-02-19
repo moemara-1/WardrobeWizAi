@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import { ClothingCategory } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
@@ -42,10 +43,10 @@ export interface UserFollow {
 interface SocialState {
     posts: SocialPost[];
     userPosts: SocialPost[];
+    likedPosts: SocialPost[];
     followers: UserFollow[];
     following: UserFollow[];
 
-    // User Profile
     currentUser: {
         username: string;
         avatarUrl: string | null;
@@ -58,6 +59,13 @@ interface SocialState {
     addComment: (postId: string, comment: PostComment) => void;
     toggleFollow: (user: UserFollow) => void;
     updateProfile: (updates: Partial<{ username: string; avatarUrl: string | null; bio: string | null }>) => void;
+    fetchLikedPosts: (userId: string) => Promise<void>;
+    fetchFollowers: (userId: string) => Promise<void>;
+    fetchFollowing: (userId: string) => Promise<void>;
+    hydrateSocial: (userId: string) => Promise<void>;
+    setLikedPosts: (posts: SocialPost[]) => void;
+    setFollowers: (followers: UserFollow[]) => void;
+    setFollowing: (following: UserFollow[]) => void;
 }
 
 const SEED_POSTS: SocialPost[] = [
@@ -184,11 +192,51 @@ const SEED_FOLLOWING: UserFollow[] = [
     { userId: 'user-kai', username: 'kaidrip', avatarUrl: null },
 ];
 
+const syncSocial = {
+    async likePost(postId: string, userId: string, liked: boolean) {
+        try {
+            if (liked) {
+                await supabase.from('likes').insert({ post_id: postId, user_id: userId });
+            } else {
+                await supabase.from('likes').delete().match({ post_id: postId, user_id: userId });
+            }
+        } catch (e) {
+            if (__DEV__) console.warn('syncSocial.likePost failed:', e);
+        }
+    },
+    async addComment(postId: string, comment: PostComment) {
+        try {
+            await supabase.from('comments').insert({
+                id: comment.id,
+                post_id: postId,
+                user_id: comment.userId,
+                username: comment.username,
+                text: comment.text,
+                created_at: comment.createdAt,
+            });
+        } catch (e) {
+            if (__DEV__) console.warn('syncSocial.addComment failed:', e);
+        }
+    },
+    async toggleFollow(targetUserId: string, currentUserId: string, follow: boolean) {
+        try {
+            if (follow) {
+                await supabase.from('follows').insert({ follower_id: currentUserId, following_id: targetUserId });
+            } else {
+                await supabase.from('follows').delete().match({ follower_id: currentUserId, following_id: targetUserId });
+            }
+        } catch (e) {
+            if (__DEV__) console.warn('syncSocial.toggleFollow failed:', e);
+        }
+    },
+};
+
 export const useSocialStore = create<SocialState>()(
     persist(
         (set, get) => ({
             posts: SEED_POSTS,
             userPosts: [],
+            likedPosts: [],
             followers: SEED_FOLLOWERS,
             following: SEED_FOLLOWING,
             currentUser: {
@@ -207,41 +255,148 @@ export const useSocialStore = create<SocialState>()(
                 userPosts: state.userPosts.filter((p) => p.id !== id),
             })),
 
-            likePost: (id) => set((state) => ({
-                posts: state.posts.map((p) =>
-                    p.id === id
-                        ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
-                        : p
-                ),
-            })),
+            likePost: (id) => {
+                const state = get();
+                const post = state.posts.find((p) => p.id === id);
+                if (!post) return;
+                const nowLiked = !post.liked;
 
-            addComment: (postId, comment) => set((state) => ({
-                posts: state.posts.map((p) =>
-                    p.id === postId
-                        ? { ...p, comments: [...p.comments, comment] }
-                        : p
-                ),
-            })),
+                set((s) => {
+                    const updatedPosts = s.posts.map((p) =>
+                        p.id === id
+                            ? { ...p, liked: nowLiked, likes: nowLiked ? p.likes + 1 : p.likes - 1 }
+                            : p
+                    );
+                    const updatedPost = updatedPosts.find((p) => p.id === id)!;
+                    return {
+                        posts: updatedPosts,
+                        likedPosts: nowLiked
+                            ? [updatedPost, ...s.likedPosts.filter((p) => p.id !== id)]
+                            : s.likedPosts.filter((p) => p.id !== id),
+                    };
+                });
 
-            toggleFollow: (user) => set((state) => {
+                syncSocial.likePost(id, 'current-user', nowLiked);
+            },
+
+            addComment: (postId, comment) => {
+                set((state) => ({
+                    posts: state.posts.map((p) =>
+                        p.id === postId
+                            ? { ...p, comments: [...p.comments, comment] }
+                            : p
+                    ),
+                }));
+                syncSocial.addComment(postId, comment);
+            },
+
+            toggleFollow: (user) => {
+                const state = get();
                 const isFollowing = state.following.some((f) => f.userId === user.userId);
-                return {
+                set({
                     following: isFollowing
                         ? state.following.filter((f) => f.userId !== user.userId)
                         : [...state.following, user],
-                };
-            }),
+                });
+                syncSocial.toggleFollow(user.userId, 'current-user', !isFollowing);
+            },
 
             updateProfile: (updates) => set((state) => ({
                 currentUser: { ...state.currentUser, ...updates }
             })),
+
+            setLikedPosts: (posts) => set({ likedPosts: posts }),
+            setFollowers: (followers) => set({ followers }),
+            setFollowing: (following) => set({ following }),
+
+            fetchLikedPosts: async (userId: string) => {
+                try {
+                    const { data } = await supabase
+                        .from('likes')
+                        .select('post_id, posts(*)')
+                        .eq('user_id', userId)
+                        .order('created_at', { ascending: false });
+                    if (data?.length) {
+                        const posts: SocialPost[] = data
+                            .filter((row: any) => row.posts)
+                            .map((row: any) => ({
+                                id: row.posts.id,
+                                userId: row.posts.user_id,
+                                username: row.posts.username || '',
+                                avatarUrl: row.posts.avatar_url || null,
+                                imageUrl: row.posts.image_url,
+                                caption: row.posts.caption || '',
+                                clothingPieces: [],
+                                likes: row.posts.likes_count || 0,
+                                liked: true,
+                                comments: [],
+                                createdAt: row.posts.created_at,
+                            }));
+                        set({ likedPosts: posts });
+                    }
+                } catch (e) {
+                    if (__DEV__) console.warn('fetchLikedPosts failed:', e);
+                }
+            },
+
+            fetchFollowers: async (userId: string) => {
+                try {
+                    const { data } = await supabase
+                        .from('follows')
+                        .select('follower_id, profiles!follows_follower_id_fkey(id, username, avatar_url)')
+                        .eq('following_id', userId);
+                    if (data?.length) {
+                        const followers: UserFollow[] = data
+                            .filter((row: any) => row.profiles)
+                            .map((row: any) => ({
+                                userId: row.profiles.id,
+                                username: row.profiles.username || '',
+                                avatarUrl: row.profiles.avatar_url || null,
+                            }));
+                        set({ followers });
+                    }
+                } catch (e) {
+                    if (__DEV__) console.warn('fetchFollowers failed:', e);
+                }
+            },
+
+            fetchFollowing: async (userId: string) => {
+                try {
+                    const { data } = await supabase
+                        .from('follows')
+                        .select('following_id, profiles!follows_following_id_fkey(id, username, avatar_url)')
+                        .eq('follower_id', userId);
+                    if (data?.length) {
+                        const following: UserFollow[] = data
+                            .filter((row: any) => row.profiles)
+                            .map((row: any) => ({
+                                userId: row.profiles.id,
+                                username: row.profiles.username || '',
+                                avatarUrl: row.profiles.avatar_url || null,
+                            }));
+                        set({ following });
+                    }
+                } catch (e) {
+                    if (__DEV__) console.warn('fetchFollowing failed:', e);
+                }
+            },
+
+            hydrateSocial: async (userId: string) => {
+                const store = get();
+                await Promise.all([
+                    store.fetchLikedPosts(userId),
+                    store.fetchFollowers(userId),
+                    store.fetchFollowing(userId),
+                ]);
+            },
         }),
         {
             name: 'social-storage',
-            version: 1,
+            version: 2,
             storage: createJSONStorage(() => AsyncStorage),
             partialize: (state) => ({
                 userPosts: state.userPosts,
+                likedPosts: state.likedPosts,
                 followers: state.followers,
                 following: state.following,
                 currentUser: state.currentUser,

@@ -168,6 +168,39 @@ async function callDeepInfraImage(model: string, input: Record<string, unknown>)
     throw new Error(`Unexpected DeepInfra response format: ${JSON.stringify(result).slice(0, 100)}...`);
 }
 
+interface GoogleVisionBox {
+    name: string;
+    score: number;
+    boundingPoly: { normalizedVertices: { x: number; y: number }[] };
+}
+
+async function callGoogleVision(base64: string): Promise<GoogleVisionBox[]> {
+    const key = process.env.EXPO_PUBLIC_GOOGLE_VISION_KEY;
+    if (!key) throw new Error('Missing EXPO_PUBLIC_GOOGLE_VISION_KEY');
+
+    const response = await fetch(
+        `https://vision.googleapis.com/v1/images:annotate?key=${key}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                requests: [{
+                    image: { content: base64 },
+                    features: [{ type: 'OBJECT_LOCALIZATION', maxResults: 10 }],
+                }],
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Google Vision API error (${response.status}): ${errorBody}`);
+    }
+
+    const data = await response.json();
+    return data.responses?.[0]?.localizedObjectAnnotations || [];
+}
+
 async function prepareImageForUpload(uri: string): Promise<string> {
     if (!uri) return uri;
     if (uri.startsWith('http') || uri.startsWith('data:')) return uri;
@@ -250,7 +283,7 @@ Rules:
                 },
             ],
         }],
-        max_tokens: 512,
+        max_tokens: 256,
         temperature: 0.2,
     });
 
@@ -295,7 +328,7 @@ Return JSON:
 }`,
             },
         ],
-        max_tokens: 512,
+        max_tokens: 256,
         temperature: 0.3,
     });
 
@@ -329,6 +362,61 @@ ${closetContext}`,
     return content;
 }
 
+/* ─── Smart Outfit Assembly ─── */
+
+interface SmartOutfitItem {
+    id: string;
+    name: string;
+    category: string;
+    colors: string[];
+    tags: string[];
+}
+
+export async function generateSmartOutfit(
+    items: SmartOutfitItem[],
+    filters: { style: string[]; color: string[]; weather: string[] },
+): Promise<string[]> {
+    const itemList = items.map(i =>
+        `ID:${i.id} | ${i.name} | ${i.category} | colors: ${i.colors.join(', ')} | tags: ${i.tags.join(', ')}`
+    ).join('\n');
+
+    const filterDesc = [
+        filters.style.length > 0 ? `Style: ${filters.style.join(', ')}` : '',
+        filters.color.length > 0 ? `Color palette: ${filters.color.join(', ')}` : '',
+        filters.weather.length > 0 ? `Weather: ${filters.weather.join(', ')}` : '',
+    ].filter(Boolean).join('. ');
+
+    const content = await callDeepInfra({
+        model: TEXT_MODEL,
+        messages: [
+            {
+                role: 'system',
+                content: 'You are a fashion stylist AI. Pick a cohesive outfit from the given items. Consider color coordination, layering, and style consistency. Return ONLY a JSON array of item IDs.',
+            },
+            {
+                role: 'user',
+                content: `Pick a complete outfit (top + bottom + optional outerwear + optional shoes) from these items:
+${itemList}
+
+${filterDesc ? `Preferences: ${filterDesc}` : 'Pick the most stylish combination.'}
+
+Return ONLY a JSON array of IDs like: ["id1", "id2", "id3"]`,
+            },
+        ],
+        max_tokens: 256,
+        temperature: 0.7,
+    });
+
+    const match = content.match(/\[[\s\S]*?\]/);
+    if (!match) return [];
+    try {
+        const ids: string[] = JSON.parse(match[0]);
+        return ids.filter(id => items.some(i => i.id === id));
+    } catch {
+        return [];
+    }
+}
+
 /* ─── Outfit Analysis (Fit Pic) ─── */
 
 export interface OutfitDetection {
@@ -353,13 +441,97 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
     const preparedUri = await prepareImageForUpload(imageUri);
     const { uri: resizedUri } = await manipulateAsync(
         preparedUri,
-        [{ resize: { width: 1024, height: 1024 } }],
+        [{ resize: { width: 768, height: 768 } }],
         { compress: 0.8, format: SaveFormat.JPEG }
     );
 
     const base64 = await FileSystem.readAsStringAsync(resizedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
+
+    // Strategy 1: Google Vision for fast bounding boxes + LLM for details
+    try {
+        if (__DEV__) console.log('[DetectFit] Trying Google Vision for fast detection...');
+        const visionObjects = await callGoogleVision(base64);
+
+        const clothingLabels = new Set([
+            'clothing', 'shirt', 'pants', 'jeans', 'dress', 'skirt', 'jacket',
+            'coat', 'shoe', 'footwear', 'boot', 'sneaker', 'hat', 'bag',
+            'handbag', 'backpack', 'necklace', 'watch', 'glasses', 'sunglasses',
+            'top', 'shorts', 'sweater', 'hoodie', 'vest', 'belt', 'scarf',
+            'outerwear', 'blazer', 'sandal',
+        ]);
+
+        const clothingBoxes = visionObjects.filter(obj =>
+            clothingLabels.has(obj.name.toLowerCase()) || obj.score > 0.6
+        );
+
+        if (clothingBoxes.length > 0) {
+            if (__DEV__) console.log(`[DetectFit] Google Vision found ${clothingBoxes.length} objects, getting LLM details...`);
+
+            const detectionSummary = clothingBoxes.map(obj => {
+                const verts = obj.boundingPoly.normalizedVertices;
+                const box = [
+                    Math.round((verts[0]?.y ?? 0) * 100),
+                    Math.round((verts[0]?.x ?? 0) * 100),
+                    Math.round((verts[2]?.y ?? 0) * 100),
+                    Math.round((verts[2]?.x ?? 0) * 100),
+                ];
+                return `${obj.name} (confidence ${(obj.score * 100).toFixed(0)}%) at box [${box.join(',')}]`;
+            }).join('\n');
+
+            const detailPrompt = `You are a fashion expert. An object detector found these items in an outfit photo:
+${detectionSummary}
+
+For EACH detected clothing item, provide detailed fashion analysis. Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
+
+Return ONLY valid JSON:
+{
+  "detections": [
+    {
+      "name": "very specific descriptive name with colors",
+      "category": "category",
+      "brand": "Brand or Unknown",
+      "brandConfidence": 0.5,
+      "modelName": "Model or Unknown",
+      "estimatedValue": 50,
+      "colors": ["color"],
+      "confidence": 0.9,
+      "box_2d": [ymin, xmin, ymax, xmax]
+    }
+  ],
+  "overallStyle": "casual",
+  "occasion": "casual"
+}`;
+
+            const content = await callDeepInfra({
+                model: VISION_MODEL,
+                messages: [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: detailPrompt },
+                        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+                    ],
+                }],
+                max_tokens: 1000,
+                temperature: 0.2,
+            });
+
+            const parsed = parseJSON<OutfitAnalysis>(content);
+            if (parsed.detections?.length > 0) {
+                return {
+                    detections: parsed.detections,
+                    overallStyle: parsed.overallStyle,
+                    occasion: parsed.occasion,
+                };
+            }
+        }
+    } catch (e) {
+        if (__DEV__) console.warn('[DetectFit] Google Vision fast path failed, falling back to LLM-only:', e);
+    }
+
+    // Strategy 2: Full LLM fallback (original approach)
+    if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision) full analysis...');
 
     const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item.
 
@@ -397,24 +569,16 @@ Return ONLY valid JSON in this exact format:
 
 CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
 
-    if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision)...');
-
     const content = await callDeepInfra({
         model: VISION_MODEL,
         messages: [{
             role: 'user',
             content: [
-                {
-                    type: 'text',
-                    text: prompt,
-                },
-                {
-                    type: 'image_url',
-                    image_url: { url: `data:image/jpeg;base64,${base64}` },
-                },
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
             ],
         }],
-        max_tokens: 2000,
+        max_tokens: 1000,
         temperature: 0.2,
     });
 
@@ -689,6 +853,7 @@ export async function generateOutfitTwin(
                     category: img.category,
                     name: img.name,
                 })),
+                ...(textPrompt ? { prompt: textPrompt } : {}),
             },
         });
 
@@ -785,13 +950,17 @@ export async function regenerateCleanImage(
         if (pipelineType === 'detect-fit-seedream') {
             if (__DEV__) console.log('Pipeline 2: Calling Replicate Seedream-4...');
 
-            const prompt = `Remove the background and isolate this ${_product.description || _product.name} on a plain white background. Keep the garment exactly as-is — same colors, patterns, textures, shape. Clean product photo.`;
+            const desc = _product.description || _product.name;
+            const isExtractionPrompt = desc.toLowerCase().startsWith('extract');
+            const prompt = isExtractionPrompt
+                ? desc
+                : `Remove the background and isolate this ${desc} on a plain white background. Keep the garment exactly as-is — same colors, patterns, textures, shape. Clean product photo.`;
 
             const seedreamOutput = await callReplicate('bytedance/seedream-4', {
                 image: currentImageUri,
                 prompt: prompt,
-                strength: 0.35,
-                guidance_scale: 7.5,
+                strength: isExtractionPrompt ? 0.55 : 0.35,
+                guidance_scale: isExtractionPrompt ? 9 : 7.5,
             });
 
             let seedreamResult = Array.isArray(seedreamOutput) ? seedreamOutput[0] : seedreamOutput;

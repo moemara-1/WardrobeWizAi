@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { ClosetItem, ClothingCategory, DigitalTwin, GeneratedLook, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
+import { ClosetItem, ClothingCategory, Collection, DigitalTwin, GeneratedLook, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -85,6 +85,14 @@ interface ClosetState {
     posts: UserPost[];
     addPost: (post: UserPost) => void;
     deletePost: (id: string) => void;
+
+    // Collections
+    collections: Collection[];
+    addCollection: (collection: Collection) => void;
+    updateCollection: (id: string, updates: Partial<Collection>) => void;
+    deleteCollection: (id: string) => void;
+    addItemToCollection: (collectionId: string, itemId: string) => void;
+    removeItemFromCollection: (collectionId: string, itemId: string) => void;
 
     // User Profile
     userProfile: UserProfileData;
@@ -235,6 +243,7 @@ export const useClosetStore = create<ClosetState>()(
             savedFits: [],
             generatedLooks: [],
             posts: [],
+            collections: [],
             userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
 
             // Auth actions
@@ -344,6 +353,29 @@ export const useClosetStore = create<ClosetState>()(
                 if (userId) syncToSupabase.deletePost(id);
             },
 
+            // Collections
+            addCollection: (collection) => set((state) => ({ collections: [collection, ...state.collections] })),
+            updateCollection: (id, updates) => set((state) => ({
+                collections: state.collections.map((c) => c.id === id ? { ...c, ...updates } : c),
+            })),
+            deleteCollection: (id) => set((state) => ({
+                collections: state.collections.filter((c) => c.id !== id),
+            })),
+            addItemToCollection: (collectionId, itemId) => set((state) => ({
+                collections: state.collections.map((c) =>
+                    c.id === collectionId && !c.item_ids.includes(itemId)
+                        ? { ...c, item_ids: [...c.item_ids, itemId] }
+                        : c
+                ),
+            })),
+            removeItemFromCollection: (collectionId, itemId) => set((state) => ({
+                collections: state.collections.map((c) =>
+                    c.id === collectionId
+                        ? { ...c, item_ids: c.item_ids.filter((i) => i !== itemId) }
+                        : c
+                ),
+            })),
+
             // User Profile
             updateUserProfile: (updates) => {
                 set((state) => {
@@ -365,6 +397,7 @@ export const useClosetStore = create<ClosetState>()(
                 savedFits: state.savedFits,
                 generatedLooks: state.generatedLooks,
                 posts: state.posts,
+                collections: state.collections,
                 userProfile: state.userProfile,
             }),
             migrate: (persisted: unknown, _version: number) => {
@@ -480,6 +513,13 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
                 bio: row.bio || '',
                 pfp_url: row.avatar_url || undefined,
             });
+        }
+        // Hydrate social data in background
+        try {
+            const { useSocialStore } = require('@/stores/socialStore');
+            useSocialStore.getState().hydrateSocial(userId);
+        } catch (socialErr) {
+            if (__DEV__) console.warn('hydrateSocial failed:', socialErr);
         }
     } catch (e) {
         if (__DEV__) console.warn('hydrateFromSupabase failed:', e);

@@ -2,7 +2,7 @@ import { AddMenuPopover } from '@/components/ui/AddMenuPopover';
 import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
 import { Colors, Radius, Typography } from '@/constants/Colors';
-import { generateOutfitTwin, OutfitTwinItem } from '@/lib/ai';
+import { generateOutfitTwin, generateSmartOutfit, OutfitTwinItem } from '@/lib/ai';
 import { classifyGarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, GeneratedLook, Outfit } from '@/types';
@@ -292,7 +292,46 @@ export default function StylistScreen() {
     [canvasItems],
   );
 
-  const handleRandomize = useCallback(() => {
+  const filterItems = useCallback((allItems: ClosetItem[]): ClosetItem[] => {
+    let filtered = allItems;
+    const hasFilters = styleFilter.length > 0 || colorFilter.length > 0 || weatherFilter.length > 0;
+    if (!hasFilters) return filtered;
+
+    if (colorFilter.length > 0) {
+      filtered = filtered.filter((item) => {
+        const itemColors = item.colors.map(c => c.toLowerCase());
+        return colorFilter.some((f) => {
+          if (f === 'light') return itemColors.some(c => /white|cream|beige|ivory|pastel|light/.test(c));
+          if (f === 'dark') return itemColors.some(c => /black|navy|dark|charcoal/.test(c));
+          if (f === 'bright') return itemColors.some(c => /red|orange|yellow|pink|neon|bright|vivid/.test(c));
+          if (f === 'monochrome') return itemColors.every(c => /black|white|grey|gray/.test(c));
+          return true;
+        });
+      });
+    }
+
+    if (weatherFilter.length > 0) {
+      filtered = filtered.filter((item) => {
+        return weatherFilter.some((w) => {
+          if (w === 'cold') return ['outerwear', 'top'].includes(item.category);
+          if (w === 'hot') return item.category !== 'outerwear';
+          if (w === 'warm') return item.category !== 'outerwear' || item.layer_type === 'inner';
+          return true;
+        });
+      });
+    }
+
+    if (styleFilter.length > 0) {
+      filtered = filtered.filter((item) => {
+        const itemTags = item.tags.map(t => t.toLowerCase());
+        return styleFilter.some((s) => itemTags.includes(s) || item.garment_type?.toLowerCase().includes(s));
+      });
+    }
+
+    return filtered.length > 0 ? filtered : allItems;
+  }, [styleFilter, colorFilter, weatherFilter]);
+
+  const handleRandomize = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setSavedThisOutfit(false);
 
@@ -301,9 +340,36 @@ export default function StylistScreen() {
       return;
     }
 
-    const picked = pickRandomBySlot(items);
+    const filteredItems = filterItems(items);
+    const hasFilters = styleFilter.length > 0 || colorFilter.length > 0 || weatherFilter.length > 0;
+
+    if (hasFilters && filteredItems.length >= 2) {
+      try {
+        const smartItems = filteredItems.map(i => ({
+          id: i.id, name: i.name, category: i.category,
+          colors: i.colors, tags: i.tags,
+        }));
+        const pickedIds = await Promise.race([
+          generateSmartOutfit(smartItems, { style: styleFilter, color: colorFilter, weather: weatherFilter }),
+          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+        ]);
+        if (pickedIds.length > 0) {
+          const pickedItems = pickedIds
+            .map(id => filteredItems.find(i => i.id === id))
+            .filter(Boolean) as ClosetItem[];
+          if (pickedItems.length > 0) {
+            setCanvasItems(buildVerticalEntries(pickedItems));
+            return;
+          }
+        }
+      } catch {
+        // fallback to random
+      }
+    }
+
+    const picked = pickRandomBySlot(filteredItems);
     setCanvasItems(buildVerticalEntries(picked));
-  }, [items]);
+  }, [items, filterItems, styleFilter, colorFilter, weatherFilter]);
 
   const handleSave = useCallback(() => {
     if (currentOutfitItems.length === 0) {

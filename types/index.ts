@@ -163,3 +163,14 @@ export interface UserProfileData {
     followers: number;
     following: number;
 }
+
+export interface Collection {
+    id: string;
+    user_id: string;
+    name: string;
+    description?: string;
+    cover_image_url?: string;
+    item_ids: string[];
+    outfit_ids: string[];
+    created_at: string;
+}

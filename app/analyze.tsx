@@ -298,38 +298,14 @@ export default function AnalyzeScreen() {
   const processPieceImage = async (
     originalUri: string,
     pieceId: string,
-    box: [number, number, number, number],
-    imgWidth: number,
-    imgHeight: number,
+    _box: [number, number, number, number],
+    _imgWidth: number,
+    _imgHeight: number,
     piece: DetectedPiece
   ) => {
     try {
-      // box is [ymin, xmin, ymax, xmax] in 0-100 scale
-      const [ymin, xmin, ymax, xmax] = box;
-
-      // Add some padding (margin) to the crop to ensure we don't cut off edges
-      const padding = 18;
-      const y1 = Math.max(0, ymin - padding);
-      const x1 = Math.max(0, xmin - padding);
-      const y2 = Math.min(100, ymax + padding);
-      const x2 = Math.min(100, xmax + padding);
-
-      const cropX = (x1 / 100) * imgWidth;
-      const cropY = (y1 / 100) * imgHeight;
-      const cropW = ((x2 - x1) / 100) * imgWidth;
-      const cropH = ((y2 - y1) / 100) * imgHeight;
-
-      // Crop
-      const cropped = await manipulateAsync(
-        originalUri,
-        [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
-        { format: SaveFormat.JPEG, compress: 0.9 }
-      );
-
-      // Clean
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, isCleaning: true } : p));
 
-      // Construct a minimal product object for the cleaner prompt
       const colorDesc = piece.colors.length > 0 ? piece.colors.join(' and ') : '';
       const brandDesc = piece.brand ? `${piece.brand} ` : '';
       const richDescription = `${brandDesc}${colorDesc} ${piece.name}`.trim();
@@ -341,10 +317,10 @@ export default function AnalyzeScreen() {
         garment_type: piece.garmentType || null,
         colors: piece.colors,
         material: null,
-        description: richDescription,
+        description: `Extract ONLY the ${richDescription} from this outfit photo. Remove the person, background, and all other clothing items. Show just the ${piece.category} item alone on a white background, fully visible from top to bottom.`,
       };
 
-      const cleanUri = await regenerateCleanImage(cropped.uri, tempProduct, 'detect-fit-seedream');
+      const cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
 
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
 

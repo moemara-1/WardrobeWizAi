@@ -1,11 +1,13 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
+import { useSocialStore } from '@/stores/socialStore';
+import { supabase } from '@/lib/supabase';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
-import { ArrowLeft, TrendingUp, Trophy } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import { ArrowLeft, TrendingUp, Trophy, Users } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Dimensions,
     Pressable,
@@ -30,18 +32,68 @@ const CATEGORY_COLORS: Record<string, string> = {
     dresses: '#EC4899',
 };
 
-// Mock leaderboard data (would come from backend in production)
-const LEADERBOARD_DATA = [
-    { rank: 1, name: 'StyleKing_23', pieces: 312, value: 86200, color: '#FFD700' },
-    { rank: 2, name: 'DesignerDave', pieces: 188, value: 54800, color: '#C0C0C0' },
-    { rank: 3, name: 'FashionFiona', pieces: 156, value: 42100, color: '#CD7F32' },
-];
+type LeaderboardScope = 'friends' | 'global';
+
+interface LeaderboardEntry {
+    rank: number;
+    name: string;
+    pieces: number;
+    value: number;
+    color: string;
+    userId?: string;
+}
 
 export default function ClosetValueScreen() {
     const Colors = useThemeColors();
     const styles = useMemo(() => createStyles(Colors), [Colors]);
     const [activeTab, setActiveTab] = useState<TabView>('overview');
+    const [leaderboardScope, setLeaderboardScope] = useState<LeaderboardScope>('friends');
+    const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
     const { items } = useClosetStore();
+    const following = useSocialStore((s) => s.following);
+
+    useEffect(() => {
+        if (activeTab !== 'leaderboard') return;
+
+        const fetchLeaderboard = async () => {
+            try {
+                let query = supabase
+                    .from('profiles')
+                    .select('id, username, avatar_url, total_closet_value, item_count')
+                    .order('total_closet_value', { ascending: false })
+                    .limit(20);
+
+                if (leaderboardScope === 'friends') {
+                    const followingIds = following.map((f) => f.userId);
+                    if (followingIds.length === 0) {
+                        setLeaderboardData([]);
+                        return;
+                    }
+                    query = query.in('id', followingIds);
+                }
+
+                const { data } = await query;
+                if (data?.length) {
+                    const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+                    const entries: LeaderboardEntry[] = data.map((row: any, idx: number) => ({
+                        rank: idx + 1,
+                        name: row.username || 'Unknown',
+                        pieces: row.item_count || 0,
+                        value: row.total_closet_value || 0,
+                        color: rankColors[idx] || Colors.textSecondary,
+                        userId: row.id,
+                    }));
+                    setLeaderboardData(entries);
+                } else {
+                    setLeaderboardData([]);
+                }
+            } catch (e) {
+                if (__DEV__) console.warn('fetchLeaderboard failed:', e);
+            }
+        };
+
+        fetchLeaderboard();
+    }, [activeTab, leaderboardScope, following, Colors.textSecondary]);
 
     // Calculate total value and category breakdown
     const { totalValue, categoryBreakdown, topItems, itemCount } = useMemo(() => {
@@ -189,7 +241,6 @@ export default function ClosetValueScreen() {
                     </>
                 ) : (
                     <>
-                        {/* Your Value Card with Rank */}
                         <View style={styles.valueCard}>
                             <View style={styles.valueCardHeader}>
                                 <Text style={styles.valueLabel}>Your Closet Value</Text>
@@ -199,25 +250,46 @@ export default function ClosetValueScreen() {
                                 </View>
                             </View>
                             <Text style={styles.valueAmount}>{formatCurrency(totalValue)}</Text>
-                            <Text style={styles.valueSub}>{itemCount} pieces · Top 15%</Text>
+                            <Text style={styles.valueSub}>{itemCount} pieces</Text>
                         </View>
 
-                        {/* Leaderboard */}
+                        <View style={styles.scopeTabs}>
+                            <Pressable
+                                style={[styles.scopeTab, leaderboardScope === 'friends' && styles.scopeTabActive]}
+                                onPress={() => { Haptics.selectionAsync(); setLeaderboardScope('friends'); }}
+                            >
+                                <Users size={14} color={leaderboardScope === 'friends' ? '#FFFFFF' : Colors.textTertiary} />
+                                <Text style={[styles.scopeTabText, leaderboardScope === 'friends' && styles.scopeTabTextActive]}>Friends</Text>
+                            </Pressable>
+                            <Pressable
+                                style={[styles.scopeTab, leaderboardScope === 'global' && styles.scopeTabActive]}
+                                onPress={() => { Haptics.selectionAsync(); setLeaderboardScope('global'); }}
+                            >
+                                <Trophy size={14} color={leaderboardScope === 'global' ? '#FFFFFF' : Colors.textTertiary} />
+                                <Text style={[styles.scopeTabText, leaderboardScope === 'global' && styles.scopeTabTextActive]}>Global</Text>
+                            </Pressable>
+                        </View>
+
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>Top Closets</Text>
-                            {LEADERBOARD_DATA.map((entry) => (
-                                <View key={entry.rank} style={[styles.leaderRow, { borderColor: `${entry.color}30` }]}>
-                                    <Text style={[styles.leaderRank, { color: entry.color }]}>{entry.rank}</Text>
-                                    <View style={[styles.leaderAvatar, { backgroundColor: entry.color }]} />
-                                    <View style={styles.leaderInfo}>
-                                        <Text style={styles.leaderName}>{entry.name}</Text>
-                                        <Text style={styles.leaderPieces}>{entry.pieces} pieces</Text>
+                            {leaderboardData.length === 0 ? (
+                                <Text style={styles.emptyText}>
+                                    {leaderboardScope === 'friends' ? 'Follow people to see their rankings' : 'No rankings yet'}
+                                </Text>
+                            ) : (
+                                leaderboardData.map((entry) => (
+                                    <View key={entry.rank} style={[styles.leaderRow, { borderColor: `${entry.color}30` }]}>
+                                        <Text style={[styles.leaderRank, { color: entry.color }]}>{entry.rank}</Text>
+                                        <View style={[styles.leaderAvatar, { backgroundColor: entry.color }]} />
+                                        <View style={styles.leaderInfo}>
+                                            <Text style={styles.leaderName}>{entry.name}</Text>
+                                            <Text style={styles.leaderPieces}>{entry.pieces} pieces</Text>
+                                        </View>
+                                        <Text style={[styles.leaderValue, { color: entry.color }]}>{formatCurrency(entry.value)}</Text>
                                     </View>
-                                    <Text style={[styles.leaderValue, { color: entry.color }]}>{formatCurrency(entry.value)}</Text>
-                                </View>
-                            ))}
+                                ))
+                            )}
 
-                            {/* User row */}
                             <View style={[styles.leaderRow, { borderColor: `${Colors.accentGreen}30`, backgroundColor: '#1A1A1A' }]}>
                                 <Text style={[styles.leaderRank, { color: Colors.accentGreen }]}>{userRank}</Text>
                                 <View style={[styles.leaderAvatar, { backgroundColor: Colors.accentGreen }]} />
@@ -249,6 +321,11 @@ function createStyles(C: any) {
         tabText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textTertiary },
         tabTextActive: { fontFamily: Typography.bodyFamilyBold, color: '#FFFFFF' },
         scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
+        scopeTabs: { flexDirection: 'row', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.pill, padding: 4, marginBottom: 16 },
+        scopeTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: Radius.pill },
+        scopeTabActive: { backgroundColor: C.accentGreen },
+        scopeTabText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textTertiary },
+        scopeTabTextActive: { fontFamily: Typography.bodyFamilyBold, color: '#FFFFFF' },
         // Value Card
         valueCard: { backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, padding: 24, marginBottom: 20 },
         valueCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

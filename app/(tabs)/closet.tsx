@@ -1,8 +1,8 @@
 import { AddToClosetSheet } from '@/components/ui/AddToClosetSheet';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
-import { useClosetStore } from '@/stores/closetStore';
-import { ClosetItem, ClothingCategory, Outfit } from '@/types';
+import { generateId, useClosetStore } from '@/stores/closetStore';
+import { ClosetItem, ClothingCategory, Collection, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -53,13 +53,20 @@ export default function ClosetScreen() {
     brand: null,
   });
   const [selectedFit, setSelectedFit] = useState<Outfit | null>(null);
+  const [showCreateCollection, setShowCreateCollection] = useState(false);
+  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+  const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
 
   const items = useClosetStore((s) => s.items);
   const outfits = useClosetStore((s) => s.outfits);
+  const collections = useClosetStore((s) => s.collections);
   const updateItem = useClosetStore((s) => s.updateItem);
   const deleteItem = useClosetStore((s) => s.deleteItem);
   const deleteOutfit = useClosetStore((s) => s.deleteOutfit);
   const setCanvasOutfit = useClosetStore((s) => s.setCanvasOutfit);
+  const addCollection = useClosetStore((s) => s.addCollection);
+  const updateCollection = useClosetStore((s) => s.updateCollection);
+  const deleteCollection = useClosetStore((s) => s.deleteCollection);
 
   // Extract unique values for each filter from items
   const filterOptions = useMemo(() => {
@@ -295,7 +302,6 @@ export default function ClosetScreen() {
               columnWrapperStyle={{ gap: 12 }}
               contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
               renderItem={({ item: outfit }) => {
-                // Group resolved items by slot (like the canvas)
                 const resolvedItems = outfit.item_ids
                   .map((oid) => items.find((i) => i.id === oid))
                   .filter(Boolean) as ClosetItem[];
@@ -303,7 +309,6 @@ export default function ClosetScreen() {
                 const bySlot = slotOrder
                   .map(slot => resolvedItems.find(ri => classifyGarmentSlot(ri.category, ri.garment_type || undefined) === slot))
                   .filter(Boolean) as ClosetItem[];
-                // Fallback: if slot classification yields nothing, just show all
                 const displayPieces = bySlot.length > 0 ? bySlot : resolvedItems;
 
                 return (
@@ -314,16 +319,21 @@ export default function ClosetScreen() {
                       setSelectedFit(outfit);
                     }}
                   >
-                    {/* Canvas-style stacked preview */}
                     <View style={styles.fitStackPreview}>
-                      {displayPieces.slice(0, 4).map((piece, idx) => (
-                        <View key={piece.id} style={[styles.fitStackSlot, { flex: idx === 1 ? 1.4 : 1 }]}>
-                          <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitStackImage} contentFit="contain" />
-                        </View>
-                      ))}
-                      {displayPieces.length === 0 && (
-                        <View style={styles.fitStackSlot}>
-                          <Sparkles size={18} color={Colors.textTertiary} />
+                      {outfit.collage_url ? (
+                        <Image source={{ uri: outfit.collage_url }} style={styles.fitCollageImage} contentFit="cover" />
+                      ) : (
+                        <View style={styles.fitMannequinStack}>
+                          {displayPieces.slice(0, 4).map((piece, idx) => (
+                            <View key={piece.id} style={[styles.fitMannequinSlot, idx > 0 && { marginTop: -18 }]}>
+                              <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitMannequinImage} contentFit="contain" />
+                            </View>
+                          ))}
+                          {displayPieces.length === 0 && (
+                            <View style={styles.fitEmptySlot}>
+                              <Sparkles size={18} color={Colors.textTertiary} />
+                            </View>
+                          )}
                         </View>
                       )}
                     </View>
@@ -354,23 +364,33 @@ export default function ClosetScreen() {
                     </Pressable>
                   </View>
 
-                  {/* Full-size canvas preview */}
                   <View style={fitModalStyles.canvasPreview}>
                     {(() => {
                       const resolvedItems = selectedFit.item_ids
                         .map((oid) => items.find((i) => i.id === oid))
                         .filter(Boolean) as ClosetItem[];
+
+                      if (selectedFit.collage_url) {
+                        return (
+                          <Image source={{ uri: selectedFit.collage_url }} style={fitModalStyles.collageImage} contentFit="cover" />
+                        );
+                      }
+
                       const slotOrder: GarmentSlot[] = ['headwear', 'top', 'bottom', 'footwear'];
                       const bySlot = slotOrder
                         .map(slot => resolvedItems.find(ri => classifyGarmentSlot(ri.category, ri.garment_type || undefined) === slot))
                         .filter(Boolean) as ClosetItem[];
                       const displayPieces = bySlot.length > 0 ? bySlot : resolvedItems;
-                      return displayPieces.map((piece, idx) => (
-                        <View key={piece.id} style={[fitModalStyles.canvasSlot, { flex: idx === 1 ? 1.4 : 1 }]}>
-                          <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={fitModalStyles.canvasImage} contentFit="contain" />
-                          <Text style={fitModalStyles.slotLabel}>{piece.name}</Text>
+                      return (
+                        <View style={fitModalStyles.mannequinStack}>
+                          {displayPieces.map((piece, idx) => (
+                            <View key={piece.id} style={[fitModalStyles.mannequinSlot, idx > 0 && { marginTop: -24 }]}>
+                              <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={fitModalStyles.mannequinImage} contentFit="contain" />
+                              <Text style={fitModalStyles.slotLabel}>{piece.name}</Text>
+                            </View>
+                          ))}
                         </View>
-                      ));
+                      );
                     })()}
                   </View>
 
@@ -405,9 +425,146 @@ export default function ClosetScreen() {
       )}
 
       {activeTab === 'collections' && (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No collections yet</Text>
-          <Text style={styles.emptySubtitle}>Organize your pieces and fits into collections</Text>
+        <View style={{ flex: 1 }}>
+          {collections.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No collections yet</Text>
+              <Text style={styles.emptySubtitle}>Organize your pieces and fits into collections</Text>
+              <Pressable style={styles.emptyBtn} onPress={() => setShowCreateCollection(true)}>
+                <Plus size={18} color={Colors.background} />
+                <Text style={styles.emptyBtnText}>Create Collection</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <FlatList
+              data={collections}
+              keyExtractor={(c) => c.id}
+              numColumns={2}
+              columnWrapperStyle={{ gap: 12 }}
+              contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+              renderItem={({ item: collection }) => {
+                const coverItem = collection.item_ids.length > 0
+                  ? items.find((i) => i.id === collection.item_ids[0])
+                  : null;
+                const coverUri = collection.cover_image_url || coverItem?.clean_image_url || coverItem?.image_url;
+                return (
+                  <Pressable
+                    style={colStyles.card}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedCollection(collection); }}
+                    onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); setEditingCollection(collection); }}
+                  >
+                    <View style={colStyles.coverFrame}>
+                      {coverUri ? (
+                        <Image source={{ uri: coverUri }} style={colStyles.coverImage} contentFit="cover" />
+                      ) : (
+                        <View style={colStyles.coverPlaceholder}>
+                          <Plus size={24} color={Colors.textTertiary} />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={colStyles.name} numberOfLines={1}>{collection.name}</Text>
+                    <Text style={colStyles.count}>{collection.item_ids.length} pieces</Text>
+                  </Pressable>
+                );
+              }}
+              ListHeaderComponent={
+                <Pressable style={colStyles.createBtn} onPress={() => setShowCreateCollection(true)}>
+                  <Plus size={16} color={Colors.accentGreen} />
+                  <Text style={colStyles.createBtnText}>New Collection</Text>
+                </Pressable>
+              }
+            />
+          )}
+
+          <CreateCollectionModal
+            visible={showCreateCollection}
+            onClose={() => setShowCreateCollection(false)}
+            items={items}
+            onSave={(name, description, itemIds) => {
+              addCollection({
+                id: generateId('col'),
+                user_id: 'demo',
+                name,
+                description: description || undefined,
+                item_ids: itemIds,
+                outfit_ids: [],
+                created_at: new Date().toISOString(),
+              });
+              setShowCreateCollection(false);
+            }}
+          />
+
+          {selectedCollection && (
+            <Modal visible={!!selectedCollection} transparent animationType="slide">
+              <View style={colStyles.modalOverlay}>
+                <Pressable style={colStyles.modalBackdrop} onPress={() => setSelectedCollection(null)} />
+                <View style={colStyles.modalSheet}>
+                  <View style={colStyles.modalHandle} />
+                  <View style={colStyles.modalHeader}>
+                    <View>
+                      <Text style={colStyles.modalTitle}>{selectedCollection.name}</Text>
+                      {selectedCollection.description && (
+                        <Text style={colStyles.modalDesc}>{selectedCollection.description}</Text>
+                      )}
+                    </View>
+                    <Pressable onPress={() => setSelectedCollection(null)}>
+                      <X size={20} color={Colors.textSecondary} />
+                    </Pressable>
+                  </View>
+                  <FlatList
+                    data={selectedCollection.item_ids.map((id) => items.find((i) => i.id === id)).filter(Boolean) as ClosetItem[]}
+                    keyExtractor={(i) => i.id}
+                    numColumns={3}
+                    columnWrapperStyle={{ gap: GRID_GAP }}
+                    contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+                    renderItem={({ item }) => (
+                      <Pressable style={styles.gridItem}
+                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/item/${item.id}` as Href); }}>
+                        <Image source={{ uri: item.clean_image_url || item.image_url }} style={styles.gridImage} contentFit="contain" />
+                      </Pressable>
+                    )}
+                    ListEmptyComponent={
+                      <View style={styles.emptyState}>
+                        <Text style={styles.emptySubtitle}>No items in this collection</Text>
+                      </View>
+                    }
+                  />
+                </View>
+              </View>
+            </Modal>
+          )}
+
+          {editingCollection && (
+            <Modal visible={!!editingCollection} transparent animationType="fade">
+              <View style={colStyles.modalOverlay}>
+                <Pressable style={colStyles.modalBackdrop} onPress={() => setEditingCollection(null)} />
+                <View style={colStyles.editSheet}>
+                  <Pressable style={colStyles.editAction} onPress={() => {
+                    setEditingCollection(null);
+                    setShowCreateCollection(true);
+                  }}>
+                    <Pencil size={16} color={Colors.textPrimary} />
+                    <Text style={colStyles.editActionText}>Edit Collection</Text>
+                  </Pressable>
+                  <Pressable style={colStyles.editAction} onPress={() => {
+                    Alert.alert('Delete Collection', `Remove "${editingCollection.name}"?`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => {
+                        deleteCollection(editingCollection.id);
+                        setEditingCollection(null);
+                      }},
+                    ]);
+                  }}>
+                    <Trash2 size={16} color={Colors.accentCoral} />
+                    <Text style={[colStyles.editActionText, { color: Colors.accentCoral }]}>Delete Collection</Text>
+                  </Pressable>
+                  <Pressable style={colStyles.editCancel} onPress={() => setEditingCollection(null)}>
+                    <Text style={colStyles.editCancelText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </Modal>
+          )}
         </View>
       )}
 
@@ -424,6 +581,68 @@ export default function ClosetScreen() {
         onDelete={(item) => { setEditingItem(null); handleDeleteItem(item); }}
       />
     </SafeAreaView>
+  );
+}
+
+function CreateCollectionModal({ visible, onClose, items, onSave }: {
+  visible: boolean;
+  onClose: () => void;
+  items: ClosetItem[];
+  onSave: (name: string, description: string, itemIds: string[]) => void;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (visible) { setName(''); setDescription(''); setSelectedIds([]); }
+  }, [visible]);
+
+  const toggleItem = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+        <View style={colStyles.createHeader}>
+          <Pressable onPress={onClose}>
+            <Text style={colStyles.createCancel}>Cancel</Text>
+          </Pressable>
+          <Text style={colStyles.createTitle}>New Collection</Text>
+          <Pressable onPress={() => { if (name.trim()) onSave(name.trim(), description.trim(), selectedIds); }}
+            disabled={!name.trim()}>
+            <Text style={[colStyles.createSave, !name.trim() && { opacity: 0.4 }]}>Create</Text>
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 80 }}>
+          <Text style={colStyles.fieldLabel}>Name</Text>
+          <TextInput style={colStyles.fieldInput} value={name} onChangeText={setName}
+            placeholder="e.g. Summer Essentials" placeholderTextColor={Colors.textTertiary} />
+          <Text style={colStyles.fieldLabel}>Description (optional)</Text>
+          <TextInput style={[colStyles.fieldInput, { minHeight: 60, textAlignVertical: 'top' }]}
+            value={description} onChangeText={setDescription} multiline
+            placeholder="What's this collection about?" placeholderTextColor={Colors.textTertiary} />
+          <Text style={colStyles.fieldLabel}>Select Items ({selectedIds.length})</Text>
+          <View style={colStyles.itemGrid}>
+            {items.map((item) => {
+              const selected = selectedIds.includes(item.id);
+              return (
+                <Pressable key={item.id}
+                  style={[colStyles.itemTile, selected && colStyles.itemTileSelected]}
+                  onPress={() => toggleItem(item.id)}>
+                  <Image source={{ uri: item.clean_image_url || item.image_url }}
+                    style={colStyles.itemTileImage} contentFit="contain" />
+                </Pressable>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -527,15 +746,50 @@ const fitModalStyles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   title: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
   subtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
-  canvasPreview: { marginHorizontal: 20, marginVertical: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, padding: 12, gap: 4, minHeight: 300 },
-  canvasSlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  canvasImage: { width: '65%', height: '90%' },
+  canvasPreview: { marginHorizontal: 20, marginVertical: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden', aspectRatio: 3 / 4, maxHeight: 420 },
+  collageImage: { width: '100%', height: '100%' },
+  mannequinStack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 12 },
+  mannequinSlot: { width: '70%', alignItems: 'center' },
+  mannequinImage: { width: '100%', height: 100 },
   slotLabel: { fontFamily: Typography.bodyFamily, fontSize: 10, color: Colors.textTertiary, marginTop: 2 },
   actions: { flexDirection: 'row', gap: 12, paddingHorizontal: 20 },
   loadBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
   loadBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.background },
   deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
   deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.accentCoral },
+});
+
+const colStyles = StyleSheet.create({
+  card: { flex: 1, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 12 },
+  coverFrame: { aspectRatio: 1, backgroundColor: Colors.cardSurfaceAlt },
+  coverImage: { width: '100%', height: '100%' },
+  coverPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  name: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textPrimary, paddingHorizontal: 10, paddingTop: 8 },
+  count: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, paddingHorizontal: 10, paddingBottom: 10 },
+  createBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginBottom: 8 },
+  createBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.accentGreen },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalSheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingBottom: 40 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
+  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  modalTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
+  modalDesc: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  editSheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
+  editAction: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  editActionText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 16, color: Colors.textPrimary },
+  editCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 4 },
+  editCancelText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textSecondary },
+  createHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  createCancel: { fontFamily: Typography.bodyFamily, fontSize: 16, color: Colors.textSecondary },
+  createTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: Colors.textPrimary },
+  createSave: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.accentGreen },
+  fieldLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, marginBottom: 6, marginTop: 16 },
+  fieldInput: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border },
+  itemGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  itemTile: { width: 64, height: 64, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: Colors.border, overflow: 'hidden' },
+  itemTileSelected: { borderColor: Colors.accentGreen },
+  itemTileImage: { width: '100%', height: '100%' },
 });
 
 const styles = StyleSheet.create({
@@ -574,9 +828,12 @@ const styles = StyleSheet.create({
   emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
   fitsContainer: { flex: 1 },
   fitPreviewCard: { flex: 1, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 12 },
-  fitStackPreview: { height: 200, backgroundColor: '#FFFFFF', padding: 6, gap: 2 },
-  fitStackSlot: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  fitStackImage: { width: '70%', height: '90%' },
+  fitStackPreview: { aspectRatio: 3 / 4, backgroundColor: '#FFFFFF', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, overflow: 'hidden' },
+  fitCollageImage: { width: '100%', height: '100%' },
+  fitMannequinStack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 8 },
+  fitMannequinSlot: { width: '75%', alignItems: 'center' },
+  fitMannequinImage: { width: '100%', height: 80 },
+  fitEmptySlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textPrimary, paddingHorizontal: 10, paddingTop: 8 },
   fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, paddingHorizontal: 10, paddingBottom: 10, textTransform: 'capitalize' },
 });
