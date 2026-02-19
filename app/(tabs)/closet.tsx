@@ -1,5 +1,6 @@
 import { AddToClosetSheet } from '@/components/ui/AddToClosetSheet';
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
 import { generateId, useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, Collection, Outfit } from '@/types';
@@ -39,6 +40,10 @@ const FILTER_DEFS: { key: FilterKey; label: string }[] = [
 ];
 
 export default function ClosetScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const fitModalStyles = useMemo(() => createFitModalStyles(Colors), [Colors]);
+  const colStyles = useMemo(() => createColStyles(Colors), [Colors]);
   const [activeTab, setActiveTab] = useState<ClosetTab>('pieces');
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
@@ -590,6 +595,8 @@ function CreateCollectionModal({ visible, onClose, items, onSave }: {
   items: ClosetItem[];
   onSave: (name: string, description: string, itemIds: string[]) => void;
 }) {
+  const Colors = useThemeColors();
+  const colStyles = useMemo(() => createColStyles(Colors), [Colors]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -652,6 +659,8 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
   onSave: (id: string, updates: Partial<ClosetItem>) => void;
   onDelete: (item: ClosetItem) => void;
 }) {
+  const Colors = useThemeColors();
+  const editStyles = useMemo(() => createEditStyles(Colors), [Colors]);
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
@@ -719,121 +728,121 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
   );
 }
 
-const editStyles = StyleSheet.create({
+function createEditStyles(C: ReturnType<typeof useThemeColors>) { return StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingBottom: 40 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: Colors.textPrimary },
+  sheet: { backgroundColor: C.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingBottom: 40 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: C.textPrimary },
   body: { paddingHorizontal: 20, paddingTop: 16 },
   imagePreview: { width: 120, height: 120, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, alignSelf: 'center', marginBottom: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   previewImage: { width: '85%', height: '85%' },
-  fieldLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, marginBottom: 6, marginTop: 12 },
-  input: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border },
+  fieldLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, borderWidth: 1, borderColor: C.border },
   actions: { marginTop: 28, gap: 12, paddingBottom: 20 },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
-  saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.background },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
-  deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.accentCoral },
-});
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
+  saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.background },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
+  deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.accentCoral },
+}); }
 
-const fitModalStyles = StyleSheet.create({
+function createFitModalStyles(C: ReturnType<typeof useThemeColors>) { return StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  title: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
-  subtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+  sheet: { backgroundColor: C.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  title: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary },
+  subtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary, marginTop: 2, textTransform: 'capitalize' },
   canvasPreview: { marginHorizontal: 20, marginVertical: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden', aspectRatio: 3 / 4, maxHeight: 420 },
   collageImage: { width: '100%', height: '100%' },
   mannequinStack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 12 },
   mannequinSlot: { width: '70%', alignItems: 'center' },
   mannequinImage: { width: '100%', height: 100 },
-  slotLabel: { fontFamily: Typography.bodyFamily, fontSize: 10, color: Colors.textTertiary, marginTop: 2 },
+  slotLabel: { fontFamily: Typography.bodyFamily, fontSize: 10, color: C.textTertiary, marginTop: 2 },
   actions: { flexDirection: 'row', gap: 12, paddingHorizontal: 20 },
-  loadBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
-  loadBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.background },
-  deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
-  deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.accentCoral },
-});
+  loadBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
+  loadBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.background },
+  deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.accentCoral, backgroundColor: 'rgba(232, 90, 79, 0.08)' },
+  deleteBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.accentCoral },
+}); }
 
-const colStyles = StyleSheet.create({
-  card: { flex: 1, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 12 },
-  coverFrame: { aspectRatio: 1, backgroundColor: Colors.cardSurfaceAlt },
+function createColStyles(C: ReturnType<typeof useThemeColors>) { return StyleSheet.create({
+  card: { flex: 1, backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, overflow: 'hidden', marginBottom: 12 },
+  coverFrame: { aspectRatio: 1, backgroundColor: C.cardSurfaceAlt },
   coverImage: { width: '100%', height: '100%' },
   coverPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  name: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textPrimary, paddingHorizontal: 10, paddingTop: 8 },
-  count: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, paddingHorizontal: 10, paddingBottom: 10 },
+  name: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.textPrimary, paddingHorizontal: 10, paddingTop: 8 },
+  count: { fontFamily: Typography.bodyFamily, fontSize: 11, color: C.textSecondary, paddingHorizontal: 10, paddingBottom: 10 },
   createBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginBottom: 8 },
-  createBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.accentGreen },
+  createBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentGreen },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-  modalSheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingBottom: 40 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
-  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
-  modalDesc: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  editSheet: { backgroundColor: Colors.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
-  editAction: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  editActionText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 16, color: Colors.textPrimary },
+  modalSheet: { backgroundColor: C.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingBottom: 40 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.textTertiary, alignSelf: 'center', marginTop: 10, marginBottom: 8 },
+  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  modalTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary },
+  modalDesc: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary, marginTop: 2 },
+  editSheet: { backgroundColor: C.cardSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 4 },
+  editAction: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  editActionText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 16, color: C.textPrimary },
   editCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 4 },
-  editCancelText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textSecondary },
-  createHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  createCancel: { fontFamily: Typography.bodyFamily, fontSize: 16, color: Colors.textSecondary },
-  createTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: Colors.textPrimary },
-  createSave: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.accentGreen },
-  fieldLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, marginBottom: 6, marginTop: 16 },
-  fieldInput: { backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border },
+  editCancelText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textSecondary },
+  createHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  createCancel: { fontFamily: Typography.bodyFamily, fontSize: 16, color: C.textSecondary },
+  createTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: C.textPrimary },
+  createSave: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.accentGreen },
+  fieldLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, marginBottom: 6, marginTop: 16 },
+  fieldInput: { backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Typography.bodyFamily, fontSize: 15, color: C.textPrimary, borderWidth: 1, borderColor: C.border },
   itemGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  itemTile: { width: 64, height: 64, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: Colors.border, overflow: 'hidden' },
-  itemTileSelected: { borderColor: Colors.accentGreen },
+  itemTile: { width: 64, height: 64, borderRadius: 8, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: C.border, overflow: 'hidden' },
+  itemTileSelected: { borderColor: C.accentGreen },
   itemTileImage: { width: '100%', height: '100%' },
-});
+}); }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  topTabs: { flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+function createStyles(C: ReturnType<typeof useThemeColors>) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.background },
+  topTabs: { flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border },
   topTab: { flex: 1, alignItems: 'center', paddingVertical: 12, position: 'relative' },
-  topTabText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textTertiary },
-  topTabTextActive: { fontFamily: Typography.bodyFamilyBold, color: Colors.textPrimary },
-  topTabIndicator: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 2, backgroundColor: Colors.textPrimary, borderRadius: 1 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 10, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.border },
-  searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, padding: 0 },
-  filterWrapper: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  topTabText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textTertiary },
+  topTabTextActive: { fontFamily: Typography.bodyFamilyBold, color: C.textPrimary },
+  topTabIndicator: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 2, backgroundColor: C.textPrimary, borderRadius: 1 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 10, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.border },
+  searchInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textPrimary, padding: 0 },
+  filterWrapper: { borderBottomWidth: 1, borderBottomColor: C.border },
   filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
-  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border, height: 36 },
-  filterPillActive: { backgroundColor: Colors.textPrimary, borderColor: Colors.textPrimary },
-  filterPillOpen: { borderColor: Colors.accentBlue },
-  filterPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, textTransform: 'capitalize' },
-  filterPillTextActive: { color: Colors.background },
-  clearBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  dropdownPanel: { backgroundColor: Colors.cardSurface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border, height: 36 },
+  filterPillActive: { backgroundColor: C.textPrimary, borderColor: C.textPrimary },
+  filterPillOpen: { borderColor: C.accentBlue },
+  filterPillText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, textTransform: 'capitalize' },
+  filterPillTextActive: { color: C.background },
+  clearBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  dropdownPanel: { backgroundColor: C.cardSurface, borderBottomWidth: 1, borderBottomColor: C.border },
   dropdownRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  dropdownEmpty: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary },
-  dropdownChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-  dropdownChipActive: { backgroundColor: Colors.accentBlue, borderColor: Colors.accentBlue },
-  dropdownChipText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary, textTransform: 'capitalize' },
-  dropdownChipTextActive: { color: Colors.textPrimary },
+  dropdownEmpty: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary },
+  dropdownChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+  dropdownChipActive: { backgroundColor: C.accentBlue, borderColor: C.accentBlue },
+  dropdownChipText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary, textTransform: 'capitalize' },
+  dropdownChipTextActive: { color: C.textPrimary },
   gridContent: { paddingBottom: 120 },
   gridRow: { gap: GRID_GAP },
   gridItem: { width: ITEM_SIZE, height: ITEM_SIZE, backgroundColor: '#FFFFFF', marginBottom: GRID_GAP },
   gridImage: { width: '100%', height: '100%' },
-  fab: { position: 'absolute', bottom: 110, alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  fab: { position: 'absolute', bottom: 110, alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-  emptyTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
-  emptySubtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen, marginTop: 8 },
-  emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
+  emptyTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: C.textPrimary },
+  emptySubtitle: { fontFamily: Typography.bodyFamily, fontSize: 14, color: C.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.pill, backgroundColor: C.accentGreen, marginTop: 8 },
+  emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.background },
   fitsContainer: { flex: 1 },
-  fitPreviewCard: { flex: 1, backgroundColor: Colors.cardSurface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 6 },
+  fitPreviewCard: { flex: 1, backgroundColor: C.cardSurface, borderRadius: Radius.md, borderWidth: 1, borderColor: C.border, overflow: 'hidden', marginBottom: 6 },
   fitStackPreview: { aspectRatio: 3 / 4, backgroundColor: '#FFFFFF', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, overflow: 'hidden' },
   fitCollageImage: { width: '100%', height: '100%' },
   fitMannequinStack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 8 },
   fitMannequinSlot: { width: '75%', alignItems: 'center' },
   fitMannequinImage: { width: '100%', height: 80 },
   fitEmptySlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 11, color: Colors.textPrimary, paddingHorizontal: 6, paddingTop: 4 },
-  fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 10, color: Colors.textSecondary, paddingHorizontal: 6, paddingBottom: 6, textTransform: 'capitalize' },
-});
+  fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 11, color: C.textPrimary, paddingHorizontal: 6, paddingTop: 4 },
+  fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 10, color: C.textSecondary, paddingHorizontal: 6, paddingBottom: 6, textTransform: 'capitalize' },
+}); }

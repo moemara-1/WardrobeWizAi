@@ -1,4 +1,5 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { regenerateCleanImage } from '@/lib/ai';
 import { classifyGarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
@@ -6,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Bookmark, BookmarkCheck, Pencil, Share2, Sparkles, Trash2, X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -30,6 +31,8 @@ interface MetadataRow {
 }
 
 export default function ItemDetailScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { items } = useClosetStore();
   const updateItem = useClosetStore((s) => s.updateItem);
@@ -299,10 +302,10 @@ export default function ItemDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(C: ReturnType<typeof import('@/contexts/ThemeContext').useThemeColors>) { return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: C.background,
   },
   scrollContent: {
     paddingBottom: 120,
@@ -318,16 +321,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.cardSurfaceAlt,
+    backgroundColor: C.cardSurfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   headerTitle: {
     fontFamily: Typography.bodyFamilyBold,
     fontSize: 16,
-    color: Colors.textPrimary,
+    color: C.textPrimary,
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 8,
@@ -340,7 +343,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 8,
     height: 360,
-    backgroundColor: Colors.white,
+    backgroundColor: C.white,
     borderRadius: Radius.xl,
     overflow: 'hidden',
     alignItems: 'center',
@@ -361,7 +364,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.accentGreen,
+    backgroundColor: C.accentGreen,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: Radius.pill,
@@ -369,12 +372,12 @@ const styles = StyleSheet.create({
   createFitText: {
     fontFamily: Typography.bodyFamilyBold,
     fontSize: 14,
-    color: Colors.background,
+    color: C.background,
   },
   enhanceText: {
     fontFamily: Typography.bodyFamilyMedium,
     fontSize: 14,
-    color: Colors.accentGreen,
+    color: C.accentGreen,
   },
   metadataSection: {
     marginTop: 20,
@@ -386,31 +389,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: C.border,
   },
   metadataLabel: {
     fontFamily: Typography.bodyFamily,
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: C.textSecondary,
   },
   metadataValue: {
     fontFamily: Typography.bodyFamilyMedium,
     fontSize: 14,
-    color: Colors.textPrimary,
+    color: C.textPrimary,
     textTransform: 'capitalize',
   },
   badgePill: {
-    backgroundColor: Colors.cardSurfaceAlt,
+    backgroundColor: C.cardSurfaceAlt,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: Radius.pill,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
   },
   badgeText: {
     fontFamily: Typography.bodyFamilyMedium,
     fontSize: 12,
-    color: Colors.textPrimary,
+    color: C.textPrimary,
     textTransform: 'capitalize',
   },
   deleteBtn: {
@@ -438,10 +441,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
-    backgroundColor: Colors.background,
+    backgroundColor: C.background,
   },
   ctaBtn: {
-    backgroundColor: Colors.accentGreen,
+    backgroundColor: C.accentGreen,
     borderRadius: Radius.pill,
     paddingVertical: 16,
     alignItems: 'center',
@@ -449,7 +452,7 @@ const styles = StyleSheet.create({
   ctaText: {
     fontFamily: Typography.bodyFamilyBold,
     fontSize: 16,
-    color: Colors.background,
+    color: C.background,
   },
   notFound: {
     flex: 1,
@@ -460,7 +463,7 @@ const styles = StyleSheet.create({
   notFoundText: {
     fontFamily: Typography.bodyFamily,
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: C.textSecondary,
   },
   backLink: {
     padding: 12,
@@ -468,7 +471,7 @@ const styles = StyleSheet.create({
   backLinkText: {
     fontFamily: Typography.bodyFamilyMedium,
     fontSize: 14,
-    color: Colors.accentGreen,
+    color: C.accentGreen,
   },
   // Edit Modal styles
   modalOverlay: {
@@ -480,7 +483,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: Colors.cardSurface,
+    backgroundColor: C.cardSurface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -491,7 +494,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: C.borderLight,
     alignSelf: 'center',
     marginTop: 10,
     marginBottom: 16,
@@ -505,7 +508,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontFamily: Typography.bodyFamilyBold,
     fontSize: 18,
-    color: Colors.textPrimary,
+    color: C.textPrimary,
   },
   modalScroll: {
     maxHeight: 340,
@@ -513,20 +516,20 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontFamily: Typography.bodyFamilyMedium,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: C.textSecondary,
     marginBottom: 4,
     marginTop: 12,
   },
   fieldInput: {
-    backgroundColor: Colors.cardSurfaceAlt,
+    backgroundColor: C.cardSurfaceAlt,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontFamily: Typography.bodyFamily,
     fontSize: 14,
-    color: Colors.textPrimary,
+    color: C.textPrimary,
   },
   modalActions: {
     flexDirection: 'row',
@@ -542,12 +545,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: Radius.pill,
     borderWidth: 1,
-    borderColor: Colors.accentGreen,
+    borderColor: C.accentGreen,
   },
   enhanceImgText: {
     fontFamily: Typography.bodyFamilyMedium,
     fontSize: 13,
-    color: Colors.accentGreen,
+    color: C.accentGreen,
   },
   saveBtn: {
     flex: 1,
@@ -557,11 +560,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 14,
     borderRadius: Radius.pill,
-    backgroundColor: Colors.accentGreen,
+    backgroundColor: C.accentGreen,
   },
   saveBtnText: {
     fontFamily: Typography.bodyFamilyBold,
     fontSize: 14,
-    color: Colors.background,
+    color: C.background,
   },
-});
+}); }

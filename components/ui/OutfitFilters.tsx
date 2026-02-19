@@ -1,4 +1,5 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import {
     Briefcase,
@@ -15,7 +16,7 @@ import {
     Wine,
     Zap
 } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Dimensions,
     Pressable,
@@ -74,6 +75,8 @@ const WEATHER_OPTIONS = [
 
 
 export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps) {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const [selectedStyle, setSelectedStyle] = useState<string[]>([]);
   const [selectedColor, setSelectedColor] = useState<string[]>([]);
   const [selectedWeather, setSelectedWeather] = useState<string[]>([]);
@@ -200,137 +203,137 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    zIndex: 200,
-  },
-  backdropView: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  sheet: {
-    backgroundColor: Colors.cardSurface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 48,
-    maxHeight: SCREEN_HEIGHT * 0.8,
-  },
-  handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.borderLight,
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  clearText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  headerTitle: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 16,
-    color: Colors.textPrimary,
-  },
-  checkBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.accentGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 14,
-    color: Colors.textPrimary,
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  // Chips for Style & Climate
-  chipGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: Radius.pill,
-    backgroundColor: Colors.cardSurfaceAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  chipActive: {
-    borderColor: Colors.accentGreen,
-    backgroundColor: 'rgba(50, 213, 131, 0.08)',
-  },
-  chipLabel: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  chipLabelActive: {
-    color: Colors.accentGreen,
-  },
-  // Color palette
-  colorRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
-  },
-  colorCard: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.cardSurfaceAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  colorCardActive: {
-    borderColor: Colors.accentGreen,
-    backgroundColor: 'rgba(50, 213, 131, 0.08)',
-  },
-  colorDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
-  rainbowCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  rainbowQuad: {
-    width: 12,
-    height: 12,
-  },
-  colorLabel: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  colorLabelActive: {
-    color: Colors.accentGreen,
-  },
-});
+function createStyles(C: ReturnType<typeof useThemeColors>) {
+  return StyleSheet.create({
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'flex-end',
+      zIndex: 200,
+    },
+    backdropView: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    sheet: {
+      backgroundColor: C.cardSurface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 20,
+      paddingBottom: 48,
+      maxHeight: SCREEN_HEIGHT * 0.8,
+    },
+    handleBar: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: C.borderLight,
+      alignSelf: 'center',
+      marginTop: 10,
+      marginBottom: 16,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+    },
+    clearText: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 14,
+      color: C.textSecondary,
+    },
+    headerTitle: {
+      fontFamily: Typography.bodyFamilyBold,
+      fontSize: 16,
+      color: C.textPrimary,
+    },
+    checkBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: C.accentGreen,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sectionTitle: {
+      fontFamily: Typography.bodyFamilyBold,
+      fontSize: 14,
+      color: C.textPrimary,
+      marginBottom: 12,
+      marginTop: 8,
+    },
+    chipGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 20,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: Radius.pill,
+      backgroundColor: C.cardSurfaceAlt,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    chipActive: {
+      borderColor: C.accentGreen,
+      backgroundColor: 'rgba(50, 213, 131, 0.08)',
+    },
+    chipLabel: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 13,
+      color: C.textSecondary,
+    },
+    chipLabelActive: {
+      color: C.accentGreen,
+    },
+    colorRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 20,
+    },
+    colorCard: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 12,
+      borderRadius: Radius.md,
+      backgroundColor: C.cardSurfaceAlt,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    colorCardActive: {
+      borderColor: C.accentGreen,
+      backgroundColor: 'rgba(50, 213, 131, 0.08)',
+    },
+    colorDot: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+    },
+    rainbowCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      overflow: 'hidden',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+    rainbowQuad: {
+      width: 12,
+      height: 12,
+    },
+    colorLabel: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 11,
+      color: C.textSecondary,
+    },
+    colorLabelActive: {
+      color: C.accentGreen,
+    },
+  });
+}

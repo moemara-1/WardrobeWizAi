@@ -80,6 +80,15 @@ export default function PostDetailScreen() {
     };
   }, [socialPosts, closetPosts, closetItems, closetProfile, authUserId, id]);
 
+  useEffect(() => {
+    if (post) {
+      const existing = useSocialStore.getState().posts;
+      if (!existing.some(p => p.id === post.id)) {
+        useSocialStore.setState({ posts: [...existing, post] });
+      }
+    }
+  }, [post]);
+
   const [supabasePost, setSupabasePost] = useState<SocialPost | null>(null);
   const [fetchedFromDb, setFetchedFromDb] = useState(false);
 
@@ -98,7 +107,7 @@ export default function PostDetailScreen() {
           .single();
 
         if (!cancelled) {
-          setSupabasePost({
+          const fetchedPost: SocialPost = {
             id: row.id,
             userId: row.user_id,
             username: profile?.username || 'user',
@@ -110,7 +119,12 @@ export default function PostDetailScreen() {
             liked: false,
             comments: [],
             createdAt: row.created_at,
-          });
+          };
+          setSupabasePost(fetchedPost);
+          const existing = useSocialStore.getState().posts;
+          if (!existing.some(p => p.id === fetchedPost.id)) {
+            useSocialStore.setState({ posts: [...existing, fetchedPost] });
+          }
         }
       } catch {
         // silent

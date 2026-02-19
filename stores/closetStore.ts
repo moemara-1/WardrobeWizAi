@@ -419,6 +419,7 @@ export const useClosetStore = create<ClosetState>()(
                 posts: state.posts,
                 collections: state.collections,
                 userProfile: state.userProfile,
+                canvasItem: state.canvasItem,
             }),
             migrate: (persisted: unknown, _version: number) => {
                 // Future migrations go here

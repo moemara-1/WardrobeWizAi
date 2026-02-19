@@ -116,8 +116,19 @@ export default function TripPlannerScreen() {
   };
 
   const handleBuild = () => {
+    const validDests = destinations.filter(d => d.trim().length > 0);
+    if (validDests.length === 0) {
+      return;
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.push('/trip-result' as Href);
+    router.push({
+      pathname: '/trip-result',
+      params: {
+        days: String(days),
+        destinations: JSON.stringify(validDests),
+        occasion,
+      },
+    } as Href);
   };
 
   return (

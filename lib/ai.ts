@@ -433,6 +433,65 @@ Return ONLY a JSON array of IDs like: ["id1", "id2", "id3"]`,
     }
 }
 
+export interface TripDayOutfit {
+    label: string;
+    itemIds: string[];
+}
+
+export async function generateTripOutfits(
+    items: { id: string; name: string; category: string; colors: string[]; tags: string[] }[],
+    days: number,
+    destinations: string[],
+    occasion: string,
+): Promise<TripDayOutfit[]> {
+    const itemList = items.map(i =>
+        `ID:${i.id} | ${i.name} | ${i.category} | colors: ${i.colors.join(', ')} | tags: ${i.tags.join(', ')}`
+    ).join('\n');
+
+    const content = await callDeepInfra({
+        model: TEXT_MODEL,
+        messages: [
+            {
+                role: 'system',
+                content: 'You are a travel fashion stylist. Plan outfits for a trip using the given wardrobe. Reuse versatile pieces across days to minimize packing. Return ONLY valid JSON.',
+            },
+            {
+                role: 'user',
+                content: `Plan outfits for a ${days}-day ${occasion} trip to ${destinations.join(' → ')}.
+
+Available wardrobe:
+${itemList}
+
+Create ${days + 1} outfits (1 travel day + ${days} destination days). Each outfit needs: top + bottom + footwear (minimum). Add outerwear/accessories as appropriate for the occasion.
+
+Rules:
+- Reuse footwear and outerwear across days when possible
+- Match the "${occasion}" vibe (${occasion === 'business' ? 'professional, polished' : occasion === 'romantic' ? 'elegant, date-worthy' : occasion === 'formal' ? 'dressy, sophisticated' : occasion === 'fun' ? 'trendy, comfortable' : 'relaxed, everyday'})
+- Vary daily looks — don't repeat the same top+bottom combo
+- Consider color coordination across the trip
+
+Return JSON array:
+[{"label":"Travel Day","itemIds":["id1","id2"]},{"label":"Day 1","itemIds":["id3","id4"]},...]`,
+            },
+        ],
+        max_tokens: 1024,
+        temperature: 0.7,
+    });
+
+    const match = content.match(/\[[\s\S]*?\]/);
+    if (!match) return [];
+    try {
+        const parsed: TripDayOutfit[] = JSON.parse(match[0]);
+        const validIds = new Set(items.map(i => i.id));
+        return parsed.map(day => ({
+            label: day.label || 'Day',
+            itemIds: (day.itemIds || []).filter(id => validIds.has(id)),
+        })).filter(day => day.itemIds.length > 0);
+    } catch {
+        return [];
+    }
+}
+
 /* ─── Outfit Analysis (Fit Pic) ─── */
 
 export interface OutfitDetection {

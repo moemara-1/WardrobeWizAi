@@ -232,7 +232,7 @@ export default function DigitalTwinPreviewScreen() {
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              initialScrollIndex={Math.min(galleryIndex, allLooks.length - 1)}
+              initialScrollIndex={allLooks.length > 0 ? Math.min(galleryIndex, allLooks.length - 1) : 0}
               getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
               onMomentumScrollEnd={(e) => {
                 const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
