@@ -85,23 +85,37 @@ export default function DigitalTwinPreviewScreen() {
         </SafeAreaView>
 
         <ScrollView contentContainerStyle={styles.twinScrollContent} showsVerticalScrollIndicator={false}>
-          {/* Generated Twin Image */}
+          {/* Twin Image — show latest generated look or base twin */}
           <View style={styles.twinImageWrapper}>
-            <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinFullImage} contentFit="contain" />
+            <Image
+              source={{ uri: (generatedLooks.length > 0 ? generatedLooks[0].image_url : digitalTwin.twin_image_url) }}
+              style={styles.twinFullImage}
+              contentFit="contain"
+            />
           </View>
 
           {/* Selfie comparison + Color Badges */}
           <View style={styles.twinProfileRow}>
-            <Image source={{ uri: digitalTwin.selfie_url }} style={styles.twinSelfie} contentFit="cover" />
+            {digitalTwin.selfie_url ? (
+              <Image source={{ uri: digitalTwin.selfie_url }} style={styles.twinSelfie} contentFit="cover" />
+            ) : (
+              <View style={[styles.twinSelfie, { backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' }]}>
+                <User size={24} color={Colors.textTertiary} />
+              </View>
+            )}
             <View style={styles.twinMeta}>
-              <View style={styles.colorBadgeRow}>
-                <View style={[styles.colorDot, { backgroundColor: digitalTwin.skin_color }]} />
-                <Text style={styles.colorBadgeLabel}>Skin</Text>
-              </View>
-              <View style={styles.colorBadgeRow}>
-                <View style={[styles.colorDot, { backgroundColor: digitalTwin.hair_color }]} />
-                <Text style={styles.colorBadgeLabel}>Hair</Text>
-              </View>
+              {digitalTwin.skin_color ? (
+                <View style={styles.colorBadgeRow}>
+                  <View style={[styles.colorDot, { backgroundColor: digitalTwin.skin_color }]} />
+                  <Text style={styles.colorBadgeLabel}>Skin</Text>
+                </View>
+              ) : null}
+              {digitalTwin.hair_color ? (
+                <View style={styles.colorBadgeRow}>
+                  <View style={[styles.colorDot, { backgroundColor: digitalTwin.hair_color }]} />
+                  <Text style={styles.colorBadgeLabel}>Hair</Text>
+                </View>
+              ) : null}
               {digitalTwin.body_type && (
                 <View style={styles.bodyBadge}>
                   <Text style={styles.bodyBadgeText}>{digitalTwin.body_type}</Text>
@@ -111,13 +125,15 @@ export default function DigitalTwinPreviewScreen() {
           </View>
 
           {/* AI Description */}
-          <View style={styles.twinCard}>
-            <View style={styles.twinCardHeader}>
-              <Sparkles size={16} color={Colors.accentGreen} />
-              <Text style={styles.twinCardTitle}>AI Profile</Text>
+          {digitalTwin.ai_description ? (
+            <View style={styles.twinCard}>
+              <View style={styles.twinCardHeader}>
+                <Sparkles size={16} color={Colors.accentGreen} />
+                <Text style={styles.twinCardTitle}>AI Profile</Text>
+              </View>
+              <Text style={styles.twinCardBody}>{digitalTwin.ai_description}</Text>
             </View>
-            <Text style={styles.twinCardBody}>{digitalTwin.ai_description}</Text>
-          </View>
+          ) : null}
 
           {/* Style Recommendations */}
           {digitalTwin.style_recommendations && (
@@ -131,7 +147,7 @@ export default function DigitalTwinPreviewScreen() {
           )}
 
           {/* Save Twin Image to Phone */}
-          <Pressable style={styles.saveToPhoneBtn} onPress={() => saveToPhone(digitalTwin.twin_image_url)}>
+          <Pressable style={styles.saveToPhoneBtn} onPress={() => digitalTwin.twin_image_url && saveToPhone(digitalTwin.twin_image_url)}>
             <Download size={16} color={Colors.accentGreen} />
             <Text style={styles.saveToPhoneBtnText}>Save to Phone</Text>
           </Pressable>
@@ -216,7 +232,7 @@ export default function DigitalTwinPreviewScreen() {
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              initialScrollIndex={galleryIndex}
+              initialScrollIndex={Math.min(galleryIndex, allLooks.length - 1)}
               getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
               onMomentumScrollEnd={(e) => {
                 const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);

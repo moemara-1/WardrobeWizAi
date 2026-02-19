@@ -479,12 +479,6 @@ export default function StylistScreen() {
         digitalTwin.selfie_url,
       );
 
-      setDigitalTwin({
-        ...digitalTwin,
-        twin_image_url: newTwinImageUrl,
-        updated_at: new Date().toISOString(),
-      });
-
       const look: GeneratedLook = {
         id: `look_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         image_url: newTwinImageUrl,
