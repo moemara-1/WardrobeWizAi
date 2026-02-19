@@ -4,11 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-/** Generate a unique ID using timestamp + random suffix to avoid collisions */
-export function generateId(prefix: string = 'item'): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 8);
-    return `${prefix}_${timestamp}_${random}`;
+/** Generate a UUID v4 compatible with Supabase UUID columns */
+export function generateId(_prefix?: string): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
 }
 
 
@@ -97,6 +99,12 @@ interface ClosetState {
     // User Profile
     userProfile: UserProfileData;
     updateUserProfile: (updates: Partial<UserProfileData>) => void;
+
+    // Background processing
+    backgroundTasks: { id: string; label: string; progress: string }[];
+    addBackgroundTask: (id: string, label: string) => void;
+    updateBackgroundTask: (id: string, progress: string) => void;
+    removeBackgroundTask: (id: string) => void;
 }
 
 // ─── Supabase Sync (fire-and-forget, offline-first) ───
@@ -119,8 +127,8 @@ const syncToSupabase = {
                 estimated_value: item.estimated_value || null,
                 model_name: item.model_name || null,
                 subcategory: item.subcategory || null,
-                times_worn: item.wear_count ?? 0,
-                last_worn_at: item.last_worn || null,
+                wear_count: item.wear_count ?? 0,
+                last_worn: item.last_worn || null,
                 created_at: item.created_at,
                 updated_at: item.updated_at || new Date().toISOString(),
             });
@@ -145,9 +153,9 @@ const syncToSupabase = {
                 name: outfit.name,
                 item_ids: outfit.item_ids,
                 occasion: outfit.occasion || null,
-                style: outfit.theme || null,
-                notes: outfit.ai_notes || null,
-                image_url: outfit.collage_url || null,
+                theme: outfit.theme || null,
+                ai_notes: outfit.ai_notes || null,
+                collage_url: outfit.collage_url || null,
                 created_at: outfit.created_at,
             });
         } catch (e) {
@@ -245,6 +253,17 @@ export const useClosetStore = create<ClosetState>()(
             posts: [],
             collections: [],
             userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
+            backgroundTasks: [],
+
+            addBackgroundTask: (id, label) => set((state) => ({
+                backgroundTasks: [...state.backgroundTasks, { id, label, progress: 'Starting...' }],
+            })),
+            updateBackgroundTask: (id, progress) => set((state) => ({
+                backgroundTasks: state.backgroundTasks.map(t => t.id === id ? { ...t, progress } : t),
+            })),
+            removeBackgroundTask: (id) => set((state) => ({
+                backgroundTasks: state.backgroundTasks.filter(t => t.id !== id),
+            })),
 
             // Auth actions
             setUserId: (id) => set({ userId: id }),
@@ -440,8 +459,8 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
                 model_name: row.model_name,
                 subcategory: row.subcategory,
                 detected_confidence: 1,
-                wear_count: row.times_worn ?? 0,
-                last_worn: row.last_worn_at,
+                wear_count: row.wear_count ?? 0,
+                last_worn: row.last_worn,
                 favorite: false,
                 created_at: row.created_at,
                 updated_at: row.updated_at,
@@ -457,9 +476,9 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
                 items: [],
                 item_ids: row.item_ids || [],
                 occasion: row.occasion,
-                theme: row.style,
-                ai_notes: row.notes,
-                collage_url: row.image_url,
+                theme: row.theme,
+                ai_notes: row.ai_notes,
+                collage_url: row.collage_url,
                 seasons: [],
                 pinned: false,
                 created_at: row.created_at,

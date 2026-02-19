@@ -4,6 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+async function getAuthUserId(): Promise<string> {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id || 'anonymous';
+}
+
 export interface SocialPost {
     id: string;
     userId: string;
@@ -59,6 +64,7 @@ interface SocialState {
     addComment: (postId: string, comment: PostComment) => void;
     toggleFollow: (user: UserFollow) => void;
     updateProfile: (updates: Partial<{ username: string; avatarUrl: string | null; bio: string | null }>) => void;
+    fetchPosts: () => Promise<void>;
     fetchLikedPosts: (userId: string) => Promise<void>;
     fetchFollowers: (userId: string) => Promise<void>;
     fetchFollowing: (userId: string) => Promise<void>;
@@ -67,130 +73,6 @@ interface SocialState {
     setFollowers: (followers: UserFollow[]) => void;
     setFollowing: (following: UserFollow[]) => void;
 }
-
-const SEED_POSTS: SocialPost[] = [
-    {
-        id: 'post-1',
-        userId: 'user-alex',
-        username: 'alexstyle',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1608635680046-aebf91c1a9c8?w=600',
-        caption: 'Fall layers done right 🍂',
-        clothingPieces: [
-            { name: 'Oversized Wool Coat', brand: 'COS', category: 'outerwear', imageUrl: null },
-            { name: 'Cashmere Turtleneck', brand: 'Uniqlo', category: 'top', imageUrl: null },
-            { name: 'Wide Leg Trousers', brand: 'Zara', category: 'bottom', imageUrl: null },
-        ],
-        likes: 42,
-        liked: false,
-        comments: [
-            { id: 'c1', userId: 'user-maya', username: 'mayafits', avatarUrl: null, text: 'Love the coat!', createdAt: '2026-02-10T10:00:00Z' },
-        ],
-        createdAt: '2026-02-10T09:00:00Z',
-    },
-    {
-        id: 'post-2',
-        userId: 'user-jordan',
-        username: 'jordanwears',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1622021211530-7d31fd86862d?w=600',
-        caption: 'Minimal streetwear vibes',
-        clothingPieces: [
-            { name: 'Air Force 1 Low', brand: 'Nike', category: 'shoe', imageUrl: null },
-            { name: 'Cargo Pants', brand: 'Carhartt WIP', category: 'bottom', imageUrl: null },
-            { name: 'Oversized Graphic Tee', brand: null, category: 'top', imageUrl: null },
-        ],
-        likes: 89,
-        liked: false,
-        comments: [],
-        createdAt: '2026-02-09T15:30:00Z',
-    },
-    {
-        id: 'post-3',
-        userId: 'user-sam',
-        username: 'samcloset',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600',
-        caption: 'Date night outfit check',
-        clothingPieces: [
-            { name: 'Silk Midi Dress', brand: 'Reformation', category: 'dress', imageUrl: null },
-            { name: 'Strappy Heels', brand: 'Steve Madden', category: 'shoe', imageUrl: null },
-            { name: 'Gold Chain Necklace', brand: null, category: 'jewelry', imageUrl: null },
-        ],
-        likes: 156,
-        liked: false,
-        comments: [
-            { id: 'c2', userId: 'user-alex', username: 'alexstyle', avatarUrl: null, text: 'Where is this dress from??', createdAt: '2026-02-09T16:00:00Z' },
-            { id: 'c3', userId: 'user-sam', username: 'samcloset', avatarUrl: null, text: '@alexstyle Reformation!', createdAt: '2026-02-09T16:05:00Z' },
-        ],
-        createdAt: '2026-02-09T14:00:00Z',
-    },
-    {
-        id: 'post-4',
-        userId: 'user-maya',
-        username: 'mayafits',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1576507169637-cdcff61eb6d5?w=600',
-        caption: 'Gym to brunch transition 💪',
-        clothingPieces: [
-            { name: 'Track Jacket', brand: 'Adidas', category: 'outerwear', imageUrl: null },
-            { name: 'Leggings', brand: 'Lululemon', category: 'bottom', imageUrl: null },
-            { name: 'Samba OG', brand: 'Adidas', category: 'shoe', imageUrl: null },
-        ],
-        likes: 67,
-        liked: false,
-        comments: [],
-        createdAt: '2026-02-08T12:00:00Z',
-    },
-    {
-        id: 'post-5',
-        userId: 'user-kai',
-        username: 'kaidrip',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1683488780206-88ce4240f3da?w=600',
-        caption: 'Vintage finds of the week',
-        clothingPieces: [
-            { name: 'Vintage Denim Jacket', brand: "Levi's", category: 'outerwear', imageUrl: null },
-            { name: 'Band Tee', brand: null, category: 'top', imageUrl: null },
-            { name: 'Straight Jeans', brand: "Levi's", category: 'bottom', imageUrl: null },
-        ],
-        likes: 203,
-        liked: false,
-        comments: [
-            { id: 'c4', userId: 'user-jordan', username: 'jordanwears', avatarUrl: null, text: 'That jacket is insane', createdAt: '2026-02-08T10:00:00Z' },
-        ],
-        createdAt: '2026-02-08T09:00:00Z',
-    },
-    {
-        id: 'post-6',
-        userId: 'user-nina',
-        username: 'ninaootd',
-        avatarUrl: null,
-        imageUrl: 'https://images.unsplash.com/photo-1612694831097-d7cd14379928?w=600',
-        caption: 'Cozy Sunday layers',
-        clothingPieces: [
-            { name: 'Chunky Knit Sweater', brand: 'H&M', category: 'top', imageUrl: null },
-            { name: 'Wool Scarf', brand: 'Acne Studios', category: 'accessory', imageUrl: null },
-        ],
-        likes: 34,
-        liked: false,
-        comments: [],
-        createdAt: '2026-02-07T11:00:00Z',
-    },
-];
-
-const SEED_FOLLOWERS: UserFollow[] = [
-    { userId: 'user-alex', username: 'alexstyle', avatarUrl: null },
-    { userId: 'user-maya', username: 'mayafits', avatarUrl: null },
-    { userId: 'user-kai', username: 'kaidrip', avatarUrl: null },
-];
-
-const SEED_FOLLOWING: UserFollow[] = [
-    { userId: 'user-jordan', username: 'jordanwears', avatarUrl: null },
-    { userId: 'user-sam', username: 'samcloset', avatarUrl: null },
-    { userId: 'user-nina', username: 'ninaootd', avatarUrl: null },
-    { userId: 'user-kai', username: 'kaidrip', avatarUrl: null },
-];
 
 const syncSocial = {
     async likePost(postId: string, userId: string, liked: boolean) {
@@ -234,11 +116,11 @@ const syncSocial = {
 export const useSocialStore = create<SocialState>()(
     persist(
         (set, get) => ({
-            posts: SEED_POSTS,
+            posts: [],
             userPosts: [],
             likedPosts: [],
-            followers: SEED_FOLLOWERS,
-            following: SEED_FOLLOWING,
+            followers: [],
+            following: [],
             currentUser: {
                 username: 'User',
                 avatarUrl: null,
@@ -276,7 +158,7 @@ export const useSocialStore = create<SocialState>()(
                     };
                 });
 
-                syncSocial.likePost(id, 'current-user', nowLiked);
+                getAuthUserId().then(uid => syncSocial.likePost(id, uid, nowLiked));
             },
 
             addComment: (postId, comment) => {
@@ -298,7 +180,7 @@ export const useSocialStore = create<SocialState>()(
                         ? state.following.filter((f) => f.userId !== user.userId)
                         : [...state.following, user],
                 });
-                syncSocial.toggleFollow(user.userId, 'current-user', !isFollowing);
+                getAuthUserId().then(uid => syncSocial.toggleFollow(user.userId, uid, !isFollowing));
             },
 
             updateProfile: (updates) => set((state) => ({
@@ -308,6 +190,42 @@ export const useSocialStore = create<SocialState>()(
             setLikedPosts: (posts) => set({ likedPosts: posts }),
             setFollowers: (followers) => set({ followers }),
             setFollowing: (following) => set({ following }),
+
+            fetchPosts: async () => {
+                try {
+                    const { data: rows } = await supabase
+                        .from('posts')
+                        .select('id, user_id, image_url, caption, likes_count, created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(50);
+                    if (rows?.length) {
+                        const userIds = [...new Set(rows.map((r: any) => r.user_id as string))];
+                        const { data: profiles } = await supabase
+                            .from('profiles')
+                            .select('id, username, avatar_url')
+                            .in('id', userIds);
+                        const profileMap = new Map<string, { username: string; avatar_url?: string }>();
+                        profiles?.forEach((p: any) => profileMap.set(p.id, { username: p.username, avatar_url: p.avatar_url }));
+
+                        const posts: SocialPost[] = rows.map((row: any) => ({
+                            id: row.id,
+                            userId: row.user_id,
+                            username: profileMap.get(row.user_id)?.username || '',
+                            avatarUrl: profileMap.get(row.user_id)?.avatar_url || null,
+                            imageUrl: row.image_url,
+                            caption: row.caption || '',
+                            clothingPieces: [],
+                            likes: row.likes_count || 0,
+                            liked: false,
+                            comments: [],
+                            createdAt: row.created_at,
+                        }));
+                        set({ posts });
+                    }
+                } catch (e) {
+                    if (__DEV__) console.warn('fetchPosts failed:', e);
+                }
+            },
 
             fetchLikedPosts: async (userId: string) => {
                 try {
@@ -384,6 +302,7 @@ export const useSocialStore = create<SocialState>()(
             hydrateSocial: async (userId: string) => {
                 const store = get();
                 await Promise.all([
+                    store.fetchPosts(),
                     store.fetchLikedPosts(userId),
                     store.fetchFollowers(userId),
                     store.fetchFollowing(userId),
@@ -392,9 +311,10 @@ export const useSocialStore = create<SocialState>()(
         }),
         {
             name: 'social-storage',
-            version: 2,
+            version: 3,
             storage: createJSONStorage(() => AsyncStorage),
             partialize: (state) => ({
+                posts: state.posts,
                 userPosts: state.userPosts,
                 likedPosts: state.likedPosts,
                 followers: state.followers,

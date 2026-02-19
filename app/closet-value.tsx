@@ -150,7 +150,7 @@ export default function ClosetValueScreen() {
                 >
                     <ArrowLeft size={20} color={Colors.textPrimary} />
                 </Pressable>
-                <Text style={styles.headerTitle}>Neckworth</Text>
+                <Text style={styles.headerTitle}>Wardrobe Value</Text>
                 <View style={styles.headerSpacer} />
             </SafeAreaView>
 

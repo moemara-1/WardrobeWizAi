@@ -4,7 +4,7 @@ import { OutfitFilters } from '@/components/ui/OutfitFilters';
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { generateOutfitTwin, generateSmartOutfit, OutfitTwinItem } from '@/lib/ai';
 import { classifyGarmentSlot } from '@/lib/backgroundRemoval';
-import { useClosetStore } from '@/stores/closetStore';
+import { generateId, useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, GeneratedLook, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -341,21 +341,21 @@ export default function StylistScreen() {
     }
 
     const filteredItems = filterItems(items);
-    const hasFilters = styleFilter.length > 0 || colorFilter.length > 0 || weatherFilter.length > 0;
 
-    if (hasFilters && filteredItems.length >= 2) {
+    if (items.length >= 2) {
       try {
-        const smartItems = filteredItems.map(i => ({
+        const smartItems = items.map(i => ({
           id: i.id, name: i.name, category: i.category,
           colors: i.colors, tags: i.tags,
         }));
+        const filters = { style: styleFilter, color: colorFilter, weather: weatherFilter };
         const pickedIds = await Promise.race([
-          generateSmartOutfit(smartItems, { style: styleFilter, color: colorFilter, weather: weatherFilter }),
-          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+          generateSmartOutfit(smartItems, filters),
+          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
         ]);
         if (pickedIds.length > 0) {
           const pickedItems = pickedIds
-            .map(id => filteredItems.find(i => i.id === id))
+            .map(id => items.find(i => i.id === id))
             .filter(Boolean) as ClosetItem[];
           if (pickedItems.length > 0) {
             setCanvasItems(buildVerticalEntries(pickedItems));
@@ -382,7 +382,7 @@ export default function StylistScreen() {
     setSavedThisOutfit(true);
 
     const outfit: Outfit = {
-      id: `outfit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId(),
       user_id: 'demo',
       items: currentOutfitItems,
       item_ids: currentOutfitItems.map((i) => i.id),
@@ -496,10 +496,7 @@ export default function StylistScreen() {
 
       setTwinProgress('New fit generated!');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => {
-        setTwinGenerating(false);
-        router.push('/digital-twin-preview' as Href);
-      }, 500);
+      setTwinGenerating(false);
     } catch (e: unknown) {
       setTwinGenerating(false);
       setTwinProgress(null);

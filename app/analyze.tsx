@@ -3,11 +3,10 @@ import { useThemeColors } from '@/contexts/ThemeContext';
 import { analyzeClothingImage, analyzeOutfitImage, ClothingAnalysis, identifyProduct, ItemResearch, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgroundRemoval';
 import { saveToPermanentStorage } from '@/lib/storage';
-import { useClosetStore } from '@/stores/closetStore';
+import { generateId, useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, ImageIcon, Sparkles, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -92,6 +91,8 @@ export default function AnalyzeScreen() {
   const [layerType, setLayerType] = useState<string>('');
   const [confidence, setConfidence] = useState(0);
   const [garmentSlot, setGarmentSlot] = useState<GarmentSlot>('unknown');
+  const [isReEnhancing, setIsReEnhancing] = useState(false);
+  const singleProductRef = useRef<ProductIdentification | null>(null);
 
   // ─── Multi-item state ───
   const [detectedPieces, setDetectedPieces] = useState<DetectedPiece[]>([]);
@@ -142,44 +143,6 @@ export default function AnalyzeScreen() {
       const resolvedGarmentType = product?.garment_type || analysis.garment_type || undefined;
       setGarmentSlot(classifyGarmentSlot(resolvedCategory, resolvedGarmentType));
 
-      // Step 2: Crop and Clean
-      // We need to wait for product identification to get the bounding box
-      let workingUri = uri;
-
-      if (product?.box_2d) {
-        try {
-          // box is [ymin, xmin, ymax, xmax] in 0-100 scale
-          const [ymin, xmin, ymax, xmax] = product.box_2d;
-
-          // Get image dimensions
-          const dimensions = await new Promise<{ width: number, height: number }>((resolve, reject) => {
-            RNImage.getSize(uri, (width, height) => resolve({ width, height }), reject);
-          });
-
-          // Add some padding (margin)
-          const padding = 18;
-          const y1 = Math.max(0, ymin - padding);
-          const x1 = Math.max(0, xmin - padding);
-          const y2 = Math.min(100, ymax + padding);
-          const x2 = Math.min(100, xmax + padding);
-
-          const cropX = (x1 / 100) * dimensions.width;
-          const cropY = (y1 / 100) * dimensions.height;
-          const cropW = ((x2 - x1) / 100) * dimensions.width;
-          const cropH = ((y2 - y1) / 100) * dimensions.height;
-
-          const cropped = await manipulateAsync(
-            uri,
-            [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
-            { format: SaveFormat.JPEG, compress: 0.9 }
-          );
-
-          workingUri = cropped.uri;
-        } catch (e) {
-          console.warn('Failed to crop single item:', e);
-        }
-      }
-
       setStage('researching');
 
       const researchPromise = researchClothingItem(
@@ -193,7 +156,6 @@ export default function AnalyzeScreen() {
         if (research.subcategory) setGarmentType(research.subcategory);
       }).catch(() => { });
 
-      // Generate clean product image from the (potentially cropped) working URI
       const effectiveProduct: ProductIdentification = product || {
         name: analysis!.name,
         brand: analysis!.brand,
@@ -203,14 +165,20 @@ export default function AnalyzeScreen() {
         material: null,
         description: analysis!.name,
       };
+      singleProductRef.current = effectiveProduct;
 
-      const cleanImagePromise = regenerateCleanImage(workingUri, effectiveProduct)
-        .then((cleanUri) => {
-          if (cleanUri) setCleanImageUri(cleanUri);
+      const cleanImagePromise = regenerateCleanImage(uri, effectiveProduct)
+        .then(async (cleanUri) => {
+          if (cleanUri) {
+            setCleanImageUri(cleanUri);
+            try {
+              const enhanced = await regenerateCleanImage(cleanUri, effectiveProduct);
+              if (enhanced) setCleanImageUri(enhanced);
+            } catch { /* re-enhance failed, keep first result */ }
+          }
         })
         .catch(() => {
-          // Fallback: try removeBackground (remove.bg API)
-          return removeBackground(workingUri)
+          return removeBackground(uri)
             .then((r) => {
               if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
             });
@@ -225,6 +193,22 @@ export default function AnalyzeScreen() {
       return;
     }
   }, []);
+
+  const handleReEnhance = useCallback(async () => {
+    if (!imageUri || !singleProductRef.current || isReEnhancing) return;
+    setIsReEnhancing(true);
+    try {
+      const cleanUri = await regenerateCleanImage(imageUri, singleProductRef.current);
+      if (cleanUri) setCleanImageUri(cleanUri);
+    } catch {
+      try {
+        const r = await removeBackground(imageUri);
+        if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
+      } catch { /* silent */ }
+    } finally {
+      setIsReEnhancing(false);
+    }
+  }, [imageUri, isReEnhancing]);
 
   // ─── Multi-item pipeline (fit pic) ───
   const runMultiPipeline = useCallback(async (uri: string) => {
@@ -320,7 +304,15 @@ export default function AnalyzeScreen() {
         description: `Extract ONLY the ${richDescription} from this outfit photo. Remove the person, background, and all other clothing items. Show just the ${piece.category} item alone on a white background, fully visible from top to bottom.`,
       };
 
-      const cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
+      let cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
+
+      if (cleanUri) {
+        setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri! } : p));
+        try {
+          const enhanced = await regenerateCleanImage(cleanUri, tempProduct, 'detect-fit-seedream');
+          if (enhanced) cleanUri = enhanced;
+        } catch { /* keep first result */ }
+      }
 
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
 
@@ -388,7 +380,7 @@ export default function AnalyzeScreen() {
     }
 
     const newItem: ClosetItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId(),
       user_id: 'demo',
       image_url: permanentImageUri,
       clean_image_url: cleanImageUri || undefined,
@@ -451,7 +443,7 @@ export default function AnalyzeScreen() {
       }
 
       const newItem: ClosetItem = {
-        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: generateId(),
         user_id: 'demo',
         image_url: permanentCleanUri || permanentOriginalUri,
         clean_image_url: permanentCleanUri,
@@ -674,7 +666,22 @@ export default function AnalyzeScreen() {
               <Text style={styles.loadingText}>{stageLabel[stage]}</Text>
             </View>
           )}
+          {isReEnhancing && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={Colors.accentGreen} />
+              <Text style={styles.loadingText}>Re-enhancing image...</Text>
+            </View>
+          )}
         </View>
+
+        {stage === 'done' && cleanImageUri && !isReEnhancing && (
+          <View style={styles.reEnhanceRow}>
+            <Pressable style={styles.reEnhanceBtn} onPress={handleReEnhance}>
+              <Sparkles size={14} color={Colors.accentGreen} />
+              <Text style={styles.reEnhanceBtnText}>Re-enhance Image</Text>
+            </Pressable>
+          </View>
+        )}
 
         {stage === 'error' && (
           <View style={styles.errorBanner}>
@@ -836,6 +843,9 @@ function createStyles(C: any) {
     colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 },
     colorChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
     colorChipText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textPrimary, textTransform: 'capitalize' },
+    reEnhanceRow: { alignItems: 'center', marginBottom: 12 },
+    reEnhanceBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.accentGreen, backgroundColor: `${C.accentGreen}10` },
+    reEnhanceBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.accentGreen },
     // ─── Multi-item (fit pic) styles ───
     outfitMeta: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12, flexWrap: 'wrap' },
     metaPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },

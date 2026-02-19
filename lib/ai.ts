@@ -386,6 +386,22 @@ export async function generateSmartOutfit(
         filters.weather.length > 0 ? `Weather: ${filters.weather.join(', ')}` : '',
     ].filter(Boolean).join('. ');
 
+    const filterRules = [];
+    if (filters.color.length > 0) {
+        if (filters.color.includes('light')) filterRules.push('ONLY pick light-colored items (white, cream, beige, pastel). EXCLUDE dark/black items.');
+        if (filters.color.includes('dark')) filterRules.push('ONLY pick dark-colored items (black, navy, charcoal). EXCLUDE bright/light items.');
+        if (filters.color.includes('bright')) filterRules.push('Prefer bright, vivid colors (red, yellow, orange, pink).');
+        if (filters.color.includes('monochrome')) filterRules.push('ONLY pick black, white, and grey items.');
+    }
+    if (filters.weather.length > 0) {
+        if (filters.weather.includes('cold')) filterRules.push('Include outerwear and layers for cold weather.');
+        if (filters.weather.includes('warm')) filterRules.push('EXCLUDE heavy outerwear. Pick light layers only.');
+        if (filters.weather.includes('hot')) filterRules.push('EXCLUDE all outerwear and heavy fabrics. Pick light, breathable items only.');
+    }
+    if (filters.style.length > 0) {
+        filterRules.push(`Match these style tags: ${filters.style.join(', ')}`);
+    }
+
     const content = await callDeepInfra({
         model: TEXT_MODEL,
         messages: [
@@ -395,10 +411,10 @@ export async function generateSmartOutfit(
             },
             {
                 role: 'user',
-                content: `Pick a complete outfit (top + bottom + optional outerwear + optional shoes) from these items:
+                content: `Pick a complete outfit (top + bottom + optional outerwear + optional shoes + optional accessories) from these items:
 ${itemList}
 
-${filterDesc ? `Preferences: ${filterDesc}` : 'Pick the most stylish combination.'}
+${filterRules.length > 0 ? `RULES (must follow strictly):\n${filterRules.map(r => `- ${r}`).join('\n')}` : 'Pick the most stylish, well-coordinated combination.'}
 
 Return ONLY a JSON array of IDs like: ["id1", "id2", "id3"]`,
             },
@@ -853,7 +869,11 @@ export async function generateOutfitTwin(
                     category: img.category,
                     name: img.name,
                 })),
-                ...(textPrompt ? { prompt: textPrompt } : {}),
+                ...(textPrompt ? {
+                    prompt: textPrompt.toLowerCase().includes('studio')
+                        ? `Dress the person in the provided garments. Place them in a clean white studio background with professional lighting.`
+                        : `Dress the person in the provided garments. Background scene: ${textPrompt}`,
+                } : {}),
             },
         });
 
@@ -884,7 +904,12 @@ export async function generateOutfitTwin(
     const itemDescriptions = clothingImages
         .map((img, i) => `${i + 1}. ${img.name} (${img.category})`)
         .join('\n');
-    const sceneDesc = textPrompt ? `\nScene/setting: ${textPrompt}` : '';
+    const isStudio = textPrompt?.toLowerCase().includes('studio');
+    const sceneDesc = textPrompt
+        ? isStudio
+            ? '\nBackground: clean white studio with professional lighting'
+            : `\nBackground scene: ${textPrompt}`
+        : '';
 
     const prompt = `The image is a reference collage. The LEFT side shows a person. The RIGHT side shows the specific clothing items they should wear.
 
@@ -898,7 +923,7 @@ CRITICAL RULES:
 - Each clothing item must EXACTLY match what is shown on the right side of the reference
 - Do NOT generate a collage — output a single photo of the fully dressed person
 - Full-body shot, head to toe, standing pose
-- Professional studio photography, clean neutral background, good lighting${sceneDesc}`;
+- Professional photography, good lighting${sceneDesc || '\n- Clean neutral background'}`;
 
     try {
         const { data, error } = await supabase.functions.invoke('ai-image', {

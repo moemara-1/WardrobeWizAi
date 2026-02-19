@@ -298,9 +298,9 @@ export default function ClosetScreen() {
             </View>
           ) : (
             <FlatList data={outfits} keyExtractor={(o) => o.id}
-              numColumns={2}
-              columnWrapperStyle={{ gap: 12 }}
-              contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+              numColumns={3}
+              columnWrapperStyle={{ gap: 6 }}
+              contentContainerStyle={{ padding: 10, paddingBottom: 120 }}
               renderItem={({ item: outfit }) => {
                 const resolvedItems = outfit.item_ids
                   .map((oid) => items.find((i) => i.id === oid))
@@ -827,13 +827,13 @@ const styles = StyleSheet.create({
   emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen, marginTop: 8 },
   emptyBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
   fitsContainer: { flex: 1 },
-  fitPreviewCard: { flex: 1, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 12 },
+  fitPreviewCard: { flex: 1, backgroundColor: Colors.cardSurface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 6 },
   fitStackPreview: { aspectRatio: 3 / 4, backgroundColor: '#FFFFFF', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, overflow: 'hidden' },
   fitCollageImage: { width: '100%', height: '100%' },
   fitMannequinStack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 8 },
   fitMannequinSlot: { width: '75%', alignItems: 'center' },
   fitMannequinImage: { width: '100%', height: 80 },
   fitEmptySlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textPrimary, paddingHorizontal: 10, paddingTop: 8 },
-  fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, paddingHorizontal: 10, paddingBottom: 10, textTransform: 'capitalize' },
+  fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 11, color: Colors.textPrimary, paddingHorizontal: 6, paddingTop: 4 },
+  fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 10, color: Colors.textSecondary, paddingHorizontal: 6, paddingBottom: 6, textTransform: 'capitalize' },
 });

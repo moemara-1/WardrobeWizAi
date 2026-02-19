@@ -1,7 +1,7 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { useClosetStore } from '@/stores/closetStore';
+import { generateId, useClosetStore } from '@/stores/closetStore';
 import { PostComment, SocialPost, useSocialStore } from '@/stores/socialStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -40,6 +40,13 @@ export default function PostDetailScreen() {
   const closetPosts = useClosetStore((s) => s.posts);
   const closetItems = useClosetStore((s) => s.items);
   const closetProfile = useClosetStore((s) => s.userProfile);
+  const [authUserId, setAuthUserId] = useState<string>('anonymous');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.id) setAuthUserId(data.user.id);
+    });
+  }, []);
 
   const post = useMemo((): SocialPost | undefined => {
     const social = socialPosts.find((p) => p.id === id);
@@ -60,7 +67,7 @@ export default function PostDetailScreen() {
 
     return {
       id: userPost.id,
-      userId: 'me',
+      userId: authUserId,
       username: closetProfile.username,
       avatarUrl: closetProfile.pfp_url || null,
       imageUrl: userPost.image_url,
@@ -71,7 +78,7 @@ export default function PostDetailScreen() {
       comments: [],
       createdAt: userPost.created_at,
     };
-  }, [socialPosts, closetPosts, closetItems, closetProfile, id]);
+  }, [socialPosts, closetPosts, closetItems, closetProfile, authUserId, id]);
 
   const [supabasePost, setSupabasePost] = useState<SocialPost | null>(null);
   const [fetchedFromDb, setFetchedFromDb] = useState(false);
@@ -127,16 +134,16 @@ export default function PostDetailScreen() {
     if (!resolvedPost || !commentText.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const comment: PostComment = {
-      id: `comment-${Date.now()}`,
-      userId: 'me',
-      username: 'You',
-      avatarUrl: null,
+      id: generateId(),
+      userId: authUserId,
+      username: closetProfile.username,
+      avatarUrl: closetProfile.pfp_url || null,
       text: commentText.trim(),
       createdAt: new Date().toISOString(),
     };
     addComment(resolvedPost.id, comment);
     setCommentText('');
-  }, [resolvedPost, commentText, addComment]);
+  }, [resolvedPost, commentText, addComment, authUserId, closetProfile]);
 
   if (!resolvedPost) {
     return (

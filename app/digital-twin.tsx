@@ -1,6 +1,6 @@
 import { Colors, Radius, Typography } from '@/constants/Colors';
 import { generateDigitalTwin } from '@/lib/ai';
-import { useClosetStore } from '@/stores/closetStore';
+import { generateId, useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -160,7 +160,7 @@ export default function DigitalTwinScreen() {
             );
 
             const twin = {
-                id: `twin_${Date.now()}`,
+                id: generateId(),
                 user_id: 'local',
                 selfie_url: selfieUri,
                 body_url: bodyUri ?? undefined,

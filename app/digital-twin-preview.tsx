@@ -3,12 +3,15 @@ import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import * as MediaLibrary from 'expo-media-library';
 import { router, type Href } from 'expo-router';
-import { ArrowLeft, RefreshCw, Sparkles, Trash2, User } from 'lucide-react-native';
-import React, { useMemo } from 'react';
+import { ArrowLeft, Download, RefreshCw, Sparkles, Trash2, User } from 'lucide-react-native';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
+  FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,7 +27,35 @@ const FIT_CARD_SIZE = 140;
 export default function DigitalTwinPreviewScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
-  const { digitalTwin, savedFits, deleteSavedFit } = useClosetStore();
+  const { digitalTwin, savedFits, generatedLooks, deleteSavedFit, deleteGeneratedLook } = useClosetStore();
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [showGallery, setShowGallery] = useState(false);
+
+  const allLooks = useMemo(() => {
+    const fromSaved = savedFits.map(f => ({ id: f.id, image_url: f.image_url, label: f.scene || 'Saved Fit', source: 'saved' as const }));
+    const fromGenerated = generatedLooks.map(l => ({ id: l.id, image_url: l.image_url, label: l.prompt || 'Generated Look', source: 'generated' as const }));
+    return [...fromGenerated, ...fromSaved];
+  }, [savedFits, generatedLooks]);
+
+  const saveToPhone = useCallback(async (imageUri: string) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Allow access to save images to your gallery.');
+        return;
+      }
+      await MediaLibrary.saveToLibraryAsync(imageUri);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Image saved to your photo library.');
+    } catch {
+      Alert.alert('Error', 'Could not save image.');
+    }
+  }, []);
+
+  const openGallery = useCallback((index: number) => {
+    setGalleryIndex(index);
+    setShowGallery(true);
+  }, []);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -99,37 +130,58 @@ export default function DigitalTwinPreviewScreen() {
             </View>
           )}
 
-          {/* Saved Fits Gallery */}
-          {savedFits.length > 0 && (
+          {/* Save Twin Image to Phone */}
+          <Pressable style={styles.saveToPhoneBtn} onPress={() => saveToPhone(digitalTwin.twin_image_url)}>
+            <Download size={16} color={Colors.accentGreen} />
+            <Text style={styles.saveToPhoneBtnText}>Save to Phone</Text>
+          </Pressable>
+
+          {/* Generated Looks Gallery */}
+          {allLooks.length > 0 && (
             <View style={styles.savedFitsSection}>
-              <Text style={styles.savedFitsTitle}>Saved Fits</Text>
+              <Text style={styles.savedFitsTitle}>Your Looks ({allLooks.length})</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.savedFitsRow}
               >
-                {savedFits.map((fit) => (
-                  <View key={fit.id} style={styles.savedFitCard}>
+                {allLooks.map((look, idx) => (
+                  <Pressable key={look.id} style={styles.savedFitCard} onPress={() => openGallery(idx)}>
                     <Image
-                      source={{ uri: fit.image_url }}
+                      source={{ uri: look.image_url }}
                       style={styles.savedFitImage}
                       contentFit="cover"
                     />
                     <View style={styles.savedFitOverlay}>
-                      <Text style={styles.savedFitScene}>{fit.scene}</Text>
-                      <Pressable
-                        style={styles.savedFitDeleteBtn}
-                        onPress={() => {
-                          Alert.alert('Delete Fit', 'Remove this saved fit?', [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Delete', style: 'destructive', onPress: () => deleteSavedFit(fit.id) },
-                          ]);
-                        }}
-                      >
-                        <Trash2 size={14} color="#FF6B6B" />
-                      </Pressable>
+                      <Text style={styles.savedFitScene} numberOfLines={1}>{look.label}</Text>
+                      <View style={{ flexDirection: 'row', gap: 4 }}>
+                        <Pressable
+                          style={styles.savedFitDeleteBtn}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            saveToPhone(look.image_url);
+                          }}
+                        >
+                          <Download size={12} color="#FFF" />
+                        </Pressable>
+                        <Pressable
+                          style={styles.savedFitDeleteBtn}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            Alert.alert('Delete', 'Remove this look?', [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Delete', style: 'destructive', onPress: () => {
+                                if (look.source === 'saved') deleteSavedFit(look.id);
+                                else deleteGeneratedLook(look.id);
+                              }},
+                            ]);
+                          }}
+                        >
+                          <Trash2 size={12} color="#FF6B6B" />
+                        </Pressable>
+                      </View>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </ScrollView>
             </View>
@@ -146,6 +198,40 @@ export default function DigitalTwinPreviewScreen() {
             <Text style={styles.regenCtaText}>Regenerate</Text>
           </Pressable>
         </SafeAreaView>
+
+        {/* Fullscreen Swipeable Gallery */}
+        <Modal visible={showGallery} transparent animationType="fade">
+          <View style={styles.galleryOverlay}>
+            <SafeAreaView edges={['top']} style={styles.galleryHeader}>
+              <Pressable onPress={() => setShowGallery(false)} style={styles.galleryCloseBtn}>
+                <ArrowLeft size={20} color="#FFF" />
+              </Pressable>
+              <Text style={styles.galleryTitle}>{galleryIndex + 1} / {allLooks.length}</Text>
+              <Pressable onPress={() => allLooks[galleryIndex] && saveToPhone(allLooks[galleryIndex].image_url)} style={styles.galleryCloseBtn}>
+                <Download size={20} color="#FFF" />
+              </Pressable>
+            </SafeAreaView>
+            <FlatList
+              data={allLooks}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={galleryIndex}
+              getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
+              onMomentumScrollEnd={(e) => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                setGalleryIndex(idx);
+              }}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={{ width: SCREEN_WIDTH, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                  <Image source={{ uri: item.image_url }} style={styles.galleryFullImage} contentFit="contain" />
+                  <Text style={styles.galleryLabel}>{item.label}</Text>
+                </View>
+              )}
+            />
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -260,5 +346,13 @@ function createStyles(C: any) {
     savedFitOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, backgroundColor: 'rgba(0,0,0,0.6)' },
     savedFitScene: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF', textTransform: 'capitalize' },
     savedFitDeleteBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    saveToPhoneBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16, paddingVertical: 10, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.accentGreen, backgroundColor: `${C.accentGreen}10` },
+    saveToPhoneBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.accentGreen },
+    galleryOverlay: { flex: 1, backgroundColor: '#000' },
+    galleryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+    galleryCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+    galleryTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
+    galleryFullImage: { width: SCREEN_WIDTH - 32, height: '80%' },
+    galleryLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 12, textAlign: 'center' },
   });
 }

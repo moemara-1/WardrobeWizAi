@@ -1,6 +1,6 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { useClosetStore } from '@/stores/closetStore';
+import { generateId, useClosetStore } from '@/stores/closetStore';
 import { useSocialStore } from '@/stores/socialStore';
 import { UserPost } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -434,7 +434,7 @@ function AddPostModal({ visible, onClose, items, onSave }: {
   const handlePost = () => {
     if (!imageUri) return;
     onSave({
-      id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId(),
       image_url: imageUri,
       caption: caption.trim() || undefined,
       tagged_item_ids: taggedIds.length > 0 ? taggedIds : undefined,
