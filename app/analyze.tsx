@@ -3,7 +3,7 @@ import { useThemeColors } from '@/contexts/ThemeContext';
 import { analyzeClothingImage, analyzeOutfitImage, ClothingAnalysis, identifyProduct, ItemResearch, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgroundRemoval';
 import { saveToPermanentStorage } from '@/lib/storage';
-import { generateId, useClosetStore } from '@/stores/closetStore';
+import { backgroundEnhanceItem, generateId, useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -168,14 +168,8 @@ export default function AnalyzeScreen() {
       singleProductRef.current = effectiveProduct;
 
       const cleanImagePromise = regenerateCleanImage(uri, effectiveProduct)
-        .then(async (cleanUri) => {
-          if (cleanUri) {
-            setCleanImageUri(cleanUri);
-            try {
-              const enhanced = await regenerateCleanImage(cleanUri, effectiveProduct);
-              if (enhanced) setCleanImageUri(enhanced);
-            } catch { /* re-enhance failed, keep first result */ }
-          }
+        .then((cleanUri) => {
+          if (cleanUri) setCleanImageUri(cleanUri);
         })
         .catch(() => {
           return removeBackground(uri)
@@ -306,15 +300,7 @@ export default function AnalyzeScreen() {
 
       let cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
 
-      if (cleanUri) {
-        setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri! } : p));
-        try {
-          const enhanced = await regenerateCleanImage(cleanUri, tempProduct, 'detect-fit-seedream');
-          if (enhanced) cleanUri = enhanced;
-        } catch { /* keep first result */ }
-      }
-
-      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
+      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri || undefined, isCleaning: false } : p));
 
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -402,6 +388,10 @@ export default function AnalyzeScreen() {
 
     addItem(newItem);
     router.back();
+
+    if (singleProductRef.current) {
+      backgroundEnhanceItem(newItem.id, permanentImageUri, singleProductRef.current);
+    }
   }, [imageUri, cleanImageUri, name, category, brand, colors, confidence, estimatedValue, garmentType, layerType, tags, addItem]);
 
   // ─── Multi-item save ───
@@ -462,6 +452,16 @@ export default function AnalyzeScreen() {
         updated_at: new Date().toISOString(),
       };
       addItem(newItem);
+
+      backgroundEnhanceItem(newItem.id, permanentCleanUri || permanentOriginalUri, {
+        name: piece.name || 'Clothing Item',
+        brand: piece.brand || null,
+        category: piece.category,
+        garment_type: piece.garmentType || null,
+        colors: piece.colors,
+        material: null,
+        description: piece.name || 'Clothing Item',
+      });
     }
 
     router.back();

@@ -1,3 +1,4 @@
+import { regenerateCleanImage, ProductIdentification } from '@/lib/ai';
 import { supabase } from '@/lib/supabase';
 import { ClosetItem, ClothingCategory, Collection, DigitalTwin, GeneratedLook, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -542,6 +543,32 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
         }
     } catch (e) {
         if (__DEV__) console.warn('hydrateFromSupabase failed:', e);
+    }
+}
+
+export async function backgroundEnhanceItem(
+    itemId: string,
+    imageUri: string,
+    product: ProductIdentification,
+): Promise<void> {
+    const store = useClosetStore.getState();
+    const taskId = `enhance_${itemId}`;
+    store.addBackgroundTask(taskId, 'Enhancing image');
+    try {
+        store.updateBackgroundTask(taskId, 'Generating clean image...');
+        const cleanUri = await regenerateCleanImage(imageUri, product);
+        if (cleanUri) {
+            store.updateItem(itemId, { clean_image_url: cleanUri });
+            store.updateBackgroundTask(taskId, 'Re-enhancing...');
+            const enhanced = await regenerateCleanImage(cleanUri, product);
+            if (enhanced) {
+                store.updateItem(itemId, { clean_image_url: enhanced });
+            }
+        }
+    } catch {
+        // silent — item already saved with original image
+    } finally {
+        store.removeBackgroundTask(taskId);
     }
 }
 
