@@ -684,8 +684,8 @@ export default function StylistScreen() {
             renderItem={({ item: outfit }) => (
               <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
                 <View style={styles.fitsPickerStack}>
-                  {outfit.items.slice(0, 4).map((piece, idx) => (
-                    <View key={piece.id} style={[styles.fitsPickerStackItem, { zIndex: 10 - idx }]}>
+                  {outfit.items.slice(0, 4).map((piece) => (
+                    <View key={piece.id} style={styles.fitsPickerStackItem}>
                       <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerStackImage} contentFit="contain" />
                     </View>
                   ))}
@@ -737,9 +737,9 @@ function createStyles(C: ReturnType<typeof import('@/contexts/ThemeContext').use
     fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
     fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textSecondary },
     fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary },
-    fitsPickerCard: { flexDirection: 'row', marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, gap: 14 },
-    fitsPickerStack: { width: 80, alignItems: 'center' },
-    fitsPickerStackItem: { width: 70, height: 70, marginBottom: -30, backgroundColor: '#FFFFFF' },
+    fitsPickerCard: { flexDirection: 'row', marginBottom: 16, padding: 16, backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, gap: 14 },
+    fitsPickerStack: { width: 80, height: 80, flexDirection: 'row', flexWrap: 'wrap', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, overflow: 'hidden' },
+    fitsPickerStackItem: { width: '50%', height: '50%', backgroundColor: C.cardSurfaceAlt, padding: 2 },
     fitsPickerStackImage: { width: '100%', height: '100%' },
     fitsPickerInfo: { flex: 1, justifyContent: 'center' },
     fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },

@@ -236,14 +236,19 @@ export default function DigitalTwinPreviewScreen() {
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              initialScrollIndex={allLooks.length > 0 ? Math.min(galleryIndex, allLooks.length - 1) : 0}
+              onLayout={() => {
+                if (allLooks.length > 0 && galleryIndex > 0) {
+                  flatListRef.current?.scrollToIndex({ index: galleryIndex, animated: false });
+                }
+              }}
               onScrollToIndexFailed={(info) => {
-                const wait = new Promise(resolve => setTimeout(resolve, 500));
-                wait.then(() => {
+                const offset = info.averageItemLength * info.index;
+                flatListRef.current?.scrollToOffset({ offset, animated: false });
+                setTimeout(() => {
                   if (allLooks.length > 0) {
-                    flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+                    flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
                   }
-                });
+                }, 100);
               }}
               getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
               onMomentumScrollEnd={(e) => {
