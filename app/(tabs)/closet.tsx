@@ -304,9 +304,9 @@ export default function ClosetScreen() {
             </View>
           ) : (
             <FlatList data={outfits} keyExtractor={(o) => o.id}
-              numColumns={4}
-              columnWrapperStyle={{ gap: 6 }}
-              contentContainerStyle={{ padding: 10, paddingBottom: 120 }}
+              numColumns={2}
+              columnWrapperStyle={{ gap: 12 }}
+              contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
               renderItem={({ item: outfit }) => {
                 const resolvedItems = outfit.item_ids
                   .map((oid) => items.find((i) => i.id === oid))
@@ -329,10 +329,10 @@ export default function ClosetScreen() {
                       {outfit.collage_url ? (
                         <Image source={{ uri: outfit.collage_url }} style={styles.fitCollageImage} contentFit="cover" />
                       ) : (
-                        <View style={styles.fitMannequinStack}>
-                          {displayPieces.slice(0, 4).map((piece, idx) => (
-                            <View key={piece.id} style={[styles.fitMannequinSlot, idx > 0 && { marginTop: -12 }]}>
-                              <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitMannequinImage} contentFit="contain" />
+                        <View style={styles.fitGridPreview}>
+                          {displayPieces.slice(0, 4).map((piece) => (
+                            <View key={piece.id} style={styles.fitGridSlot}>
+                              <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitGridImage} contentFit="contain" />
                             </View>
                           ))}
                           {displayPieces.length === 0 && (
@@ -388,11 +388,10 @@ export default function ClosetScreen() {
                         .filter(Boolean) as ClosetItem[];
                       const displayPieces = bySlot.length > 0 ? bySlot : resolvedItems;
                       return (
-                        <View style={fitModalStyles.mannequinStack}>
-                          {displayPieces.map((piece, idx) => (
-                            <View key={piece.id} style={[fitModalStyles.mannequinSlot, idx > 0 && { marginTop: -24 }]}>
-                              <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={fitModalStyles.mannequinImage} contentFit="contain" />
-                              <Text style={fitModalStyles.slotLabel}>{piece.name}</Text>
+                        <View style={fitModalStyles.gridPreview}>
+                          {displayPieces.map((piece) => (
+                            <View key={piece.id} style={fitModalStyles.gridSlot}>
+                              <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={fitModalStyles.gridImage} contentFit="contain" />
                             </View>
                           ))}
                         </View>
@@ -765,10 +764,9 @@ function createFitModalStyles(C: ReturnType<typeof useThemeColors>) {
     subtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary, marginTop: 2, textTransform: 'capitalize' },
     canvasPreview: { marginHorizontal: 20, marginVertical: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden', aspectRatio: 3 / 4, maxHeight: 420 },
     collageImage: { width: '100%', height: '100%' },
-    mannequinStack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 12 },
-    mannequinSlot: { width: '70%', alignItems: 'center' },
-    mannequinImage: { width: '100%', height: 100 },
-    slotLabel: { fontFamily: Typography.bodyFamily, fontSize: 10, color: C.textTertiary, marginTop: 2 },
+    gridPreview: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 16, justifyContent: 'center' },
+    gridSlot: { width: '45%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, padding: 8 },
+    gridImage: { width: '100%', height: '100%' },
     actions: { flexDirection: 'row', gap: 12, paddingHorizontal: 20 },
     loadBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.accentGreen, paddingVertical: 14, borderRadius: Radius.pill },
     loadBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.background },
@@ -851,9 +849,9 @@ function createStyles(C: ReturnType<typeof useThemeColors>) {
     fitPreviewCard: { flex: 1, backgroundColor: C.cardSurface, borderRadius: Radius.md, borderWidth: 1, borderColor: C.border, overflow: 'hidden', marginBottom: 6 },
     fitStackPreview: { aspectRatio: 2 / 3, backgroundColor: C.cardSurfaceAlt, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, overflow: 'hidden' },
     fitCollageImage: { width: '100%', height: '100%' },
-    fitMannequinStack: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 4 },
-    fitMannequinSlot: { width: '85%', alignItems: 'center' },
-    fitMannequinImage: { width: '100%', height: 60 },
+    fitGridPreview: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', padding: 8, gap: 4, justifyContent: 'center', alignItems: 'center' },
+    fitGridSlot: { width: '45%', aspectRatio: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.sm, padding: 4 },
+    fitGridImage: { width: '100%', height: '100%' },
     fitEmptySlot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     fitPreviewTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 11, color: C.textPrimary, paddingHorizontal: 6, paddingTop: 4 },
     fitPreviewSub: { fontFamily: Typography.bodyFamily, fontSize: 10, color: C.textSecondary, paddingHorizontal: 6, paddingBottom: 6, textTransform: 'capitalize' },
