@@ -88,7 +88,7 @@ export default function DigitalTwinPreviewScreen() {
           {/* Twin Image — show latest generated look or base twin */}
           <View style={styles.twinImageWrapper}>
             <Image
-              source={{ uri: (generatedLooks.length > 0 && generatedLooks[0]?.image_url ? generatedLooks[0].image_url : digitalTwin.twin_image_url) }}
+              source={{ uri: (generatedLooks?.length > 0 && generatedLooks[0]?.image_url) ? generatedLooks[0].image_url : (digitalTwin?.twin_image_url || '') }}
               style={styles.twinFullImage}
               contentFit="contain"
             />

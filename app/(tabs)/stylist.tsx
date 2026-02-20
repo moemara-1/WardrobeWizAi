@@ -9,7 +9,7 @@ import { generateId, useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, GeneratedLook, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router, type Href } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import {
   Bookmark,
   BookmarkCheck,
@@ -248,14 +248,18 @@ export default function StylistScreen() {
 
   const addItemToCanvas = useCallback((item: ClosetItem) => {
     setCanvasItems((prev) => {
-      if (prev.some((c) => c.item.id === item.id)) return prev;
+      // Allow duplicates, or better yet, just flash it if it exists?
+      // User complaint: "it doesn't work". Safe bet: allow duplicates so they see SOMETHING happen.
+      // Or, we can check if it exists and just scroll to it/wiggle it?
+      // Simpler: Just allow it. It's a canvas.
       const nextIdx = prev.length;
+      // Add a small offset so it doesn't perfectly overlap if they add the same thing twice
       const pos = getVerticalPosition(nextIdx, nextIdx + 1);
       return [...prev, {
         id: `canvas_${item.id}_${Date.now()}`,
         item,
-        defaultX: pos.x,
-        defaultY: pos.y,
+        defaultX: pos.x + (Math.random() * 20 - 10),
+        defaultY: pos.y + (Math.random() * 20 - 10),
       }];
     });
     setSavedThisOutfit(false);
@@ -274,10 +278,14 @@ export default function StylistScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (canvasItem) {
-        addItemToCanvas(canvasItem.item);
-        clearCanvasItem();
-      }
+      // Small timeout to ensure the screen is ready/mounted before state updates
+      const timer = setTimeout(() => {
+        if (canvasItem) {
+          addItemToCanvas(canvasItem.item);
+          clearCanvasItem();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
     }, [canvasItem, addItemToCanvas, clearCanvasItem])
   );
 

@@ -185,7 +185,8 @@ export default function TripPlannerScreen() {
                 value={dest}
                 onChangeText={(v) => updateDestination(index, v)}
                 onFocus={() => setActiveSearchIndex(index)}
-                onBlur={() => setTimeout(() => setActiveSearchIndex(null), 200)}
+                // Increased timeout to allow tap to register
+                onBlur={() => setTimeout(() => setActiveSearchIndex(null), 500)}
               />
               {dest.length > 0 && (
                 <Pressable onPress={() => { updateDestination(index, ''); setActiveSearchIndex(index); }}>
@@ -243,7 +244,10 @@ export default function TripPlannerScreen() {
         </ScrollView>
 
         {/* CTA */}
-        <Pressable style={styles.buildBtn} onPress={handleBuild}>
+        <Pressable
+          style={[styles.buildBtn, destinations.filter(d => d.trim().length > 0).length === 0 && { opacity: 0.5 }]}
+          onPress={handleBuild}
+        >
           <Text style={styles.buildBtnText}>Build My Trip</Text>
         </Pressable>
 
