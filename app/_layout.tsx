@@ -1,14 +1,15 @@
 import { Colors } from '@/constants/Colors';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { hydrateFromSupabase, useClosetStore } from '@/stores/closetStore';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { Fraunces_400Regular, Fraunces_700Bold, useFonts } from '@expo-google-fonts/fraunces';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import 'react-native-reanimated';
 
-
+export { ErrorBoundary } from 'expo-router';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -58,6 +59,8 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { session, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const setUserId = useClosetStore((s) => s.setUserId);
+  const hydratedRef = useRef<string | null>(null);
 
   // Hide splash only when both fonts AND auth are resolved
   useEffect(() => {
@@ -65,6 +68,34 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, isLoading]);
+
+  // Wire auth session into the closet store and trigger hydration
+  useEffect(() => {
+    if (isLoading) return;
+
+    const userId = session?.user?.id ?? null;
+    setUserId(userId);
+
+    if (userId && hydratedRef.current !== userId) {
+      hydratedRef.current = userId;
+      hydrateFromSupabase(userId);
+    }
+
+    if (!userId) {
+      hydratedRef.current = null;
+      // Clear local data on sign-out so next user doesn't see stale data
+      useClosetStore.setState({
+        items: [],
+        outfits: [],
+        posts: [],
+        collections: [],
+        savedFits: [],
+        generatedLooks: [],
+        digitalTwin: null,
+        userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
+      });
+    }
+  }, [session, isLoading, setUserId]);
 
   // Auth-based routing
   useEffect(() => {

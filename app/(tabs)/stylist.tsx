@@ -238,6 +238,7 @@ export default function StylistScreen() {
   const setTwinProgress = useClosetStore((s) => s.setTwinProgress);
   const setDigitalTwin = useClosetStore((s) => s.setDigitalTwin);
   const addGeneratedLook = useClosetStore((s) => s.addGeneratedLook);
+  const userId = useClosetStore((s) => s.userId) ?? 'local';
   const canvasItem = useClosetStore((s) => s.canvasItem);
   const clearCanvasItem = useClosetStore((s) => s.clearCanvasItem);
   const canvasOutfit = useClosetStore((s) => s.canvasOutfit);
@@ -382,7 +383,7 @@ export default function StylistScreen() {
 
     const outfit: Outfit = {
       id: `outfit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      user_id: 'demo',
+      user_id: userId,
       items: currentOutfitItems,
       item_ids: currentOutfitItems.map((i) => i.id),
       name: `Outfit ${new Date().toLocaleDateString()}`,

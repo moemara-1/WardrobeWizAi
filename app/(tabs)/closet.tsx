@@ -65,6 +65,7 @@ export default function ClosetScreen() {
   const items = useClosetStore((s) => s.items);
   const outfits = useClosetStore((s) => s.outfits);
   const collections = useClosetStore((s) => s.collections);
+  const userId = useClosetStore((s) => s.userId) ?? 'local';
   const updateItem = useClosetStore((s) => s.updateItem);
   const deleteItem = useClosetStore((s) => s.deleteItem);
   const deleteOutfit = useClosetStore((s) => s.deleteOutfit);
@@ -490,7 +491,7 @@ export default function ClosetScreen() {
             onSave={(name, description, itemIds) => {
               addCollection({
                 id: generateId('col'),
-                user_id: 'demo',
+                user_id: userId,
                 name,
                 description: description || undefined,
                 item_ids: itemIds,

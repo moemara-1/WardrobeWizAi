@@ -73,6 +73,7 @@ export default function AnalyzeScreen() {
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { imageUri, mode: modeParam } = useLocalSearchParams<{ imageUri: string; mode?: string }>();
   const addItem = useClosetStore((s) => s.addItem);
+  const userId = useClosetStore((s) => s.userId) ?? 'local';
 
   const mode = modeParam === 'fitpic' ? 'fitpic' : 'single';
 
@@ -367,7 +368,7 @@ export default function AnalyzeScreen() {
 
     const newItem: ClosetItem = {
       id: generateId(),
-      user_id: 'demo',
+      user_id: userId,
       image_url: permanentImageUri,
       clean_image_url: cleanImageUri || undefined,
       original_image_url: permanentImageUri,
@@ -434,7 +435,7 @@ export default function AnalyzeScreen() {
 
       const newItem: ClosetItem = {
         id: generateId(),
-        user_id: 'demo',
+        user_id: userId,
         image_url: permanentCleanUri || permanentOriginalUri,
         clean_image_url: permanentCleanUri,
         original_image_url: permanentOriginalUri,

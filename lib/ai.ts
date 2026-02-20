@@ -24,18 +24,34 @@ export interface ItemResearch {
     tags: string[];
 }
 
+const DEEPINFRA_TIMEOUT_MS = 30_000;
+
 async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
     const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
     if (!token) throw new Error('Missing EXPO_PUBLIC_DEEPINFRA_KEY');
 
-    const response = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DEEPINFRA_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+        response = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+        });
+    } catch (e) {
+        if ((e as Error).name === 'AbortError') {
+            throw new Error('AI request timed out. Please try again.');
+        }
+        throw e;
+    } finally {
+        clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
         const errorBody = await response.text();

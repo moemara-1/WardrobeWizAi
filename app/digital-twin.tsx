@@ -6,7 +6,7 @@ import { GeneratedLook } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import {
     ArrowLeft,
     Camera,
@@ -204,9 +204,8 @@ export default function DigitalTwinScreen() {
             </SafeAreaView>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                {/* Existing Twin Preview or Empty State */}
                 {digitalTwin?.twin_image_url ? (
-                    <Pressable style={styles.twinPreview} onPress={() => router.push('/digital-twin-preview' as Href)}>
+                    <Pressable style={styles.twinPreview} onPress={() => setPreviewLook({ id: digitalTwin.id, image_url: digitalTwin.twin_image_url } as any)}>
                         <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinPreviewImage} contentFit="contain" />
                         <View style={styles.twinPreviewBadge}>
                             <Text style={styles.twinPreviewBadgeText}>My Digital Twin</Text>

@@ -5,6 +5,29 @@ import { supabase } from './supabase';
 const BUCKET = 'wardrobe-images';
 
 /**
+ * Copy a temp/cache image URI to permanent document storage so it survives cache eviction.
+ * Returns the permanent URI (or the original if it's already permanent/remote).
+ */
+export async function saveToPermanentStorage(uri: string): Promise<string> {
+  if (!uri) return uri;
+  if (uri.startsWith('http')) return uri;
+
+  const permanentDir = FileSystem.documentDirectory;
+  if (!permanentDir) return uri;
+
+  if (uri.startsWith(permanentDir)) return uri;
+
+  try {
+    const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}.${uri.split('.').pop()?.toLowerCase() || 'jpg'}`;
+    const destUri = `${permanentDir}${filename}`;
+    await FileSystem.copyAsync({ from: uri, to: destUri });
+    return destUri;
+  } catch {
+    return uri;
+  }
+}
+
+/**
  * Upload a local image to Supabase Storage and return the public URL.
  * Images are stored under the user's folder: {userId}/{filename}
  */
