@@ -478,6 +478,11 @@ Return JSON array:
         temperature: 0.7,
     });
 
+    if (__DEV__) {
+        console.log('[TripPlanner] Item Count:', items.length);
+        console.log('[TripPlanner] Raw Response:', content);
+    }
+
     const match = content.match(/\[[\s\S]*?\]/);
     if (!match) return [];
     try {

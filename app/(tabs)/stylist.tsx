@@ -11,32 +11,31 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import {
-    Bookmark,
-    BookmarkCheck,
-    Dices,
-    Plus,
-    Send,
-    SlidersHorizontal,
-    Sparkles
+  Bookmark,
+  BookmarkCheck,
+  Dices,
+  Plus,
+  Send,
+  SlidersHorizontal,
+  Sparkles
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    FlatList,
-    GestureResponderEvent,
-    KeyboardAvoidingView,
-    Modal,
-    PanResponder,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  GestureResponderEvent,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -273,12 +272,14 @@ export default function StylistScreen() {
     router.push(`/item/${item.id}` as Href);
   }, []);
 
-  useEffect(() => {
-    if (canvasItem) {
-      addItemToCanvas(canvasItem.item);
-      clearCanvasItem();
-    }
-  }, [canvasItem, addItemToCanvas, clearCanvasItem]);
+  useFocusEffect(
+    useCallback(() => {
+      if (canvasItem) {
+        addItemToCanvas(canvasItem.item);
+        clearCanvasItem();
+      }
+    }, [canvasItem, addItemToCanvas, clearCanvasItem])
+  );
 
   useEffect(() => {
     if (canvasOutfit) {

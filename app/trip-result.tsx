@@ -118,8 +118,8 @@ export default function TripResultScreen() {
         </SafeAreaView>
         <View style={styles.loadingContainer}>
           <Shirt size={32} color={Colors.textTertiary} />
-          <Text style={styles.loadingText}>Not enough items in closet</Text>
-          <Text style={styles.loadingSubtext}>Add more pieces to generate trip outfits</Text>
+          <Text style={styles.loadingText}>Could not generate outfits</Text>
+          <Text style={styles.loadingSubtext}>Try adding more items or retrying.</Text>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Go Back</Text>
           </Pressable>
