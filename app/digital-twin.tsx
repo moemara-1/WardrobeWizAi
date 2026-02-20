@@ -1,11 +1,12 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { generateDigitalTwin } from '@/lib/ai';
 import { generateId, useClosetStore } from '@/stores/closetStore';
+import { GeneratedLook } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
-import { GeneratedLook } from '@/types';
 import {
     ArrowLeft,
     Camera,
@@ -57,6 +58,8 @@ async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
 }
 
 export default function DigitalTwinScreen() {
+    const Colors = useThemeColors();
+    const styles = React.useMemo(() => createStyles(Colors), [Colors]);
     const { digitalTwin, setDigitalTwin, twinGenerating, setTwinGenerating, setTwinProgress, twinProgress } = useClosetStore();
     const generatedLooks = useClosetStore((s) => s.generatedLooks);
     const deleteGeneratedLook = useClosetStore((s) => s.deleteGeneratedLook);
@@ -423,7 +426,7 @@ export default function DigitalTwinScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors: any) => StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
     headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
     backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },

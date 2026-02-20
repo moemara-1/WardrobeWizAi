@@ -1,4 +1,5 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { generateOutfitTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +32,8 @@ const SCENES = [
 ] as const;
 
 export default function VirtualTryOnResultScreen() {
+  const Colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(Colors), [Colors]);
   const { selectedItems: selectedItemIds } = useLocalSearchParams<{ selectedItems: string }>();
   const [activeScene, setActiveScene] = useState('studio');
   const [prompt, setPrompt] = useState('');
@@ -178,7 +181,7 @@ export default function VirtualTryOnResultScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
@@ -200,7 +203,7 @@ const styles = StyleSheet.create({
   canvasArea: { height: 400, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.lg, position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
   resultImage: { width: '100%', height: '100%' },
   selectedItemsGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', padding: 16, gap: 12 },
-  selectedItemThumb: { width: 100, height: 120, borderRadius: Radius.sm },
+  selectedItemThumb: { width: 100, height: 120, borderRadius: Radius.sm, backgroundColor: '#FFFFFF' },
   emptyCanvasText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textTertiary },
   canvasItem: { position: 'absolute', width: 200, height: 200, alignSelf: 'center' },
   ctaWrapper: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, alignItems: 'center', gap: 6 },

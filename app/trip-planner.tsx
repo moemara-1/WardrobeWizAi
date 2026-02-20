@@ -137,7 +137,7 @@ export default function TripPlannerScreen() {
         <Text style={styles.cancelText}>Cancel</Text>
       </Pressable>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.iconCircle}>
           <Plane size={32} color="#FFF" />
         </View>
@@ -246,6 +246,7 @@ export default function TripPlannerScreen() {
         {/* CTA */}
         <Pressable
           style={[styles.buildBtn, destinations.filter(d => d.trim().length > 0).length === 0 && { opacity: 0.5 }]}
+          disabled={destinations.filter(d => d.trim().length > 0).length === 0}
           onPress={handleBuild}
         >
           <Text style={styles.buildBtnText}>Build My Trip</Text>

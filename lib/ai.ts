@@ -465,9 +465,10 @@ ${itemList}
 Create ${days + 1} outfits (1 travel day + ${days} destination days). Each outfit needs: top + bottom + footwear (minimum). Add outerwear/accessories as appropriate for the occasion.
 
 Rules:
-- Reuse footwear and outerwear across days when possible
+- Reuse footwear and outerwear across days when possible.
+- If the wardrobe is small, you MUST aggressively reuse tops and bottoms. It is better to repeat outfits than to fail to provide enough outfits.
 - Match the "${occasion}" vibe (${occasion === 'business' ? 'professional, polished' : occasion === 'romantic' ? 'elegant, date-worthy' : occasion === 'formal' ? 'dressy, sophisticated' : occasion === 'fun' ? 'trendy, comfortable' : 'relaxed, everyday'})
-- Vary daily looks — don't repeat the same top+bottom combo
+- Vary daily looks — don't repeat the exact same top+bottom combo if alternatives exist, but repeat if necessary.
 - Consider color coordination across the trip
 
 Return JSON array:

@@ -1,4 +1,5 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -24,6 +25,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function VirtualTryOnScreen() {
+  const Colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(Colors), [Colors]);
   const { items } = useClosetStore();
   const [selected, setSelected] = useState<Record<string, string>>({});
 
@@ -84,7 +87,7 @@ export default function VirtualTryOnScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   cancelBtn: { paddingHorizontal: 16, paddingVertical: 8 },
@@ -99,7 +102,7 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 24, borderWidth: 1, borderColor: Colors.border },
   emptyText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary },
   thumbRow: { gap: 12 },
-  thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: Radius.sm, backgroundColor: Colors.cardSurface, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
+  thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: Radius.sm, backgroundColor: '#FFFFFF', overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
   thumbSelected: { borderColor: Colors.accentGreen },
   thumbImage: { width: '100%', height: '100%' },
 });

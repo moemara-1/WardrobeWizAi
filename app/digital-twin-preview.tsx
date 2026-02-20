@@ -30,6 +30,7 @@ export default function DigitalTwinPreviewScreen() {
   const { digitalTwin, savedFits, generatedLooks, deleteSavedFit, deleteGeneratedLook } = useClosetStore();
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [showGallery, setShowGallery] = useState(false);
+  const flatListRef = React.useRef<FlatList>(null);
 
   const allLooks = useMemo(() => {
     const fromSaved = savedFits.map(f => ({ id: f.id, image_url: f.image_url, label: f.scene || 'Saved Fit', source: 'saved' as const }));
@@ -230,11 +231,20 @@ export default function DigitalTwinPreviewScreen() {
               </Pressable>
             </SafeAreaView>
             <FlatList
+              ref={flatListRef}
               data={allLooks}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               initialScrollIndex={allLooks.length > 0 ? Math.min(galleryIndex, allLooks.length - 1) : 0}
+              onScrollToIndexFailed={(info) => {
+                const wait = new Promise(resolve => setTimeout(resolve, 500));
+                wait.then(() => {
+                  if (allLooks.length > 0) {
+                    flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+                  }
+                });
+              }}
               getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
               onMomentumScrollEnd={(e) => {
                 const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);

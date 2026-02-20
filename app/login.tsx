@@ -1,23 +1,26 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, CheckCircle, Eye, EyeOff, Lock, Mail, Sparkles } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
+  const Colors = useThemeColors();
+  const styles = React.useMemo(() => createStyles(Colors), [Colors]);
   const { signInWithEmail, signUpWithEmail, signInWithApple, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -236,7 +239,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   safeArea: { flex: 1 },
   keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },

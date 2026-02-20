@@ -363,7 +363,7 @@ export default function StylistScreen() {
         const filters = { style: styleFilter, color: colorFilter, weather: weatherFilter };
         const pickedIds = await Promise.race([
           generateSmartOutfit(smartItems, filters),
-          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000)),
         ]);
         if (pickedIds.length > 0) {
           const pickedItems = pickedIds
@@ -664,6 +664,7 @@ export default function StylistScreen() {
         filterCategory={closetPickerCategory}
         title={closetPickerTitle}
         multiSelect={closetPickerCategory === ('accessory' as ClothingCategory)}
+        sourceItems={filterItems(items)}
       />
 
       {/* Saved Fits Picker */}
