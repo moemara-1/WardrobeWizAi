@@ -33,8 +33,8 @@ export default function DigitalTwinPreviewScreen() {
   const flatListRef = React.useRef<FlatList>(null);
 
   const allLooks = useMemo(() => {
-    const fromSaved = savedFits.map(f => ({ id: f.id, image_url: f.image_url, label: f.scene || 'Saved Fit', source: 'saved' as const }));
-    const fromGenerated = generatedLooks.map(l => ({ id: l.id, image_url: l.image_url, label: l.prompt || 'Generated Look', source: 'generated' as const }));
+    const fromSaved = (savedFits || []).map(f => ({ id: f.id, image_url: f.image_url, label: f.scene || 'Saved Fit', source: 'saved' as const }));
+    const fromGenerated = (generatedLooks || []).map(l => ({ id: l.id, image_url: l.image_url, label: l.prompt || 'Generated Look', source: 'generated' as const }));
     return [...fromGenerated, ...fromSaved];
   }, [savedFits, generatedLooks]);
 
@@ -89,7 +89,7 @@ export default function DigitalTwinPreviewScreen() {
           {/* Twin Image — show latest generated look or base twin */}
           <View style={styles.twinImageWrapper}>
             <Image
-              source={{ uri: (generatedLooks?.length > 0 && generatedLooks[0]?.image_url) ? generatedLooks[0].image_url : (digitalTwin?.twin_image_url || '') }}
+              source={{ uri: ((generatedLooks || []).length > 0 && generatedLooks[0]?.image_url) ? generatedLooks[0].image_url : (digitalTwin?.twin_image_url || '') }}
               style={styles.twinFullImage}
               contentFit="contain"
             />

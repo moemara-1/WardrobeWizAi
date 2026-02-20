@@ -7,7 +7,9 @@
       "Bash(git push:*)",
       "WebFetch(domain:deepinfra.com)",
       "WebFetch(domain:fal.ai)",
-      "WebFetch(domain:www.eachlabs.ai)"
+      "WebFetch(domain:www.eachlabs.ai)",
+      "Skill(interview)",
+      "Skill(interview:*)"
     ]
   }
 }

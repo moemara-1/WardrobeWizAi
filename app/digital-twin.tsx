@@ -342,12 +342,12 @@ export default function DigitalTwinScreen() {
                         textAlignVertical="top"
                     />
                 </View>
-                {generatedLooks.length > 0 && (
+                {(generatedLooks || []).length > 0 && (
                     <>
                         <View style={styles.divider} />
                         <Text style={styles.sectionTitle}>Generated Looks</Text>
                         <View style={styles.galleryGrid}>
-                            {generatedLooks.map((look) => (
+                            {(generatedLooks || []).map((look) => (
                                 <Pressable
                                     key={look.id}
                                     style={styles.galleryItem}
