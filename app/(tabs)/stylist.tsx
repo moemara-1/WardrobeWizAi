@@ -1,41 +1,40 @@
 import { AddMenuPopover } from '@/components/ui/AddMenuPopover';
 import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
-import { Radius, Typography } from '@/constants/Colors';
-import { useThemeColors } from '@/contexts/ThemeContext';
+import { Colors, Radius, Typography } from '@/constants/Colors';
 import { generateOutfitTwin, generateSmartOutfit, OutfitTwinItem } from '@/lib/ai';
 import { classifyGarmentSlot } from '@/lib/backgroundRemoval';
-import { generateId, useClosetStore } from '@/stores/closetStore';
+import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory, GeneratedLook, Outfit } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router, useFocusEffect, type Href } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
-  Bookmark,
-  BookmarkCheck,
-  Dices,
-  Plus,
-  Send,
-  SlidersHorizontal,
-  Sparkles
+    Bookmark,
+    BookmarkCheck,
+    Dices,
+    Plus,
+    Send,
+    SlidersHorizontal,
+    Sparkles
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Dimensions,
-  FlatList,
-  GestureResponderEvent,
-  KeyboardAvoidingView,
-  Modal,
-  PanResponder,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    FlatList,
+    GestureResponderEvent,
+    KeyboardAvoidingView,
+    Modal,
+    PanResponder,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -199,7 +198,7 @@ function DraggableCanvasItem({
   return (
     <Animated.View
       style={[
-        { position: 'absolute' as const },
+        styles.canvasItemWrapper,
         { width: size, height: size, transform: pan.getTranslateTransform() },
       ]}
       {...panResponder.panHandlers}
@@ -209,7 +208,7 @@ function DraggableCanvasItem({
     >
       <Image
         source={{ uri: entry.item.clean_image_url || entry.item.image_url }}
-        style={{ width: '100%', height: '100%' }}
+        style={styles.canvasItemImage}
         contentFit="contain"
       />
     </Animated.View>
@@ -217,8 +216,6 @@ function DraggableCanvasItem({
 }
 
 export default function StylistScreen() {
-  const Colors = useThemeColors();
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [styleFilter, setStyleFilter] = useState<string[]>([]);
@@ -248,18 +245,14 @@ export default function StylistScreen() {
 
   const addItemToCanvas = useCallback((item: ClosetItem) => {
     setCanvasItems((prev) => {
-      // Allow duplicates, or better yet, just flash it if it exists?
-      // User complaint: "it doesn't work". Safe bet: allow duplicates so they see SOMETHING happen.
-      // Or, we can check if it exists and just scroll to it/wiggle it?
-      // Simpler: Just allow it. It's a canvas.
+      if (prev.some((c) => c.item.id === item.id)) return prev;
       const nextIdx = prev.length;
-      // Add a small offset so it doesn't perfectly overlap if they add the same thing twice
       const pos = getVerticalPosition(nextIdx, nextIdx + 1);
       return [...prev, {
         id: `canvas_${item.id}_${Date.now()}`,
         item,
-        defaultX: pos.x + (Math.random() * 20 - 10),
-        defaultY: pos.y + (Math.random() * 20 - 10),
+        defaultX: pos.x,
+        defaultY: pos.y,
       }];
     });
     setSavedThisOutfit(false);
@@ -276,18 +269,12 @@ export default function StylistScreen() {
     router.push(`/item/${item.id}` as Href);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      // Small timeout to ensure the screen is ready/mounted before state updates
-      const timer = setTimeout(() => {
-        if (canvasItem) {
-          addItemToCanvas(canvasItem.item);
-          clearCanvasItem();
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }, [canvasItem, addItemToCanvas, clearCanvasItem])
-  );
+  useEffect(() => {
+    if (canvasItem) {
+      addItemToCanvas(canvasItem.item);
+      clearCanvasItem();
+    }
+  }, [canvasItem, addItemToCanvas, clearCanvasItem]);
 
   useEffect(() => {
     if (canvasOutfit) {
@@ -354,16 +341,16 @@ export default function StylistScreen() {
 
     const filteredItems = filterItems(items);
 
-    if (filteredItems.length >= 2) {
+    if (items.length >= 2) {
       try {
-        const smartItems = filteredItems.map(i => ({
+        const smartItems = items.map(i => ({
           id: i.id, name: i.name, category: i.category,
           colors: i.colors, tags: i.tags,
         }));
         const filters = { style: styleFilter, color: colorFilter, weather: weatherFilter };
         const pickedIds = await Promise.race([
           generateSmartOutfit(smartItems, filters),
-          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000)),
+          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
         ]);
         if (pickedIds.length > 0) {
           const pickedItems = pickedIds
@@ -394,7 +381,7 @@ export default function StylistScreen() {
     setSavedThisOutfit(true);
 
     const outfit: Outfit = {
-      id: generateId(),
+      id: `outfit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       user_id: 'demo',
       items: currentOutfitItems,
       item_ids: currentOutfitItems.map((i) => i.id),
@@ -471,13 +458,11 @@ export default function StylistScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const allItems = [...currentOutfitItems, ...selectedAccessories];
-    const outfitItemsForAI: OutfitTwinItem[] = allItems
-      .filter(item => item.clean_image_url || item.image_url)
-      .map(item => ({
-        name: item.name,
-        category: item.category,
-        imageUri: (item.clean_image_url && item.clean_image_url.length > 0 ? item.clean_image_url : item.image_url),
-      }));
+    const outfitItemsForAI: OutfitTwinItem[] = allItems.map(item => ({
+      name: item.name,
+      category: item.category,
+      imageUri: item.clean_image_url || item.image_url,
+    }));
 
     const scenePrompt = chatMessage.trim() || undefined;
     setChatMessage('');
@@ -492,6 +477,12 @@ export default function StylistScreen() {
         scenePrompt,
         digitalTwin.selfie_url,
       );
+
+      setDigitalTwin({
+        ...digitalTwin,
+        twin_image_url: newTwinImageUrl,
+        updated_at: new Date().toISOString(),
+      });
 
       const look: GeneratedLook = {
         id: `look_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
@@ -664,7 +655,6 @@ export default function StylistScreen() {
         filterCategory={closetPickerCategory}
         title={closetPickerTitle}
         multiSelect={closetPickerCategory === ('accessory' as ClothingCategory)}
-        sourceItems={filterItems(items)}
       />
 
       {/* Saved Fits Picker */}
@@ -684,8 +674,8 @@ export default function StylistScreen() {
             renderItem={({ item: outfit }) => (
               <Pressable style={styles.fitsPickerCard} onPress={() => handleLoadFit(outfit)}>
                 <View style={styles.fitsPickerStack}>
-                  {outfit.items.slice(0, 4).map((piece) => (
-                    <View key={piece.id} style={styles.fitsPickerStackItem}>
+                  {outfit.items.slice(0, 4).map((piece, idx) => (
+                    <View key={piece.id} style={[styles.fitsPickerStackItem, { zIndex: 10 - idx }]}>
                       <Image source={{ uri: piece.clean_image_url || piece.image_url }} style={styles.fitsPickerStackImage} contentFit="contain" />
                     </View>
                   ))}
@@ -703,46 +693,44 @@ export default function StylistScreen() {
   );
 }
 
-function createStyles(C: ReturnType<typeof import('@/contexts/ThemeContext').useThemeColors>) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.background },
-    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
-    topBarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-    titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.textPrimary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radius.pill },
-    titleText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.background },
-    avatarCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-    avatarText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: C.textSecondary },
-    twinBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: C.border },
-    twinBannerText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
-    canvasArea: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
-    canvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden' },
-    canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-    canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: C.textTertiary },
-    canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textTertiary, textAlign: 'center' },
-    canvasItemWrapper: { position: 'absolute' },
-    canvasItemImage: { width: '100%', height: '100%' },
-    accessoryBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-    accessoryBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF' },
-    fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },
-    fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#32D583', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-    fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-    fabSaved: { borderColor: C.accentGreen },
-    chatBarWrapper: { paddingHorizontal: 16, paddingBottom: 80, paddingTop: 4 },
-    chatBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 6, gap: 8, borderWidth: 1, borderColor: C.border },
-    chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.cardSurface, alignItems: 'center', justifyContent: 'center' },
-    chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textPrimary, paddingVertical: 0 },
-    sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center' },
-    fitsPickerContainer: { flex: 1, backgroundColor: C.background },
-    fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-    fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
-    fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: C.textSecondary },
-    fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary },
-    fitsPickerCard: { flexDirection: 'row', marginBottom: 16, padding: 16, backgroundColor: C.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border, gap: 14 },
-    fitsPickerStack: { width: 80, height: 80, flexDirection: 'row', flexWrap: 'wrap', backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, overflow: 'hidden' },
-    fitsPickerStackItem: { width: '50%', height: '50%', backgroundColor: C.cardSurfaceAlt, padding: 2 },
-    fitsPickerStackImage: { width: '100%', height: '100%' },
-    fitsPickerInfo: { flex: 1, justifyContent: 'center' },
-    fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary },
-    fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textSecondary, marginTop: 2 },
-  });
-}
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+  topBarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  titlePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.textPrimary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radius.pill },
+  titleText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.background },
+  avatarCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  avatarText: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textSecondary },
+  twinBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
+  twinBannerText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: Colors.textSecondary },
+  canvasArea: { flex: 1, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
+  canvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, overflow: 'hidden' },
+  canvasPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  canvasTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 18, color: Colors.textTertiary },
+  canvasSubtitle: { fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textTertiary, textAlign: 'center' },
+  canvasItemWrapper: { position: 'absolute' },
+  canvasItemImage: { width: '100%', height: '100%' },
+  accessoryBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
+  accessoryBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF' },
+  fabColumn: { position: 'absolute', right: 28, bottom: 220, gap: 12 },
+  fabPlus: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#32D583', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  fab: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  fabSaved: { borderColor: Colors.accentGreen },
+  chatBarWrapper: { paddingHorizontal: 16, paddingBottom: 80, paddingTop: 4 },
+  chatBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 6, gap: 8, borderWidth: 1, borderColor: Colors.border },
+  chatPlusBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurface, alignItems: 'center', justifyContent: 'center' },
+  chatInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textPrimary, paddingVertical: 0 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
+  fitsPickerContainer: { flex: 1, backgroundColor: Colors.background },
+  fitsPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
+  fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textSecondary },
+  fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
+  fitsPickerCard: { flexDirection: 'row', marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, gap: 14 },
+  fitsPickerStack: { width: 80, alignItems: 'center' },
+  fitsPickerStackItem: { width: 70, height: 70, marginBottom: -30, backgroundColor: '#FFFFFF' },
+  fitsPickerStackImage: { width: '100%', height: '100%' },
+  fitsPickerInfo: { flex: 1, justifyContent: 'center' },
+  fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
+  fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+});

@@ -1,8 +1,8 @@
+import { Colors } from '@/constants/Colors';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { AppThemeProvider, useTheme, useThemeColors } from '@/contexts/ThemeContext';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { Fraunces_400Regular, Fraunces_700Bold, useFonts } from '@expo-google-fonts/fraunces';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -16,29 +16,17 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-// Dynamic Theme wrapper component to read the context values
-function ThemeWrapper({ children, fontsLoaded }: { children: React.ReactNode; fontsLoaded: boolean }) {
-  const { isDark } = useTheme();
-  const Colors = useThemeColors();
-
-  const navigationTheme = {
-    ...(isDark ? DarkTheme : DefaultTheme),
-    colors: {
-      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
-      background: Colors.background,
-      card: Colors.cardSurface,
-      text: Colors.textPrimary,
-      border: Colors.border,
-      primary: Colors.accentGreen,
-    },
-  };
-
-  return (
-    <ThemeProvider value={navigationTheme}>
-      {children}
-    </ThemeProvider>
-  );
-}
+const APP_DARK_THEME = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: Colors.background,
+    card: Colors.cardSurface,
+    text: Colors.textPrimary,
+    border: Colors.border,
+    primary: Colors.accentGreen,
+  },
+};
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -58,13 +46,11 @@ export default function RootLayout() {
   }
 
   return (
-    <AppThemeProvider>
-      <AuthProvider>
-        <ThemeWrapper fontsLoaded={loaded}>
-          <RootNavigator fontsLoaded={loaded} />
-        </ThemeWrapper>
-      </AuthProvider>
-    </AppThemeProvider>
+    <AuthProvider>
+      <ThemeProvider value={APP_DARK_THEME}>
+        <RootNavigator fontsLoaded={loaded} />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 
