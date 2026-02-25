@@ -116,16 +116,14 @@ export default function TripPlannerScreen() {
   };
 
   const handleBuild = () => {
-    const validDests = destinations.filter(d => d.trim().length > 0);
-    if (validDests.length === 0) {
-      return;
-    }
+    const validDestinations = destinations.filter(d => d.trim().length > 0);
+    if (validDestinations.length === 0) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push({
       pathname: '/trip-result',
       params: {
         days: String(days),
-        destinations: JSON.stringify(validDests),
+        destination: validDestinations.join(', '),
         occasion,
       },
     } as Href);
@@ -137,7 +135,7 @@ export default function TripPlannerScreen() {
         <Text style={styles.cancelText}>Cancel</Text>
       </Pressable>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} scrollEnabled={activeSearchIndex === null}>
         <View style={styles.iconCircle}>
           <Plane size={32} color="#FFF" />
         </View>
@@ -185,7 +183,6 @@ export default function TripPlannerScreen() {
                 value={dest}
                 onChangeText={(v) => updateDestination(index, v)}
                 onFocus={() => setActiveSearchIndex(index)}
-                // Increased timeout to allow tap to register
                 onBlur={() => setTimeout(() => setActiveSearchIndex(null), 500)}
               />
               {dest.length > 0 && (
@@ -244,11 +241,7 @@ export default function TripPlannerScreen() {
         </ScrollView>
 
         {/* CTA */}
-        <Pressable
-          style={[styles.buildBtn, destinations.filter(d => d.trim().length > 0).length === 0 && { opacity: 0.5 }]}
-          disabled={destinations.filter(d => d.trim().length > 0).length === 0}
-          onPress={handleBuild}
-        >
+        <Pressable style={styles.buildBtn} onPress={handleBuild}>
           <Text style={styles.buildBtnText}>Build My Trip</Text>
         </Pressable>
 

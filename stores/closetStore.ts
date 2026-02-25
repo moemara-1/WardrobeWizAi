@@ -1,17 +1,15 @@
-import { regenerateCleanImage, ProductIdentification } from '@/lib/ai';
 import { supabase } from '@/lib/supabase';
 import { ClosetItem, ClothingCategory, Collection, DigitalTwin, GeneratedLook, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-/** Generate a UUID v4 compatible with Supabase UUID columns */
-export function generateId(_prefix?: string): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-    });
+/** Generate a unique ID using timestamp + random suffix to avoid collisions */
+export function generateId(prefix: string = 'item'): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    return `${prefix}_${timestamp}_${random}`;
 }
 
 
@@ -101,11 +99,8 @@ interface ClosetState {
     userProfile: UserProfileData;
     updateUserProfile: (updates: Partial<UserProfileData>) => void;
 
-    // Background processing
-    backgroundTasks: { id: string; label: string; progress: string }[];
-    addBackgroundTask: (id: string, label: string) => void;
-    updateBackgroundTask: (id: string, progress: string) => void;
-    removeBackgroundTask: (id: string) => void;
+    // Reset
+    clearAllData: () => void;
 }
 
 // ─── Supabase Sync (fire-and-forget, offline-first) ───
@@ -113,7 +108,7 @@ interface ClosetState {
 const syncToSupabase = {
     async upsertItem(item: ClosetItem, userId: string) {
         try {
-            await supabase.from('items').upsert({
+            const { error } = await supabase.from('items').upsert({
                 id: item.id,
                 user_id: userId,
                 name: item.name,
@@ -133,22 +128,29 @@ const syncToSupabase = {
                 created_at: item.created_at,
                 updated_at: item.updated_at || new Date().toISOString(),
             });
-        } catch (e) {
-            if (__DEV__) console.warn('Sync upsertItem failed:', e);
+            if (error) {
+                console.error('[Supabase Error] upsertItem:', JSON.stringify(error, null, 2));
+                Alert.alert('Item Sync Failed', `Error saving to cloud: ${error.message} - ${error.details || ''}`);
+                throw error;
+            }
+        } catch (e: any) {
+            console.error('Sync upsertItem failed:', e);
+            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
         }
     },
 
     async deleteItem(id: string) {
         try {
-            await supabase.from('items').delete().eq('id', id);
+            const { error } = await supabase.from('items').delete().eq('id', id);
+            if (error) throw error;
         } catch (e) {
-            if (__DEV__) console.warn('Sync deleteItem failed:', e);
+            console.error('Sync deleteItem failed:', e);
         }
     },
 
     async upsertOutfit(outfit: Outfit, userId: string) {
         try {
-            await supabase.from('outfits').upsert({
+            const { error } = await supabase.from('outfits').upsert({
                 id: outfit.id,
                 user_id: userId,
                 name: outfit.name,
@@ -159,23 +161,35 @@ const syncToSupabase = {
                 collage_url: outfit.collage_url || null,
                 created_at: outfit.created_at,
             });
-        } catch (e) {
-            if (__DEV__) console.warn('Sync upsertOutfit failed:', e);
+            if (error) {
+                console.error('[Supabase Error] upsertOutfit:', JSON.stringify(error, null, 2));
+                Alert.alert('Outfit Sync Failed', `Error saving to cloud: ${error.message}`);
+                throw error;
+            }
+        } catch (e: any) {
+            console.error('Sync upsertOutfit failed:', e);
+            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
         }
     },
 
     async deleteOutfit(id: string) {
         try {
-            await supabase.from('outfits').delete().eq('id', id);
+            const { error } = await supabase.from('outfits').delete().eq('id', id);
+            if (error) throw error;
         } catch (e) {
-            if (__DEV__) console.warn('Sync deleteOutfit failed:', e);
+            console.error('Sync deleteOutfit failed:', e);
         }
     },
 
     async upsertDigitalTwin(twin: DigitalTwin, userId: string) {
         try {
-            await supabase.from('digital_twins').upsert({
-                id: twin.id || `twin_${userId}`,
+            const { data: existing } = await supabase
+                .from('digital_twins')
+                .select('id')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            const payload = {
                 user_id: userId,
                 selfie_url: twin.selfie_url || '',
                 body_url: twin.body_url || null,
@@ -186,15 +200,24 @@ const syncToSupabase = {
                 ai_description: twin.ai_description || null,
                 body_type: twin.body_type || null,
                 style_recommendations: twin.style_recommendations || null,
-            });
-        } catch (e) {
-            if (__DEV__) console.warn('Sync upsertTwin failed:', e);
+            };
+
+            const { error } = existing
+                ? await supabase.from('digital_twins').update(payload).eq('user_id', userId)
+                : await supabase.from('digital_twins').insert({ id: twin.id || `twin_${userId}`, ...payload });
+
+            if (error) {
+                console.error('[Supabase Error] upsertDigitalTwin:', JSON.stringify(error, null, 2));
+                throw error;
+            }
+        } catch (e: any) {
+            console.error('Sync upsertTwin failed:', e);
         }
     },
 
     async upsertPost(post: UserPost, userId: string) {
         try {
-            await supabase.from('posts').upsert({
+            const { error } = await supabase.from('posts').upsert({
                 id: post.id,
                 user_id: userId,
                 image_url: post.image_url,
@@ -202,30 +225,42 @@ const syncToSupabase = {
                 tagged_item_ids: post.tagged_item_ids || [],
                 created_at: post.created_at,
             });
-        } catch (e) {
-            if (__DEV__) console.warn('Sync upsertPost failed:', e);
+            if (error) {
+                console.error('[Supabase Error] upsertPost:', JSON.stringify(error, null, 2));
+                Alert.alert('Post Sync Failed', `Error saving to cloud: ${error.message}`);
+            }
+        } catch (e: any) {
+            console.error('Sync upsertPost failed:', e);
+            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
         }
     },
 
     async deletePost(id: string) {
         try {
-            await supabase.from('posts').delete().eq('id', id);
+            const { error } = await supabase.from('posts').delete().eq('id', id);
+            if (error) throw error;
         } catch (e) {
-            if (__DEV__) console.warn('Sync deletePost failed:', e);
+            console.error('Sync deletePost failed:', e);
         }
     },
 
     async upsertProfile(profile: UserProfileData, userId: string) {
         try {
-            await supabase.from('profiles').upsert({
+            const { error } = await supabase.from('profiles').upsert({
                 id: userId,
                 username: profile.username,
                 bio: profile.bio || null,
                 avatar_url: profile.pfp_url || null,
                 updated_at: new Date().toISOString(),
             });
-        } catch (e) {
-            if (__DEV__) console.warn('Sync upsertProfile failed:', e);
+            if (error) {
+                console.error('[Supabase Error] upsertProfile:', JSON.stringify(error, null, 2));
+                Alert.alert('Profile Sync Failed', `Error saving to cloud: ${error.message}`);
+                throw error;
+            }
+        } catch (e: any) {
+            console.error('Sync upsertProfile failed:', e);
+            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
         }
     },
 };
@@ -254,20 +289,28 @@ export const useClosetStore = create<ClosetState>()(
             posts: [],
             collections: [],
             userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
-            backgroundTasks: [],
-
-            addBackgroundTask: (id, label) => set((state) => ({
-                backgroundTasks: [...state.backgroundTasks, { id, label, progress: 'Starting...' }],
-            })),
-            updateBackgroundTask: (id, progress) => set((state) => ({
-                backgroundTasks: state.backgroundTasks.map(t => t.id === id ? { ...t, progress } : t),
-            })),
-            removeBackgroundTask: (id) => set((state) => ({
-                backgroundTasks: state.backgroundTasks.filter(t => t.id !== id),
-            })),
 
             // Auth actions
             setUserId: (id) => set({ userId: id }),
+
+            clearAllData: () => set({
+                userId: null,
+                items: [],
+                selectedItem: null,
+                outfits: [],
+                selectedOutfit: null,
+                digitalTwin: null,
+                canvasItem: null,
+                canvasOutfit: null,
+                savedFits: [],
+                generatedLooks: [],
+                posts: [],
+                collections: [],
+                searchQuery: '',
+                categoryFilter: null,
+                colorFilter: null,
+                userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
+            }),
 
             // Item actions
             setItems: (items) => set({ items }),
@@ -419,7 +462,6 @@ export const useClosetStore = create<ClosetState>()(
                 posts: state.posts,
                 collections: state.collections,
                 userProfile: state.userProfile,
-                canvasItem: state.canvasItem,
             }),
             migrate: (persisted: unknown, _version: number) => {
                 // Future migrations go here
@@ -490,23 +532,23 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
 
         if (twinRes.data) {
             const row = twinRes.data as any;
-            // Preserve the local selfie_url if DB doesn't have it
-            // (selfie may be a local file URI stored only in zustand persist)
             const existingTwin = store.digitalTwin;
-            store.setDigitalTwin({
-                id: row.id,
-                user_id: row.user_id,
-                selfie_url: row.selfie_url || existingTwin?.selfie_url || '',
-                body_url: row.body_url || existingTwin?.body_url,
-                skin_color: row.skin_color || existingTwin?.skin_color || '',
-                hair_color: row.hair_color || existingTwin?.hair_color || '',
-                additional_details: row.additional_details,
-                ai_description: row.ai_description || '',
-                body_type: row.body_type,
-                style_recommendations: row.style_recommendations,
-                twin_image_url: row.twin_image_url || row.image_url || existingTwin?.twin_image_url || '',
-                created_at: row.created_at,
-                updated_at: row.updated_at,
+            useClosetStore.setState({
+                digitalTwin: {
+                    id: row.id,
+                    user_id: row.user_id,
+                    selfie_url: row.selfie_url || existingTwin?.selfie_url || '',
+                    body_url: row.body_url || existingTwin?.body_url,
+                    skin_color: row.skin_color || existingTwin?.skin_color || '',
+                    hair_color: row.hair_color || existingTwin?.hair_color || '',
+                    additional_details: row.additional_details,
+                    ai_description: row.ai_description || '',
+                    body_type: row.body_type,
+                    style_recommendations: row.style_recommendations,
+                    twin_image_url: row.twin_image_url || row.image_url || existingTwin?.twin_image_url || '',
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                },
             });
         }
 
@@ -547,32 +589,6 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
     }
 }
 
-export async function backgroundEnhanceItem(
-    itemId: string,
-    imageUri: string,
-    product: ProductIdentification,
-): Promise<void> {
-    const store = useClosetStore.getState();
-    const taskId = `enhance_${itemId}`;
-    store.addBackgroundTask(taskId, 'Enhancing image');
-    try {
-        store.updateBackgroundTask(taskId, 'Generating clean image...');
-        const cleanUri = await regenerateCleanImage(imageUri, product);
-        if (cleanUri) {
-            store.updateItem(itemId, { clean_image_url: cleanUri });
-            store.updateBackgroundTask(taskId, 'Re-enhancing...');
-            const enhanced = await regenerateCleanImage(cleanUri, product);
-            if (enhanced) {
-                store.updateItem(itemId, { clean_image_url: enhanced });
-            }
-        }
-    } catch {
-        // silent — item already saved with original image
-    } finally {
-        store.removeBackgroundTask(taskId);
-    }
-}
-
 // Selectors
 export const useFilteredItems = () => {
     const { items, searchQuery, categoryFilter, colorFilter } = useClosetStore();
@@ -591,3 +607,39 @@ export const useFilteredItems = () => {
         return matchesSearch && matchesCategory && matchesColor;
     });
 };
+
+// ─── Push local data to Supabase on login ───
+
+export async function pushLocalDataToSupabase(userId: string): Promise<void> {
+    try {
+        const store = useClosetStore.getState();
+
+        // Push all local items
+        for (const item of store.items) {
+            await syncToSupabase.upsertItem(item, userId);
+        }
+
+        // Push all local outfits
+        for (const outfit of store.outfits) {
+            await syncToSupabase.upsertOutfit(outfit, userId);
+        }
+
+        // Push all local posts
+        for (const post of store.posts) {
+            await syncToSupabase.upsertPost(post, userId);
+        }
+
+        // Push digital twin
+        if (store.digitalTwin) {
+            await syncToSupabase.upsertDigitalTwin(store.digitalTwin, userId);
+        }
+
+        // Push profile
+        await syncToSupabase.upsertProfile(store.userProfile, userId);
+
+        if (__DEV__) console.log(`Pushed ${store.items.length} items, ${store.outfits.length} outfits, ${store.posts.length} posts to Supabase`);
+    } catch (e) {
+        if (__DEV__) console.warn('pushLocalDataToSupabase failed:', e);
+    }
+}
+

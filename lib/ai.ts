@@ -24,34 +24,18 @@ export interface ItemResearch {
     tags: string[];
 }
 
-const DEEPINFRA_TIMEOUT_MS = 30_000;
-
 async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
     const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
     if (!token) throw new Error('Missing EXPO_PUBLIC_DEEPINFRA_KEY');
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), DEEPINFRA_TIMEOUT_MS);
-
-    let response: Response;
-    try {
-        response = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-            signal: controller.signal,
-        });
-    } catch (e) {
-        if ((e as Error).name === 'AbortError') {
-            throw new Error('AI request timed out. Please try again.');
-        }
-        throw e;
-    } finally {
-        clearTimeout(timeoutId);
-    }
+    const response = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
 
     if (!response.ok) {
         const errorBody = await response.text();
@@ -402,22 +386,6 @@ export async function generateSmartOutfit(
         filters.weather.length > 0 ? `Weather: ${filters.weather.join(', ')}` : '',
     ].filter(Boolean).join('. ');
 
-    const filterRules = [];
-    if (filters.color.length > 0) {
-        if (filters.color.includes('light')) filterRules.push('ONLY pick light-colored items (white, cream, beige, pastel). EXCLUDE dark/black items.');
-        if (filters.color.includes('dark')) filterRules.push('ONLY pick dark-colored items (black, navy, charcoal). EXCLUDE bright/light items.');
-        if (filters.color.includes('bright')) filterRules.push('Prefer bright, vivid colors (red, yellow, orange, pink).');
-        if (filters.color.includes('monochrome')) filterRules.push('ONLY pick black, white, and grey items.');
-    }
-    if (filters.weather.length > 0) {
-        if (filters.weather.includes('cold')) filterRules.push('Include outerwear and layers for cold weather.');
-        if (filters.weather.includes('warm')) filterRules.push('EXCLUDE heavy outerwear. Pick light layers only.');
-        if (filters.weather.includes('hot')) filterRules.push('EXCLUDE all outerwear and heavy fabrics. Pick light, breathable items only.');
-    }
-    if (filters.style.length > 0) {
-        filterRules.push(`Match these style tags: ${filters.style.join(', ')}`);
-    }
-
     const content = await callDeepInfra({
         model: TEXT_MODEL,
         messages: [
@@ -427,10 +395,10 @@ export async function generateSmartOutfit(
             },
             {
                 role: 'user',
-                content: `Pick a complete outfit (top + bottom + optional outerwear + optional shoes + optional accessories) from these items:
+                content: `Pick a complete outfit (top + bottom + optional outerwear + optional shoes) from these items:
 ${itemList}
 
-${filterRules.length > 0 ? `RULES (must follow strictly):\n${filterRules.map(r => `- ${r}`).join('\n')}` : 'Pick the most stylish, well-coordinated combination.'}
+${filterDesc ? `Preferences: ${filterDesc}` : 'Pick the most stylish combination.'}
 
 Return ONLY a JSON array of IDs like: ["id1", "id2", "id3"]`,
             },
@@ -449,66 +417,50 @@ Return ONLY a JSON array of IDs like: ["id1", "id2", "id3"]`,
     }
 }
 
-export interface TripDayOutfit {
+/* ─── Trip Planner ─── */
+
+export interface TripDayPlan {
     label: string;
-    itemIds: string[];
+    outfitSuggestion: string;
+    activities: string;
+    packingTips: string;
 }
 
-export async function generateTripOutfits(
-    items: { id: string; name: string; category: string; colors: string[]; tags: string[] }[],
-    days: number,
+export async function generateTripPlan(
     destinations: string[],
     occasion: string,
-): Promise<TripDayOutfit[]> {
-    const itemList = items.map(i =>
-        `ID:${i.id} | ${i.name} | ${i.category} | colors: ${i.colors.join(', ')} | tags: ${i.tags.join(', ')}`
-    ).join('\n');
-
+    days: number,
+    closetSummary: string,
+): Promise<TripDayPlan[]> {
+    const destText = destinations.join(', ');
     const content = await callDeepInfra({
         model: TEXT_MODEL,
         messages: [
             {
                 role: 'system',
-                content: 'You are a travel fashion stylist. Plan outfits for a trip using the given wardrobe. Reuse versatile pieces across days to minimize packing. Return ONLY valid JSON.',
+                content: 'You are a personal travel stylist. Generate a concise day-by-day trip wardrobe plan. Each day must have outfitSuggestion (1 sentence referencing closet pieces), activities (2-3 suggested activities for that destination), and packingTips (1 packing tip). Return ONLY valid JSON.',
             },
             {
                 role: 'user',
-                content: `Plan outfits for a ${days}-day ${occasion} trip to ${destinations.join(' → ')}.
+                content: `Plan a ${days}-day ${occasion} trip to ${destText}.
 
-Available wardrobe:
-${itemList}
+The traveler's closet includes: ${closetSummary || 'a mix of casual and smart casual pieces'}
 
-Create ${days + 1} outfits (1 travel day + ${days} destination days). Each outfit needs: top + bottom + footwear (minimum). Add outerwear/accessories as appropriate for the occasion.
-
-Rules:
-- Reuse footwear and outerwear across days when possible.
-- If the wardrobe is small, you MUST aggressively reuse tops and bottoms. It is better to repeat outfits than to fail to provide enough outfits.
-- Match the "${occasion}" vibe (${occasion === 'business' ? 'professional, polished' : occasion === 'romantic' ? 'elegant, date-worthy' : occasion === 'formal' ? 'dressy, sophisticated' : occasion === 'fun' ? 'trendy, comfortable' : 'relaxed, everyday'})
-- Vary daily looks — don't repeat the exact same top+bottom combo if alternatives exist, but repeat if necessary.
-- Consider color coordination across the trip
-
-Return JSON array:
-[{"label":"Travel Day","itemIds":["id1","id2"]},{"label":"Day 1","itemIds":["id3","id4"]},...]`,
+Return a JSON array with ${days + 1} objects (first is "Travel Day", then "Day 1" through "Day ${days}"):
+[
+  { "label": "Travel Day", "outfitSuggestion": "...", "activities": "...", "packingTips": "..." },
+  { "label": "Day 1", "outfitSuggestion": "...", "activities": "...", "packingTips": "..." }
+]`,
             },
         ],
         max_tokens: 1024,
         temperature: 0.7,
     });
 
-    if (__DEV__) {
-        console.log('[TripPlanner] Item Count:', items.length);
-        console.log('[TripPlanner] Raw Response:', content);
-    }
-
     const match = content.match(/\[[\s\S]*?\]/);
     if (!match) return [];
     try {
-        const parsed: TripDayOutfit[] = JSON.parse(match[0]);
-        const validIds = new Set(items.map(i => i.id));
-        return parsed.map(day => ({
-            label: day.label || 'Day',
-            itemIds: (day.itemIds || []).filter(id => validIds.has(id)),
-        })).filter(day => day.itemIds.length > 0);
+        return JSON.parse(match[0]) as TripDayPlan[];
     } catch {
         return [];
     }
@@ -950,11 +902,7 @@ export async function generateOutfitTwin(
                     category: img.category,
                     name: img.name,
                 })),
-                ...(textPrompt ? {
-                    prompt: textPrompt.toLowerCase().includes('studio')
-                        ? `Dress the person in the provided garments. Place them in a clean white studio background with professional lighting.`
-                        : `Dress the person in the provided garments. Background scene: ${textPrompt}`,
-                } : {}),
+                ...(textPrompt ? { prompt: textPrompt } : {}),
             },
         });
 
@@ -985,12 +933,7 @@ export async function generateOutfitTwin(
     const itemDescriptions = clothingImages
         .map((img, i) => `${i + 1}. ${img.name} (${img.category})`)
         .join('\n');
-    const isStudio = textPrompt?.toLowerCase().includes('studio');
-    const sceneDesc = textPrompt
-        ? isStudio
-            ? '\nBackground: clean white studio with professional lighting'
-            : `\nBackground scene: ${textPrompt}`
-        : '';
+    const sceneDesc = textPrompt ? `\nScene/setting: ${textPrompt}` : '';
 
     const prompt = `The image is a reference collage. The LEFT side shows a person. The RIGHT side shows the specific clothing items they should wear.
 
@@ -1004,7 +947,7 @@ CRITICAL RULES:
 - Each clothing item must EXACTLY match what is shown on the right side of the reference
 - Do NOT generate a collage — output a single photo of the fully dressed person
 - Full-body shot, head to toe, standing pose
-- Professional photography, good lighting${sceneDesc || '\n- Clean neutral background'}`;
+- Professional studio photography, clean neutral background, good lighting${sceneDesc}`;
 
     try {
         const { data, error } = await supabase.functions.invoke('ai-image', {

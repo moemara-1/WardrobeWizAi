@@ -1,8 +1,9 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { generateId, useClosetStore } from '@/stores/closetStore';
+import { useClosetStore } from '@/stores/closetStore';
 import { PostComment, SocialPost, useSocialStore } from '@/stores/socialStore';
+import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -12,10 +13,12 @@ import {
   MessageCircle,
   Send,
   Shirt,
+  Trash2,
   User,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -40,13 +43,9 @@ export default function PostDetailScreen() {
   const closetPosts = useClosetStore((s) => s.posts);
   const closetItems = useClosetStore((s) => s.items);
   const closetProfile = useClosetStore((s) => s.userProfile);
-  const [authUserId, setAuthUserId] = useState<string>('anonymous');
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user?.id) setAuthUserId(data.user.id);
-    });
-  }, []);
+  const deleteClosetPost = useClosetStore((s) => s.deletePost);
+  const deleteSocialPost = useSocialStore((s) => s.deletePost);
 
   const post = useMemo((): SocialPost | undefined => {
     const social = socialPosts.find((p) => p.id === id);
@@ -67,7 +66,7 @@ export default function PostDetailScreen() {
 
     return {
       id: userPost.id,
-      userId: authUserId,
+      userId: useClosetStore.getState().userId || 'me',
       username: closetProfile.username,
       avatarUrl: closetProfile.pfp_url || null,
       imageUrl: userPost.image_url,
@@ -78,22 +77,13 @@ export default function PostDetailScreen() {
       comments: [],
       createdAt: userPost.created_at,
     };
-  }, [socialPosts, closetPosts, closetItems, closetProfile, authUserId, id]);
-
-  useEffect(() => {
-    if (post) {
-      const existing = useSocialStore.getState().posts;
-      if (!existing.some(p => p.id === post.id)) {
-        useSocialStore.setState({ posts: [...existing, post] });
-      }
-    }
-  }, [post]);
+  }, [socialPosts, closetPosts, closetItems, closetProfile, id]);
 
   const [supabasePost, setSupabasePost] = useState<SocialPost | null>(null);
   const [fetchedFromDb, setFetchedFromDb] = useState(false);
 
   useEffect(() => {
-    if (post || fetchedFromDb) return;
+    if (fetchedFromDb) return;
     let cancelled = false;
     (async () => {
       try {
@@ -102,32 +92,46 @@ export default function PostDetailScreen() {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('username, avatar_url')
+          .select('display_name, avatar_url')
           .eq('id', row.user_id)
           .single();
 
+        const currentUserId = useClosetStore.getState().userId;
+        let isLiked = false;
+        if (currentUserId) {
+          const { data: likeRow } = await supabase.from('likes').select('post_id').match({ post_id: id, user_id: currentUserId }).single();
+          if (likeRow) isLiked = true;
+        }
+
+        const { count: realLikeCount } = await supabase.from('likes').select('post_id', { count: 'exact', head: true }).eq('post_id', id);
+
+        const { data: commentsData } = await supabase.from('comments').select('*').eq('post_id', id).order('created_at', { ascending: true });
+        const commentsList = (commentsData || []).map((c: any) => ({
+          id: c.id,
+          userId: c.user_id,
+          username: c.username,
+          avatarUrl: null,
+          text: c.text,
+          createdAt: c.created_at
+        }));
+
         if (!cancelled) {
-          const fetchedPost: SocialPost = {
+          setSupabasePost({
             id: row.id,
             userId: row.user_id,
-            username: profile?.username || 'user',
+            username: profile?.display_name || 'user',
             avatarUrl: profile?.avatar_url || null,
             imageUrl: row.image_url,
             caption: row.caption || '',
             clothingPieces: [],
-            likes: row.likes_count || 0,
-            liked: false,
-            comments: [],
+            likes: realLikeCount ?? (row.likes_count || 0),
+            liked: isLiked,
+            comments: commentsList,
             createdAt: row.created_at,
-          };
-          setSupabasePost(fetchedPost);
-          const existing = useSocialStore.getState().posts;
-          if (!existing.some(p => p.id === fetchedPost.id)) {
-            useSocialStore.setState({ posts: [...existing, fetchedPost] });
-          }
+          });
         }
-      } catch {
-        // silent
+      } catch (err) {
+        if (__DEV__) console.warn('Failed to fetch fallback post details from Supabase:', err);
       } finally {
         if (!cancelled) setFetchedFromDb(true);
       }
@@ -138,26 +142,60 @@ export default function PostDetailScreen() {
   const resolvedPost = post || supabasePost;
   const [commentText, setCommentText] = useState('');
 
+  const currentSessionUserId = useClosetStore((s) => s.userId);
+
+  // Local overrides to ensure immediate UI feedback regardless of source
+  const [localLiked, setLocalLiked] = useState<boolean | null>(null);
+  const [localLikeCount, setLocalLikeCount] = useState<number | null>(null);
+  const [localComments, setLocalComments] = useState<PostComment[] | null>(null);
+
+  const displayLiked = localLiked !== null ? localLiked : !!resolvedPost?.liked;
+  const displayLikeCount = localLikeCount !== null ? localLikeCount : (resolvedPost?.likes || 0);
+  const displayComments = localComments !== null ? localComments : (resolvedPost?.comments || []);
+
   const handleLike = useCallback(() => {
     if (!resolvedPost) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     likePost(resolvedPost.id);
-  }, [resolvedPost, likePost]);
+
+    setLocalLiked(!displayLiked);
+    setLocalLikeCount(!displayLiked ? displayLikeCount + 1 : displayLikeCount - 1);
+  }, [resolvedPost, likePost, displayLiked, displayLikeCount]);
 
   const handleSendComment = useCallback(() => {
     if (!resolvedPost || !commentText.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const comment: PostComment = {
-      id: generateId(),
-      userId: authUserId,
+      id: Crypto.randomUUID(),
+      userId: currentSessionUserId || 'me',
       username: closetProfile.username,
       avatarUrl: closetProfile.pfp_url || null,
       text: commentText.trim(),
       createdAt: new Date().toISOString(),
     };
     addComment(resolvedPost.id, comment);
+
+    setLocalComments([...displayComments, comment]);
     setCommentText('');
-  }, [resolvedPost, commentText, addComment, authUserId, closetProfile]);
+  }, [resolvedPost, commentText, addComment, currentSessionUserId, closetProfile, displayComments]);
+
+  const isOwnPost = resolvedPost?.userId === currentSessionUserId || resolvedPost?.userId === 'me';
+
+  const handleDelete = useCallback(() => {
+    if (!resolvedPost) return;
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteClosetPost(resolvedPost.id);
+          deleteSocialPost(resolvedPost.id);
+          router.back();
+        },
+      },
+    ]);
+  }, [resolvedPost, deleteClosetPost, deleteSocialPost]);
 
   if (!resolvedPost) {
     return (
@@ -190,12 +228,31 @@ export default function PostDetailScreen() {
             <ArrowLeft size={20} color={Colors.textPrimary} />
           </Pressable>
           <Text style={styles.headerTitle}>Post</Text>
-          <View style={styles.headerSpacer} />
+          {isOwnPost ? (
+            <Pressable
+              style={styles.backBtn}
+              onPress={handleDelete}
+            >
+              <Trash2 size={18} color={Colors.accentCoral} />
+            </Pressable>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
 
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Poster info */}
-          <View style={styles.posterRow}>
+          <Pressable
+            style={styles.posterRow}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (resolvedPost.userId === 'me' || resolvedPost.userId === currentSessionUserId) {
+                router.push('/(tabs)/profile' as any);
+              } else {
+                router.push(`/user/${resolvedPost.userId}` as any);
+              }
+            }}
+          >
             {resolvedPost.avatarUrl ? (
               <Image source={{ uri: resolvedPost.avatarUrl }} style={styles.avatar} contentFit="cover" />
             ) : (
@@ -207,7 +264,7 @@ export default function PostDetailScreen() {
               <Text style={styles.posterName}>{resolvedPost.username}</Text>
               <Text style={styles.posterTime}>{timeAgo}</Text>
             </View>
-          </View>
+          </Pressable>
 
           {/* Post image */}
           <Image
@@ -221,16 +278,16 @@ export default function PostDetailScreen() {
             <Pressable style={styles.actionBtn} onPress={handleLike}>
               <Heart
                 size={22}
-                color={resolvedPost.liked ? '#E85A4F' : Colors.textPrimary}
-                fill={resolvedPost.liked ? '#E85A4F' : 'transparent'}
+                color={displayLiked ? '#E85A4F' : Colors.textPrimary}
+                fill={displayLiked ? '#E85A4F' : 'transparent'}
               />
-              <Text style={[styles.actionText, resolvedPost.liked && { color: '#E85A4F' }]}>
-                {resolvedPost.likes}
+              <Text style={[styles.actionText, displayLiked && { color: '#E85A4F' }]}>
+                {displayLikeCount}
               </Text>
             </Pressable>
             <View style={styles.actionBtn}>
               <MessageCircle size={22} color={Colors.textPrimary} />
-              <Text style={styles.actionText}>{resolvedPost.comments.length}</Text>
+              <Text style={styles.actionText}>{displayComments.length}</Text>
             </View>
           </View>
 
@@ -267,12 +324,11 @@ export default function PostDetailScreen() {
             </View>
           )}
 
-          {/* Comments */}
           <View style={styles.commentsSection}>
             <Text style={styles.commentsSectionTitle}>
-              Comments ({resolvedPost.comments.length})
+              Comments ({displayComments.length})
             </Text>
-            {resolvedPost.comments.map((comment) => (
+            {displayComments.map((comment) => (
               <View key={comment.id} style={styles.commentRow}>
                 {comment.avatarUrl ? (
                   <Image source={{ uri: comment.avatarUrl }} style={styles.commentAvatar} />
@@ -288,7 +344,7 @@ export default function PostDetailScreen() {
                 </View>
               </View>
             ))}
-            {resolvedPost.comments.length === 0 && (
+            {displayComments.length === 0 && (
               <Text style={styles.noComments}>No comments yet</Text>
             )}
           </View>

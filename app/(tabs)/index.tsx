@@ -2,6 +2,7 @@ import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useClosetStore } from '@/stores/closetStore';
+import { useSocialStore } from '@/stores/socialStore';
 import { ClosetItem } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -13,7 +14,9 @@ import {
   Plane,
   ScanLine,
   Search,
-  Sparkles
+  Sparkles,
+  UserCheck,
+  UserPlus
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -186,21 +189,29 @@ function ExploreView() {
     let cancelled = false;
     (async () => {
       try {
-        const { data: rows } = await supabase
+        const { data: rows, error: postsError } = await supabase
           .from('posts')
           .select('id, user_id, image_url')
           .order('created_at', { ascending: false })
           .limit(20);
 
+        if (postsError) {
+          console.error('[Supabase Error] ExploreView fetch posts:', JSON.stringify(postsError, null, 2));
+        }
+
         if (!cancelled && rows?.length) {
           const userIds = [...new Set(rows.map(r => r.user_id as string))];
-          const { data: profiles } = await supabase
+          const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
-            .select('id, username, avatar_url')
+            .select('id, display_name, avatar_url')
             .in('id', userIds);
 
+          if (profilesError) {
+            console.error('[Supabase Error] ExploreView fetch profiles:', JSON.stringify(profilesError, null, 2));
+          }
+
           const profileMap = new Map<string, { username: string; avatar_url?: string }>();
-          profiles?.forEach(p => profileMap.set(p.id, { username: p.username, avatar_url: p.avatar_url }));
+          profiles?.forEach(p => profileMap.set(p.id, { username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url }));
 
           const mapped: ExplorePost[] = rows.map((row, idx) => ({
             id: row.id,
@@ -212,8 +223,8 @@ function ExploreView() {
 
           if (!cancelled) setPosts(mapped);
         }
-      } catch {
-        // silent fail — local posts will still show below
+      } catch (err) {
+        console.error('[ExploreView Catch Error]', err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -266,7 +277,7 @@ function ExploreView() {
                 style={[styles.masonryTile, { height: post.height }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: '/post/[id]', params: { id: post.id } } as Href);
+                  router.push(`/post/${post.id}` as any);
                 }}
               >
                 <Image source={{ uri: post.imageUrl }} style={styles.masonryImage} contentFit="cover" />
@@ -299,6 +310,37 @@ function DiscoverView({
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
   const [communityUsers, setCommunityUsers] = useState<CommunityUser[]>([]);
   const [loadingCommunity, setLoadingCommunity] = useState(true);
+  const [searchedUsers, setSearchedUsers] = useState<{ id: string; username: string; avatar_url: string | null }[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const following = useSocialStore((s) => s.following);
+  const toggleFollow = useSocialStore((s) => s.toggleFollow);
+  const currentUserId = useClosetStore((s) => s.userId);
+
+  // Search users in Supabase when query changes
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSearchedUsers([]);
+      return;
+    }
+    setSearchingUsers(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, display_name, avatar_url')
+          .ilike('display_name', `%${q}%`)
+          .neq('id', currentUserId || '')
+          .limit(10);
+        setSearchedUsers((data || []).map(p => ({ id: p.id, username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url })));
+      } catch {
+        setSearchedUsers([]);
+      } finally {
+        setSearchingUsers(false);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery, currentUserId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -346,13 +388,13 @@ function DiscoverView({
         const userIds = Array.from(userItemsMap.keys());
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('id, username, avatar_url')
+          .select('id, display_name, avatar_url')
           .in('id', userIds);
 
         const profileMap = new Map<string, { username: string, avatar_url?: string }>();
         if (profiles) {
           profiles.forEach(p => {
-            profileMap.set(p.id, { username: p.username, avatar_url: p.avatar_url });
+            profileMap.set(p.id, { username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url });
           });
         }
 
@@ -380,7 +422,7 @@ function DiscoverView({
           });
         }
 
-        if (!cancelled) setCommunityUsers(users);
+        if (!cancelled) setCommunityUsers(users.filter(u => u.id !== currentUserId));
       } catch (e) {
         if (__DEV__) console.warn('Failed to load community:', e);
       } finally {
@@ -426,6 +468,65 @@ function DiscoverView({
         </ScrollView>
       </>
 
+      {/* User Search Results */}
+      {searchQuery.trim().length >= 2 && (
+        <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>People</Text>
+          </View>
+          {searchingUsers ? (
+            <View style={styles.emptyClosetCard}>
+              <Text style={styles.emptyClosetText}>Searching...</Text>
+            </View>
+          ) : searchedUsers.length === 0 ? (
+            <View style={[styles.emptyClosetCard, { marginHorizontal: 16 }]}>
+              <Text style={styles.emptyClosetText}>No users found</Text>
+            </View>
+          ) : (
+            searchedUsers.map((u) => {
+              const isFollowing = following.some(f => f.userId === u.id);
+              return (
+                <View key={u.id} style={styles.profileCard}>
+                  <View style={styles.profileInfoRow}>
+                    <Pressable
+                      style={styles.profileLeft}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push(`/user/${u.id}` as any);
+                      }}
+                    >
+                      {u.avatar_url ? (
+                        <Image source={{ uri: u.avatar_url }} style={styles.profileAvatarImage} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.profileAvatar, { backgroundColor: Colors.accentGreen }]}>
+                          <Text style={styles.profileAvatarText}>{u.username?.[0]?.toUpperCase()}</Text>
+                        </View>
+                      )}
+                      <View style={styles.profileMeta}>
+                        <Text style={styles.profileName}>{u.username}</Text>
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.followBtn, isFollowing && styles.followBtnActive]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        toggleFollow({ userId: u.id, username: u.username, avatarUrl: u.avatar_url });
+                      }}
+                    >
+                      {isFollowing ? (
+                        <><UserCheck size={14} color={Colors.textSecondary} /><Text style={styles.followBtnTextActive}>Following</Text></>
+                      ) : (
+                        <><UserPlus size={14} color="#FFF" /><Text style={styles.followBtnText}>Follow</Text></>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </>
+      )}
+
       {/* My closet */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>My Closet</Text>
@@ -440,15 +541,29 @@ function DiscoverView({
         <View style={styles.emptyClosetCard}>
           <Text style={styles.emptyClosetText}>Loading community...</Text>
         </View>
-      ) : communityUsers.length === 0 ? (
-        <View style={[styles.emptyClosetCard, { marginHorizontal: 16 }]}>
-          <Text style={styles.emptyClosetText}>No community members yet</Text>
-        </View>
-      ) : (
-        communityUsers.map((user) => (
-          <CommunityUserCard key={user.id} user={user} />
-        ))
-      )}
+      ) : (() => {
+        const q = searchQuery.toLowerCase().trim();
+        const filtered = q
+          ? communityUsers.filter(u =>
+            u.username.toLowerCase().includes(q) ||
+            u.items.some(i =>
+              i.name.toLowerCase().includes(q) ||
+              i.category.toLowerCase().includes(q) ||
+              i.brand?.toLowerCase().includes(q) ||
+              i.tags?.some(t => t.toLowerCase().includes(q))
+            )
+          )
+          : communityUsers;
+        return filtered.length === 0 ? (
+          <View style={[styles.emptyClosetCard, { marginHorizontal: 16 }]}>
+            <Text style={styles.emptyClosetText}>{q ? 'No results found' : 'No community members yet'}</Text>
+          </View>
+        ) : (
+          filtered.map((user) => (
+            <CommunityUserCard key={user.id} user={user} />
+          ))
+        );
+      })()}
     </ScrollView>
   );
 }
@@ -460,7 +575,13 @@ function CommunityUserCard({ user }: { user: CommunityUser }) {
   return (
     <View style={styles.profileCard}>
       <View style={styles.profileInfoRow}>
-        <View style={styles.profileLeft}>
+        <Pressable
+          style={styles.profileLeft}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push(`/user/${user.id}` as any);
+          }}
+        >
           {user.pfp_url ? (
             <Image source={{ uri: user.pfp_url }} style={styles.profileAvatarImage} contentFit="cover" />
           ) : (
@@ -472,7 +593,25 @@ function CommunityUserCard({ user }: { user: CommunityUser }) {
             <Text style={styles.profileName}>{user.username}</Text>
             <Text style={styles.profileHandle}>{user.items.length} pieces</Text>
           </View>
-        </View>
+        </Pressable>
+        {(() => {
+          const isFollowing = useSocialStore.getState().following.some(f => f.userId === user.id);
+          return (
+            <Pressable
+              style={[styles.followBtn, isFollowing && styles.followBtnActive]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                useSocialStore.getState().toggleFollow({ userId: user.id, username: user.username, avatarUrl: user.pfp_url || null });
+              }}
+            >
+              {isFollowing ? (
+                <><UserCheck size={14} color={Colors.textSecondary} /><Text style={styles.followBtnTextActive}>Following</Text></>
+              ) : (
+                <><UserPlus size={14} color="#FFF" /><Text style={styles.followBtnText}>Follow</Text></>
+              )}
+            </Pressable>
+          );
+        })()}
       </View>
       <ScrollView
         horizontal
@@ -529,7 +668,7 @@ function MyClosetProfileCard() {
             style={styles.profileItemThumb}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push({ pathname: '/item/[id]', params: { id: item.id } } as Href);
+              router.push(`/item/${item.id}` as any);
             }}
           >
             <Image
@@ -625,5 +764,9 @@ function createIndexStyles(C: any) {
     emptyClosetCard: { padding: 32, alignItems: 'center' as const, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.lg, borderWidth: 1, borderColor: C.border },
     emptyClosetText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary, marginBottom: 4 },
     emptyClosetSub: { fontFamily: Typography.bodyFamily, fontSize: 13, color: C.textSecondary },
+    followBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.pill, backgroundColor: C.accentGreen },
+    followBtnActive: { backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    followBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 12, color: '#FFF' },
+    followBtnTextActive: { fontFamily: Typography.bodyFamilyBold, fontSize: 12, color: C.textSecondary },
   });
 }
