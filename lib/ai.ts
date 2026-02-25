@@ -848,7 +848,9 @@ export async function generateOutfitTwin(
     }
 
     // ─── Strategy 1: google/nano-banana via Replicate (all categories) ───
-    try {
+    // Skip Strategy 1 when textPrompt is provided — the edge function ignores it,
+    // only FLUX (Strategy 2) includes scene/setting in the generation prompt.
+    if (!textPrompt) try {
         const twinResized = await manipulateAsync(
             twinImageUrl.startsWith('http') ? twinImageUrl : twinImageUrl,
             [{ resize: { width: 384 } }],

@@ -325,22 +325,6 @@ export default function UserProfileScreen() {
                                     <ChevronRight size={18} color={Colors.textTertiary} />
                                 </Pressable>
 
-                                {/* Digital Twin Card */}
-                                {profile.avatar_url && (
-                                    <View style={styles.twinSection}>
-                                        <Pressable style={styles.twinCard}>
-                                            <View style={styles.twinCardAvatar}>
-                                                <UserCircle size={22} color={Colors.textTertiary} />
-                                            </View>
-                                            <View style={styles.twinCardMeta}>
-                                                <Text style={styles.twinCardTitle}>Digital Twin</Text>
-                                                <Text style={styles.twinCardSub}>View their virtual avatar</Text>
-                                            </View>
-                                            <ChevronRight size={20} color={Colors.textTertiary} />
-                                        </Pressable>
-                                    </View>
-                                )}
-
                                 <View style={styles.tabBar}>
                                     {([
                                         { key: 'posts' as ProfileTab, Icon: ImageIconLucide },

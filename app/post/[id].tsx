@@ -163,11 +163,11 @@ export default function PostDetailScreen() {
   }, [resolvedPost, likePost, displayLiked, displayLikeCount]);
 
   const handleSendComment = useCallback(() => {
-    if (!resolvedPost || !commentText.trim()) return;
+    if (!resolvedPost || !commentText.trim() || !currentSessionUserId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const comment: PostComment = {
       id: Crypto.randomUUID(),
-      userId: currentSessionUserId || 'me',
+      userId: currentSessionUserId,
       username: closetProfile.username,
       avatarUrl: closetProfile.pfp_url || null,
       text: commentText.trim(),

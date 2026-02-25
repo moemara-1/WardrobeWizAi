@@ -1,11 +1,12 @@
 import { Colors } from '@/constants/Colors';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import AnimatedSplash from '@/components/AnimatedSplash';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { Fraunces_400Regular, Fraunces_700Bold, useFonts } from '@expo-google-fonts/fraunces';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 export { ErrorBoundary } from 'expo-router';
@@ -63,6 +64,7 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { session, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [showSplash, setShowSplash] = useState(true);
 
   // Hide splash only when both fonts AND auth are resolved
   useEffect(() => {
@@ -85,6 +87,7 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
   }, [session, isLoading, segments]);
 
   return (
+    <>
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" options={{ headerShown: false, animation: 'fade' }} />
@@ -137,5 +140,9 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
         options={{ animation: 'slide_from_right' }}
       />
     </Stack>
+    {fontsLoaded && showSplash && (
+      <AnimatedSplash onFinish={() => setShowSplash(false)} />
+    )}
+    </>
   );
 }

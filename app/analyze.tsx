@@ -3,12 +3,13 @@ import { useThemeColors } from '@/contexts/ThemeContext';
 import { analyzeClothingImage, analyzeOutfitImage, ClothingAnalysis, identifyProduct, ItemResearch, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgroundRemoval';
 import { saveToPermanentStorage } from '@/lib/storage';
-import { backgroundEnhanceItem, generateId, useClosetStore } from '@/stores/closetStore';
+import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, ImageIcon, Sparkles, X } from 'lucide-react-native';
+import { Check, ImageIcon, RefreshCw, Sparkles, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,11 +27,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Mode: 'single' = add one item, 'fitpic' = multi-item from outfit photo ───
 
-type AnalysisStage = 'analyzing' | 'researching' | 'done' | 'error';
+type AnalysisStage = 'analyzing' | 'researching' | 'enhancing' | 'done' | 'error';
 
 const STAGE_LABELS: Record<AnalysisStage, string> = {
   analyzing: 'Identifying item...',
   researching: 'Researching details...',
+  enhancing: 'Removing background...',
   done: 'Ready to save',
   error: 'Analysis failed',
 };
@@ -38,6 +40,7 @@ const STAGE_LABELS: Record<AnalysisStage, string> = {
 const MULTI_STAGE_LABELS: Record<AnalysisStage, string> = {
   analyzing: 'Detecting outfit pieces...',
   researching: 'Researching items...',
+  enhancing: 'Enhancing...',
   done: 'Review & save items',
   error: 'Analysis failed',
 };
@@ -73,7 +76,6 @@ export default function AnalyzeScreen() {
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { imageUri, mode: modeParam } = useLocalSearchParams<{ imageUri: string; mode?: string }>();
   const addItem = useClosetStore((s) => s.addItem);
-  const userId = useClosetStore((s) => s.userId) ?? 'local';
 
   const mode = modeParam === 'fitpic' ? 'fitpic' : 'single';
 
@@ -129,6 +131,7 @@ export default function AnalyzeScreen() {
 
       if (productResult.status === 'fulfilled') {
         product = productResult.value;
+        singleProductRef.current = product;
       }
 
       // Merge product identification with analysis (product ID takes priority for name/brand)
@@ -144,6 +147,44 @@ export default function AnalyzeScreen() {
       const resolvedGarmentType = product?.garment_type || analysis.garment_type || undefined;
       setGarmentSlot(classifyGarmentSlot(resolvedCategory, resolvedGarmentType));
 
+      // Step 2: Crop and Clean
+      // We need to wait for product identification to get the bounding box
+      let workingUri = uri;
+
+      if (product?.box_2d) {
+        try {
+          // box is [ymin, xmin, ymax, xmax] in 0-100 scale
+          const [ymin, xmin, ymax, xmax] = product.box_2d;
+
+          // Get image dimensions
+          const dimensions = await new Promise<{ width: number, height: number }>((resolve, reject) => {
+            RNImage.getSize(uri, (width, height) => resolve({ width, height }), reject);
+          });
+
+          // Add some padding (margin)
+          const padding = 18;
+          const y1 = Math.max(0, ymin - padding);
+          const x1 = Math.max(0, xmin - padding);
+          const y2 = Math.min(100, ymax + padding);
+          const x2 = Math.min(100, xmax + padding);
+
+          const cropX = (x1 / 100) * dimensions.width;
+          const cropY = (y1 / 100) * dimensions.height;
+          const cropW = ((x2 - x1) / 100) * dimensions.width;
+          const cropH = ((y2 - y1) / 100) * dimensions.height;
+
+          const cropped = await manipulateAsync(
+            uri,
+            [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
+            { format: SaveFormat.JPEG, compress: 0.9 }
+          );
+
+          workingUri = cropped.uri;
+        } catch (e) {
+          console.warn('Failed to crop single item:', e);
+        }
+      }
+
       setStage('researching');
 
       const researchPromise = researchClothingItem(
@@ -157,6 +198,7 @@ export default function AnalyzeScreen() {
         if (research.subcategory) setGarmentType(research.subcategory);
       }).catch(() => { });
 
+      // Generate clean product image from the (potentially cropped) working URI
       const effectiveProduct: ProductIdentification = product || {
         name: analysis!.name,
         brand: analysis!.brand,
@@ -166,14 +208,14 @@ export default function AnalyzeScreen() {
         material: null,
         description: analysis!.name,
       };
-      singleProductRef.current = effectiveProduct;
 
-      const cleanImagePromise = regenerateCleanImage(uri, effectiveProduct)
+      const cleanImagePromise = regenerateCleanImage(workingUri, effectiveProduct)
         .then((cleanUri) => {
           if (cleanUri) setCleanImageUri(cleanUri);
         })
         .catch(() => {
-          return removeBackground(uri)
+          // Fallback: try removeBackground (remove.bg API)
+          return removeBackground(workingUri)
             .then((r) => {
               if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
             });
@@ -188,22 +230,6 @@ export default function AnalyzeScreen() {
       return;
     }
   }, []);
-
-  const handleReEnhance = useCallback(async () => {
-    if (!imageUri || !singleProductRef.current || isReEnhancing) return;
-    setIsReEnhancing(true);
-    try {
-      const cleanUri = await regenerateCleanImage(imageUri, singleProductRef.current);
-      if (cleanUri) setCleanImageUri(cleanUri);
-    } catch {
-      try {
-        const r = await removeBackground(imageUri);
-        if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
-      } catch { /* silent */ }
-    } finally {
-      setIsReEnhancing(false);
-    }
-  }, [imageUri, isReEnhancing]);
 
   // ─── Multi-item pipeline (fit pic) ───
   const runMultiPipeline = useCallback(async (uri: string) => {
@@ -247,7 +273,7 @@ export default function AnalyzeScreen() {
           setLastGenerationTime(Date.now());
           startCooldownTimer();
         }
-      }, () => {});
+      }, () => { });
 
       // Research each piece in parallel for better details
       setStage('researching');
@@ -299,9 +325,9 @@ export default function AnalyzeScreen() {
         description: `Extract ONLY the ${richDescription} from this outfit photo. Remove the person, background, and all other clothing items. Show just the ${piece.category} item alone on a white background, fully visible from top to bottom.`,
       };
 
-      let cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
+      const cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
 
-      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri || undefined, isCleaning: false } : p));
+      setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
 
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -354,6 +380,29 @@ export default function AnalyzeScreen() {
     };
   }, []);
 
+  // ─── Re-enhance single item ───
+  const handleReEnhanceSingle = useCallback(async () => {
+    if (!imageUri || isReEnhancing) return;
+    setIsReEnhancing(true);
+    try {
+      const product = singleProductRef.current || {
+        name: name || 'Clothing Item',
+        brand: brand || null,
+        category,
+        garment_type: garmentType || null,
+        colors,
+        material: null,
+        description: name || 'Clothing item',
+      };
+      const newCleanUri = await regenerateCleanImage(imageUri, product);
+      if (newCleanUri) setCleanImageUri(newCleanUri);
+    } catch (e) {
+      Alert.alert('Re-enhance failed', 'Could not regenerate the image. Please try again.');
+    } finally {
+      setIsReEnhancing(false);
+    }
+  }, [imageUri, isReEnhancing, name, brand, category, garmentType, colors]);
+
   // ─── Single-item save ───
   const handleSaveSingle = useCallback(async () => {
     if (!imageUri) return;
@@ -367,8 +416,8 @@ export default function AnalyzeScreen() {
     }
 
     const newItem: ClosetItem = {
-      id: generateId(),
-      user_id: userId,
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      user_id: 'demo',
       image_url: permanentImageUri,
       clean_image_url: cleanImageUri || undefined,
       original_image_url: permanentImageUri,
@@ -389,10 +438,6 @@ export default function AnalyzeScreen() {
 
     addItem(newItem);
     router.back();
-
-    if (singleProductRef.current) {
-      backgroundEnhanceItem(newItem.id, permanentImageUri, singleProductRef.current);
-    }
   }, [imageUri, cleanImageUri, name, category, brand, colors, confidence, estimatedValue, garmentType, layerType, tags, addItem]);
 
   // ─── Multi-item save ───
@@ -434,8 +479,8 @@ export default function AnalyzeScreen() {
       }
 
       const newItem: ClosetItem = {
-        id: generateId(),
-        user_id: userId,
+        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        user_id: 'demo',
         image_url: permanentCleanUri || permanentOriginalUri,
         clean_image_url: permanentCleanUri,
         original_image_url: permanentOriginalUri,
@@ -453,16 +498,6 @@ export default function AnalyzeScreen() {
         updated_at: new Date().toISOString(),
       };
       addItem(newItem);
-
-      backgroundEnhanceItem(newItem.id, permanentCleanUri || permanentOriginalUri, {
-        name: piece.name || 'Clothing Item',
-        brand: piece.brand || null,
-        category: piece.category,
-        garment_type: piece.garmentType || null,
-        colors: piece.colors,
-        material: null,
-        description: piece.name || 'Clothing Item',
-      });
     }
 
     router.back();
@@ -495,7 +530,7 @@ export default function AnalyzeScreen() {
     );
   }
 
-  const isLoading = stage === 'analyzing' || stage === 'researching';
+  const isLoading = stage === 'analyzing' || stage === 'researching' || stage === 'enhancing';
   const stageLabel = mode === 'fitpic' ? MULTI_STAGE_LABELS : STAGE_LABELS;
 
   // ─────────── Multi-item (fit pic) UI ───────────
@@ -667,22 +702,7 @@ export default function AnalyzeScreen() {
               <Text style={styles.loadingText}>{stageLabel[stage]}</Text>
             </View>
           )}
-          {isReEnhancing && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={Colors.accentGreen} />
-              <Text style={styles.loadingText}>Re-enhancing image...</Text>
-            </View>
-          )}
         </View>
-
-        {stage === 'done' && cleanImageUri && !isReEnhancing && (
-          <View style={styles.reEnhanceRow}>
-            <Pressable style={styles.reEnhanceBtn} onPress={handleReEnhance}>
-              <Sparkles size={14} color={Colors.accentGreen} />
-              <Text style={styles.reEnhanceBtnText}>Re-enhance Image</Text>
-            </Pressable>
-          </View>
-        )}
 
         {stage === 'error' && (
           <View style={styles.errorBanner}>
@@ -691,6 +711,24 @@ export default function AnalyzeScreen() {
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
+        )}
+
+        {/* Re-enhance button */}
+        {stage === 'done' && (
+          <Pressable
+            style={[styles.reEnhanceBtn, isReEnhancing && { opacity: 0.5 }]}
+            onPress={handleReEnhanceSingle}
+            disabled={isReEnhancing}
+          >
+            {isReEnhancing ? (
+              <ActivityIndicator size="small" color={Colors.accentGreen} />
+            ) : (
+              <RefreshCw size={16} color={Colors.accentGreen} />
+            )}
+            <Text style={styles.reEnhanceText}>
+              {isReEnhancing ? 'Re-enhancing...' : 'Not happy? Re-enhance image'}
+            </Text>
+          </Pressable>
         )}
 
         {confidence > 0 && (
@@ -828,7 +866,7 @@ function createStyles(C: any) {
     retryText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: C.accentCoral, marginLeft: 12 },
     confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt },
     confidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.accentGreen },
-    badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
+    badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, marginBottom: 16 },
     slotBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
     slotBadgeText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.textSecondary, textTransform: 'capitalize' },
     formSection: { paddingHorizontal: 16, gap: 4 },
@@ -844,9 +882,6 @@ function createStyles(C: any) {
     colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 },
     colorChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
     colorChipText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textPrimary, textTransform: 'capitalize' },
-    reEnhanceRow: { alignItems: 'center', marginBottom: 12 },
-    reEnhanceBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: C.accentGreen, backgroundColor: `${C.accentGreen}10` },
-    reEnhanceBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.accentGreen },
     // ─── Multi-item (fit pic) styles ───
     outfitMeta: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12, flexWrap: 'wrap' },
     metaPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
@@ -874,5 +909,7 @@ function createStyles(C: any) {
     generateBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: C.accentGreen },
     generateBtnTextDisabled: { color: C.textTertiary },
     pieceErrorText: { fontFamily: Typography.bodyFamily, fontSize: 11, color: C.accentCoral, marginTop: 4, marginBottom: 2 },
+    reEnhanceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, paddingVertical: 12, borderRadius: Radius.pill, borderWidth: 1, borderColor: `${C.accentGreen}40`, backgroundColor: `${C.accentGreen}10` },
+    reEnhanceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.accentGreen },
   });
 }
