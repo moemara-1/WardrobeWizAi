@@ -1,4 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { hydrateFromSupabase, useClosetStore } from '@/stores/closetStore';
+import { useSocialStore } from '@/stores/socialStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Session, User } from '@supabase/supabase-js';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
@@ -14,10 +17,11 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
+  signUpWithEmail: (email: string, password: string, username?: string, dob?: string) => Promise<{ needsConfirmation: boolean }>;
   signInWithApple: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,12 +35,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsLoading(false);
+      if (session?.user) {
+        useClosetStore.getState().setUserId(session.user.id);
+        hydrateFromSupabase(session.user.id);
+      }
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (event, session) => {
         setSession(session);
+
+        // Wire user ID into local store and hydrate on sign-in
+        if (session?.user) {
+          useClosetStore.getState().setUserId(session.user.id);
+          if (event === 'SIGNED_IN') {
+            hydrateFromSupabase(session.user.id);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          useClosetStore.getState().setUserId(null);
+        }
+
+        // Auto-create profile row for new users (no DB trigger exists)
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          const userId = session.user.id;
+          const { data: existing } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+
+          if (!existing) {
+            const displayName =
+              session.user.user_metadata?.full_name ||
+              session.user.user_metadata?.name ||
+              session.user.email?.split('@')[0] ||
+              'User';
+            await supabase.from('profiles').upsert({
+              id: userId,
+              display_name: displayName,
+              avatar_url: session.user.user_metadata?.avatar_url || null,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'id' });
+          }
+        }
       },
     );
 
@@ -48,8 +90,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
-  const signUpWithEmail = async (email: string, password: string): Promise<{ needsConfirmation: boolean }> => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  const signUpWithEmail = async (email: string, password: string, username?: string, dob?: string): Promise<{ needsConfirmation: boolean }> => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
+          dob,
+        }
+      }
+    });
     if (error) throw error;
     // If the user is returned but session is null, email confirmation is needed
     const needsConfirmation = !!data.user && !data.session;
@@ -132,6 +183,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (result.type === 'success' && result.url) {
         const url = new URL(result.url);
 
+        // Check for error in query or hash
+        const queryError = url.searchParams.get('error');
+        const queryErrorDesc = url.searchParams.get('error_description');
+        const hashParams = new URLSearchParams(url.hash.substring(1));
+        const hashError = hashParams.get('error');
+        const hashErrorDesc = hashParams.get('error_description');
+
+        if (queryError || hashError) {
+          const desc = queryErrorDesc || hashErrorDesc;
+          throw new Error(desc ? decodeURIComponent(desc.replace(/\+/g, ' ')) : (queryError || hashError)!);
+        }
+
         // Try PKCE first (code in search params)
         const code = url.searchParams.get('code');
         if (code) {
@@ -141,9 +204,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Fallback to Implicit (tokens in hash)
-        const params = new URLSearchParams(url.hash.substring(1));
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
         if (accessToken && refreshToken) {
           await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         }
@@ -152,8 +214,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    useClosetStore.getState().clearAllData();
+    useSocialStore.getState().clearAllData();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+  };
+
+  const deleteAccount = async () => {
+    const userId = session?.user?.id;
+    if (!userId) throw new Error('No authenticated user');
+
+    // 1. Delete follows (both directions)
+    await supabase.from('follows').delete().eq('follower_id', userId);
+    await supabase.from('follows').delete().eq('following_id', userId);
+
+    // 2. Delete posts
+    await supabase.from('posts').delete().eq('user_id', userId);
+
+    // 3. Delete digital twin
+    await supabase.from('digital_twins').delete().eq('user_id', userId);
+
+    // 4. Delete outfits
+    await supabase.from('outfits').delete().eq('user_id', userId);
+
+    // 5. Delete items
+    await supabase.from('items').delete().eq('user_id', userId);
+
+    // 6. Delete storage files (wardrobe-images bucket)
+    try {
+      const { data: files } = await supabase.storage
+        .from('wardrobe-images')
+        .list(userId);
+      if (files && files.length > 0) {
+        const paths = files.map((f) => `${userId}/${f.name}`);
+        await supabase.storage.from('wardrobe-images').remove(paths);
+      }
+    } catch {
+      // Storage cleanup is best-effort
+    }
+
+    // 7. Delete profile (cascade handles any remaining refs)
+    await supabase.from('profiles').delete().eq('id', userId);
+
+    // 8. Clear all local storage
+    useClosetStore.getState().clearAllData();
+    useSocialStore.getState().clearAllData();
+    await AsyncStorage.clear();
+
+    // 9. Sign out
+    await supabase.auth.signOut();
   };
 
   return (
@@ -167,6 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithApple,
         signInWithGoogle,
         signOut,
+        deleteAccount,
       }}
     >
       {children}
