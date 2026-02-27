@@ -1,0 +1,14 @@
+--- Testing Profile Upsert ---
+Profile upsert result: new row violates row-level security policy for table "profiles"
+
+--- Testing Item with WEAR_COUNT ---
+Item upsert (wear_count) result: new row violates row-level security policy for table "items"
+
+--- Testing Item with TIMES_WORN ---
+Item upsert (times_worn) result: Could not find the 'last_worn_at' column of 'items' in the schema cache
+
+--- Testing Outfit with THEME ---
+Outfit upsert (theme) result: new row violates row-level security policy for table "outfits"
+
+--- Testing Outfit with STYLE ---
+Outfit upsert (style) result: Could not find the 'image_url' column of 'outfits' in the schema cache

@@ -64,17 +64,20 @@ export default function PostDetailScreen() {
         imageUrl: item!.clean_image_url || item!.image_url,
       }));
 
+    // Find the corresponding post in the social store (if it exists) to preserve like/comment state
+    const existingSocial = socialPosts.find((p) => p.id === id);
+
     return {
       id: userPost.id,
       userId: useClosetStore.getState().userId || 'me',
-      username: closetProfile.username,
+      username: closetProfile.username || 'User',
       avatarUrl: closetProfile.pfp_url || null,
       imageUrl: userPost.image_url,
       caption: userPost.caption || '',
       clothingPieces: taggedPieces,
-      likes: 0,
-      liked: false,
-      comments: [],
+      likes: existingSocial?.likes || 0,
+      liked: existingSocial?.liked || false,
+      comments: existingSocial?.comments || [],
       createdAt: userPost.created_at,
     };
   }, [socialPosts, closetPosts, closetItems, closetProfile, id]);

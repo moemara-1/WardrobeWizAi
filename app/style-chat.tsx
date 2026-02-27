@@ -126,10 +126,7 @@ export default function StyleChatScreen() {
             <X size={20} color={Colors.textPrimary} />
           </Pressable>
 
-          <View style={styles.creditPill}>
-            <Sparkles size={14} color={Colors.accentGreen} />
-            <Text style={styles.creditText}>{items.length}</Text>
-          </View>
+          <Text style={styles.headerTitle}>StyleAI</Text>
 
           <Pressable style={styles.moreBtn}>
             <MoreHorizontal size={20} color={Colors.textPrimary} />
@@ -234,8 +231,7 @@ function createStyles(C: any) {
     keyboardAvoid: { flex: 1 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
     closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
-    creditPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: C.cardSurfaceAlt },
-    creditText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: C.textPrimary },
+    headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 17, color: C.textPrimary },
     moreBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     scrollContent: { padding: 24, paddingBottom: 8, flexGrow: 1 },
     scrollContentWithMessages: { paddingTop: 12 },

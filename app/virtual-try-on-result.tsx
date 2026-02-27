@@ -2,6 +2,7 @@ import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { generateOutfitTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -16,7 +17,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,7 +34,7 @@ const SCENES = [
 
 export default function VirtualTryOnResultScreen() {
   const Colors = useThemeColors();
-  const styles = React.useMemo(() => createStyles(Colors), [Colors]);
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { selectedItems: selectedItemIds } = useLocalSearchParams<{ selectedItems: string }>();
   const [activeScene, setActiveScene] = useState('studio');
   const [prompt, setPrompt] = useState('');
@@ -175,39 +176,59 @@ export default function VirtualTryOnResultScreen() {
           )}
           <Text style={styles.generateText}>{generating ? 'Generating...' : 'Generate Image'}</Text>
         </Pressable>
-        <Text style={styles.costText}>Costs 1 AI credit</Text>
+
       </SafeAreaView>
+
+      {/* Loading Overlay */}
+      {generating && (
+        <BlurView
+          style={StyleSheet.absoluteFill}
+          intensity={80}
+          tint="dark"
+        >
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={Colors.accentCoral} />
+            <Text style={styles.loadingText}>Generating Try-On...</Text>
+            <Text style={styles.loadingSubtext}>This usually takes 10-15 seconds.</Text>
+          </View>
+        </BlurView>
+      )}
     </View>
   );
 }
 
-const createStyles = (Colors: any) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
-  headerRight: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  avatarSmall: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
-  avatarSmallText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: '#FFF' },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
-  sectionLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.textSecondary, marginTop: 8, marginBottom: 8 },
-  sceneRow: { gap: 8, marginBottom: 12 },
-  sceneChip: { width: 64, height: 64, borderRadius: Radius.md, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  sceneChipActive: { borderColor: Colors.textPrimary, backgroundColor: Colors.cardSurface },
-  sceneLabel: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, textAlign: 'center' },
-  sceneLabelActive: { color: Colors.textPrimary },
-  promptBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.input, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: Colors.border, marginBottom: 16 },
-  aiPrefix: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textTertiary },
-  promptInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, padding: 0 },
-  canvasArea: { height: 400, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.lg, position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
-  resultImage: { width: '100%', height: '100%' },
-  selectedItemsGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', padding: 16, gap: 12 },
-  selectedItemThumb: { width: 100, height: 120, borderRadius: Radius.sm, backgroundColor: '#FFFFFF' },
-  emptyCanvasText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textTertiary },
-  canvasItem: { position: 'absolute', width: 200, height: 200, alignSelf: 'center' },
-  ctaWrapper: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, alignItems: 'center', gap: 6 },
-  generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.accentCoral },
-  generateText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
-  costText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textTertiary },
-});
+function createStyles(Colors: any) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: Colors.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
+    backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+    headerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },
+    headerRight: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+    avatarSmall: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
+    avatarSmallText: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: '#FFF' },
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
+    sectionLabel: { fontFamily: Typography.bodyFamilyMedium, fontSize: 14, color: Colors.textSecondary, marginTop: 8, marginBottom: 8 },
+    sceneRow: { gap: 8, marginBottom: 12 },
+    sceneChip: { width: 64, height: 64, borderRadius: Radius.md, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+    sceneChipActive: { borderColor: Colors.textPrimary, backgroundColor: Colors.cardSurface },
+    sceneLabel: { fontFamily: Typography.bodyFamily, fontSize: 11, color: Colors.textSecondary, textAlign: 'center' },
+    sceneLabelActive: { color: Colors.textPrimary },
+    promptBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.input, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: Colors.border, marginBottom: 16 },
+    aiPrefix: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textTertiary },
+    promptInput: { flex: 1, fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, padding: 0 },
+    canvasArea: { height: 400, backgroundColor: Colors.cardSurfaceAlt, borderRadius: Radius.lg, position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
+    resultImage: { width: '100%', height: '100%' },
+    selectedItemsGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', padding: 16, gap: 12 },
+    selectedItemThumb: { width: 100, height: 120, borderRadius: Radius.sm },
+    emptyCanvasText: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textTertiary },
+    canvasItem: { position: 'absolute', width: 200, height: 200, alignSelf: 'center' },
+    ctaWrapper: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, alignItems: 'center', gap: 6 },
+    generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.accentCoral },
+    generateText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
+    costText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textTertiary },
+    loadingOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)', padding: 32 },
+    loadingText: { fontFamily: Typography.serifFamilyBold, fontSize: 24, color: '#FFF', marginTop: 24, textAlign: 'center' },
+    loadingSubtext: { fontFamily: Typography.bodyFamily, fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: 8, textAlign: 'center' },
+  });
+}

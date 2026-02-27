@@ -1,0 +1,9 @@
+
+--- Testing Item with STR ID ---
+Item result: new row violates row-level security policy for table "items"
+
+--- Testing Outfit with STR ID ---
+Outfit STR result: new row violates row-level security policy for table "outfits"
+
+--- Testing Outfit Item IDs as STR Array ---
+Outfit STR Array result: new row violates row-level security policy for table "outfits"

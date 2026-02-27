@@ -1,6 +1,7 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { generateId, useClosetStore } from '@/stores/closetStore';
+import { uploadImage } from '@/lib/storage';
+import { useClosetStore } from '@/stores/closetStore';
 import { useSocialStore } from '@/stores/socialStore';
 import { UserPost } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -25,6 +26,8 @@ import {
 } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Modal,
@@ -229,7 +232,7 @@ export default function ProfileScreen() {
                 style={styles.gridTile}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: '/post/[id]', params: { id: item.id } } as Href);
+                  router.push(`/post/${item.id}` as any);
                 }}
               >
                 <Image
@@ -431,15 +434,27 @@ function AddPostModal({ visible, onClose, items, onSave }: {
     setTaggedIds((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]);
   };
 
-  const handlePost = () => {
-    if (!imageUri) return;
-    onSave({
-      id: generateId(),
-      image_url: imageUri,
-      caption: caption.trim() || undefined,
-      tagged_item_ids: taggedIds.length > 0 ? taggedIds : undefined,
-      created_at: new Date().toISOString(),
-    });
+  const userId = useClosetStore((s) => s.userId);
+  const [loading, setLoading] = useState(false);
+
+  const handlePost = async () => {
+    if (!imageUri || !userId) return;
+    setLoading(true);
+    try {
+      const uploadedUrl = await uploadImage(imageUri, userId, 'post');
+
+      onSave({
+        id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        image_url: uploadedUrl,
+        caption: caption.trim() || undefined,
+        tagged_item_ids: taggedIds.length > 0 ? taggedIds : undefined,
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      Alert.alert('Upload Failed', 'There was an error uploading your post. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!visible) return null;
@@ -448,10 +463,14 @@ function AddPostModal({ visible, onClose, items, onSave }: {
     <Modal visible animationType="slide" presentationStyle="pageSheet">
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+          <Pressable onPress={onClose} disabled={loading}><Text style={styles.cancelText}>Cancel</Text></Pressable>
           <Text style={styles.title}>New Post</Text>
-          <Pressable onPress={handlePost} disabled={!imageUri}>
-            <Text style={[styles.postBtnText, !imageUri && { opacity: 0.4 }]}>Post</Text>
+          <Pressable onPress={handlePost} disabled={!imageUri || loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color={Colors.textPrimary} />
+            ) : (
+              <Text style={[styles.postBtnText, (!imageUri || loading) && { opacity: 0.4 }]}>Post</Text>
+            )}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.body}>

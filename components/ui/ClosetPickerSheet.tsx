@@ -52,7 +52,6 @@ interface ClosetPickerSheetProps {
   excludeIds?: string[];
   multiSelect?: boolean;
   title?: string;
-  sourceItems?: ClosetItem[];
 }
 
 export function ClosetPickerSheet({
@@ -63,7 +62,6 @@ export function ClosetPickerSheet({
   excludeIds = [],
   multiSelect = false,
   title = 'Add from Closet',
-  sourceItems,
 }: ClosetPickerSheetProps) {
   const Colors = useThemeColors();
   const { width: SCREEN_WIDTH } = useWindowDimensions();
@@ -73,8 +71,7 @@ export function ClosetPickerSheet({
 
   const styles = useMemo(() => createStyles(Colors, ITEM_SIZE, insets.bottom), [Colors, ITEM_SIZE, insets.bottom]);
 
-  const storeItems = useClosetStore((s) => s.items);
-  const items = sourceItems || storeItems;
+  const items = useClosetStore((s) => s.items);
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState<ClothingCategory | 'all'>(filterCategory || 'all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

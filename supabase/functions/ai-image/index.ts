@@ -12,7 +12,6 @@ import jpeg from "https://esm.sh/jpeg-js@0.4.4";
 
 const DEEPINFRA_BASE = "https://api.deepinfra.com/v1/openai";
 const NANO_BANANA_VERSION = "5bdc2c7cd642ae33611d8c33f79615f98ff02509ab8db9d8ec1cc6c36d378fba";
-const FACE_SWAP_VERSION = "d1d6ea8c8be89d664a07a457526f7128109dee7030fdac424788d762c71ed111";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -209,99 +208,6 @@ OUTPUT:
   return resultB64;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Face-Swap via cdingram/face-swap on Replicate
-   — Takes the Nano Banana outfit result + original selfie
-   — Swaps the face from the selfie onto the outfit result
-   ═══════════════════════════════════════════════════════════════ */
-
-async function runFaceSwap(
-  outfitB64: string,
-  selfieB64: string,
-  token: string,
-): Promise<string> {
-  console.log(`[FACE-SWAP] cdingram/face-swap: swapping selfie face onto outfit result...`);
-
-  const inputImageUri = `data:image/jpeg;base64,${outfitB64}`;
-  const swapImageUri = `data:image/jpeg;base64,${selfieB64}`;
-
-  let createRes: Response;
-  try {
-    createRes = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${token}`,
-        "Content-Type": "application/json",
-        Prefer: "wait",
-      },
-      body: JSON.stringify({
-        version: FACE_SWAP_VERSION,
-        input: {
-          input_image: inputImageUri,
-          swap_image: swapImageUri,
-        },
-      }),
-    });
-  } catch (fetchErr) {
-    console.error(`[FACE-SWAP] Fetch error: ${fetchErr.message}`);
-    return outfitB64;
-  }
-
-  if (!createRes.ok) {
-    const errBody = await createRes.text().catch(() => "");
-    console.error(`[FACE-SWAP] API ${createRes.status}: ${errBody.slice(0, 300)}`);
-    return outfitB64;
-  }
-
-  let prediction = await createRes.json();
-  console.log(`[FACE-SWAP] Prediction status: ${prediction.status}, id: ${prediction.id}`);
-
-  // Poll if synchronous wait timed out
-  if (
-    prediction.status &&
-    prediction.status !== "succeeded" &&
-    prediction.status !== "failed" &&
-    prediction.status !== "canceled"
-  ) {
-    const pollUrl = prediction.urls?.get;
-    if (pollUrl) {
-      for (let attempt = 0; attempt < 60; attempt++) {
-        await new Promise((r) => setTimeout(r, 3000));
-        const pollRes = await fetch(pollUrl, {
-          headers: { Authorization: `Token ${token}` },
-        });
-        prediction = await pollRes.json();
-        console.log(`[FACE-SWAP] Poll ${attempt + 1}: status=${prediction.status}`);
-        if (["succeeded", "failed", "canceled"].includes(prediction.status)) break;
-      }
-    }
-  }
-
-  if (prediction.status !== "succeeded" || !prediction.output) {
-    console.error(`[FACE-SWAP] Failed: status=${prediction.status}, error=${prediction.error}`);
-    return outfitB64;
-  }
-
-  const outputUrl = Array.isArray(prediction.output)
-    ? prediction.output[0]
-    : prediction.output;
-  if (!outputUrl) {
-    console.error(`[FACE-SWAP] No output URL`);
-    return outfitB64;
-  }
-
-  console.log(`[FACE-SWAP] Downloading face-swapped result...`);
-  const imgRes = await fetch(outputUrl);
-  if (!imgRes.ok) {
-    console.error(`[FACE-SWAP] Download failed: ${imgRes.status}`);
-    return outfitB64;
-  }
-
-  const imgBuf = new Uint8Array(await imgRes.arrayBuffer());
-  const swappedB64 = b64Encode(imgBuf);
-  console.log(`[FACE-SWAP] ✓ Face restored — ${Math.round(swappedB64.length / 1024)}KB`);
-  return swappedB64;
-}
 
 /* ═══════════════════════════════════════════════════════════════
    Collage helpers (used by FLUX fallback mode)
@@ -515,13 +421,7 @@ serve(async (req) => {
       console.log(`[VTON] Received ${garments.length} garments, person image b64 length: ${imageBase64?.length || 0}, selfie b64 length: ${selfieBase64?.length || 0}`);
 
       try {
-        let resultB64 = await runNanoBanana(imageBase64, garments, replicateToken, selfieBase64);
-
-        // Step 2: Face-swap using cdingram/face-swap
-        // Use the selfie (or twin image as fallback) to restore the original face
-        const faceSourceB64 = selfieBase64 || imageBase64;
-        console.log(`[VTON] Running face-swap step (using ${selfieBase64 ? 'original selfie' : 'twin image'} as face source)...`);
-        resultB64 = await runFaceSwap(resultB64, faceSourceB64, replicateToken);
+        const resultB64 = await runNanoBanana(imageBase64, garments, replicateToken, selfieBase64);
 
         return new Response(
           JSON.stringify({ data: [{ b64_json: resultB64 }] }),

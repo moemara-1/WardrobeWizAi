@@ -1,12 +1,12 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { generateDigitalTwin } from '@/lib/ai';
-import { generateId, useClosetStore } from '@/stores/closetStore';
+import { useClosetStore } from '@/stores/closetStore';
 import { GeneratedLook } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
     ArrowLeft,
     Camera,
@@ -19,7 +19,7 @@ import {
     UserCircle,
     X,
 } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -59,7 +59,7 @@ async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
 
 export default function DigitalTwinScreen() {
     const Colors = useThemeColors();
-    const styles = React.useMemo(() => createStyles(Colors), [Colors]);
+    const styles = useMemo(() => createStyles(Colors), [Colors]);
     const { digitalTwin, setDigitalTwin, twinGenerating, setTwinGenerating, setTwinProgress, twinProgress } = useClosetStore();
     const generatedLooks = useClosetStore((s) => s.generatedLooks);
     const deleteGeneratedLook = useClosetStore((s) => s.deleteGeneratedLook);
@@ -163,7 +163,7 @@ export default function DigitalTwinScreen() {
             );
 
             const twin = {
-                id: generateId(),
+                id: `twin_${Date.now()}`,
                 user_id: 'local',
                 selfie_url: selfieUri,
                 body_url: bodyUri ?? undefined,
@@ -204,8 +204,9 @@ export default function DigitalTwinScreen() {
             </SafeAreaView>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {/* Existing Twin Preview or Empty State */}
                 {digitalTwin?.twin_image_url ? (
-                    <Pressable style={styles.twinPreview} onPress={() => setPreviewLook({ id: digitalTwin.id, image_url: digitalTwin.twin_image_url } as any)}>
+                    <Pressable style={styles.twinPreview} onPress={() => router.push('/digital-twin-preview' as Href)}>
                         <Image source={{ uri: digitalTwin.twin_image_url }} style={styles.twinPreviewImage} contentFit="contain" />
                         <View style={styles.twinPreviewBadge}>
                             <Text style={styles.twinPreviewBadgeText}>My Digital Twin</Text>
@@ -244,7 +245,7 @@ export default function DigitalTwinScreen() {
                 {/* Body Type Card */}
                 <View style={styles.uploadCard}>
                     {bodyUri ? (
-                        <Image source={{ uri: bodyUri }} style={styles.uploadPreview} contentFit="cover" />
+                        <Image source={{ uri: bodyUri }} style={styles.uploadPreview} contentFit="contain" />
                     ) : (
                         <Scan size={24} color={Colors.textSecondary} />
                     )}
@@ -341,12 +342,12 @@ export default function DigitalTwinScreen() {
                         textAlignVertical="top"
                     />
                 </View>
-                {(generatedLooks || []).length > 0 && (
+                {generatedLooks.length > 0 && (
                     <>
                         <View style={styles.divider} />
                         <Text style={styles.sectionTitle}>Generated Looks</Text>
                         <View style={styles.galleryGrid}>
-                            {(generatedLooks || []).map((look) => (
+                            {generatedLooks.map((look) => (
                                 <Pressable
                                     key={look.id}
                                     style={styles.galleryItem}
@@ -425,53 +426,55 @@ export default function DigitalTwinScreen() {
     );
 }
 
-const createStyles = (Colors: any) => StyleSheet.create({
-    container: { flex: 1, backgroundColor: Colors.background },
-    headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
-    backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-    headerTitle: { flex: 1, fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary, textAlign: 'center' },
-    headerSpacer: { width: 40 },
-    scrollContent: { padding: 16, paddingBottom: 120 },
-    emptyState: { alignItems: 'center', gap: 8, paddingVertical: 32 },
-    emptyTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 20, color: Colors.textPrimary },
-    emptyDesc: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', maxWidth: 260 },
-    twinPreview: { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 4 },
-    twinPreviewImage: { width: '100%', height: 320 },
-    twinPreviewBadge: { position: 'absolute', bottom: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, paddingHorizontal: 14, paddingVertical: 6 },
-    twinPreviewBadgeText: { fontFamily: Typography.bodyFamilyBold, fontSize: 12, color: '#FFF' },
-    divider: { height: 1, backgroundColor: Colors.border, marginVertical: 20 },
-    sectionTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, marginBottom: 12 },
-    uploadCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: 20, alignItems: 'center', gap: 8, marginBottom: 12 },
-    uploadPreview: { width: 100, height: 100, borderRadius: 50 },
-    uploadLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textPrimary },
-    uploadActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-    uploadBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
-    uploadBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textPrimary },
-    colorSection: { marginBottom: 16 },
-    colorHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-    colorTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textPrimary, flex: 1 },
-    detectBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: 'rgba(50, 213, 131, 0.1)', borderWidth: 1, borderColor: 'rgba(50, 213, 131, 0.3)' },
-    detectBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: Colors.accentGreen },
-    colorRow: { flexDirection: 'row', gap: 12 },
-    colorCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
-    colorSelected: { borderColor: Colors.accentGreen },
-    detailsCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: 16, gap: 10 },
-    detailsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    detailsLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textPrimary },
-    detailsInput: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, minHeight: 80, padding: 0 },
-    ctaWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: Colors.background },
-    saveBtn: { backgroundColor: Colors.accentGreen, borderRadius: Radius.pill, paddingVertical: 16, alignItems: 'center' },
-    saveBtnDisabled: { opacity: 0.4 },
-    saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
-    generatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GALLERY_GAP },
-    galleryItem: { width: GALLERY_ITEM_SIZE, height: GALLERY_ITEM_SIZE, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.cardSurface },
-    galleryImage: { width: '100%', height: '100%' },
-    previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
-    previewHeader: { position: 'absolute', top: 60, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
-    previewClose: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-    previewDelete: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-    previewImage: { width: SCREEN_WIDTH - 32, height: SCREEN_WIDTH * 1.3 },
-    previewPromptBadge: { position: 'absolute', bottom: 80, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, maxWidth: SCREEN_WIDTH - 64 },
-    previewPromptText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: '#FFF', textAlign: 'center' },
-});
+function createStyles(Colors: any) {
+    return StyleSheet.create({
+        container: { flex: 1, backgroundColor: Colors.background },
+        headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+        backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+        headerTitle: { flex: 1, fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary, textAlign: 'center' },
+        headerSpacer: { width: 40 },
+        scrollContent: { padding: 16, paddingBottom: 120 },
+        emptyState: { alignItems: 'center', gap: 8, paddingVertical: 32 },
+        emptyTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 20, color: Colors.textPrimary },
+        emptyDesc: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', maxWidth: 260 },
+        twinPreview: { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 4 },
+        twinPreviewImage: { width: '100%', height: 320 },
+        twinPreviewBadge: { position: 'absolute', bottom: 12, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, paddingHorizontal: 14, paddingVertical: 6 },
+        twinPreviewBadgeText: { fontFamily: Typography.bodyFamilyBold, fontSize: 12, color: '#FFF' },
+        divider: { height: 1, backgroundColor: Colors.border, marginVertical: 20 },
+        sectionTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, marginBottom: 12 },
+        uploadCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: 20, alignItems: 'center', gap: 8, marginBottom: 12 },
+        uploadPreview: { width: 100, height: 100, borderRadius: 50 },
+        uploadLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textPrimary },
+        uploadActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+        uploadBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, borderWidth: 1, borderColor: Colors.border },
+        uploadBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 12, color: Colors.textPrimary },
+        colorSection: { marginBottom: 16 },
+        colorHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+        colorTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textPrimary, flex: 1 },
+        detectBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: 'rgba(50, 213, 131, 0.1)', borderWidth: 1, borderColor: 'rgba(50, 213, 131, 0.3)' },
+        detectBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: Colors.accentGreen },
+        colorRow: { flexDirection: 'row', gap: 12 },
+        colorCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+        colorSelected: { borderColor: Colors.accentGreen },
+        detailsCard: { backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: 16, gap: 10 },
+        detailsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+        detailsLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textPrimary },
+        detailsInput: { fontFamily: Typography.bodyFamily, fontSize: 14, color: Colors.textPrimary, minHeight: 80, padding: 0 },
+        ctaWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: Colors.background },
+        saveBtn: { backgroundColor: Colors.accentGreen, borderRadius: Radius.pill, paddingVertical: 16, alignItems: 'center' },
+        saveBtnDisabled: { opacity: 0.4 },
+        saveBtnText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.background },
+        generatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+        galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GALLERY_GAP },
+        galleryItem: { width: GALLERY_ITEM_SIZE, height: GALLERY_ITEM_SIZE, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.cardSurface },
+        galleryImage: { width: '100%', height: '100%' },
+        previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
+        previewHeader: { position: 'absolute', top: 60, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
+        previewClose: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+        previewDelete: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+        previewImage: { width: SCREEN_WIDTH - 32, height: SCREEN_WIDTH * 1.3 },
+        previewPromptBadge: { position: 'absolute', bottom: 80, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, maxWidth: SCREEN_WIDTH - 64 },
+        previewPromptText: { fontFamily: Typography.bodyFamily, fontSize: 13, color: '#FFF', textAlign: 'center' },
+    });
+}

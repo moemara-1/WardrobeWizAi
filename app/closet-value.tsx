@@ -1,11 +1,11 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
 import { useClosetStore } from '@/stores/closetStore';
 import { useSocialStore } from '@/stores/socialStore';
-import { supabase } from '@/lib/supabase';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { ArrowLeft, TrendingUp, Trophy, Users } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -59,7 +59,7 @@ export default function ClosetValueScreen() {
             try {
                 let query = supabase
                     .from('profiles')
-                    .select('id, username, avatar_url, total_closet_value, item_count')
+                    .select('id, display_name, avatar_url, total_closet_value, item_count')
                     .order('total_closet_value', { ascending: false })
                     .limit(20);
 
@@ -77,7 +77,7 @@ export default function ClosetValueScreen() {
                     const rankColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
                     const entries: LeaderboardEntry[] = data.map((row: any, idx: number) => ({
                         rank: idx + 1,
-                        name: row.username || 'Unknown',
+                        name: row.display_name || 'Unknown',
                         pieces: row.item_count || 0,
                         value: row.total_closet_value || 0,
                         color: rankColors[idx] || Colors.textSecondary,
@@ -219,7 +219,7 @@ export default function ClosetValueScreen() {
                                     style={styles.itemRow}
                                     onPress={() => {
                                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                        router.push({ pathname: '/item/[id]', params: { id: item.id } } as Href);
+                                        router.push(`/item/${item.id}` as any);
                                     }}
                                 >
                                     <Image

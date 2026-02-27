@@ -5,29 +5,6 @@ import { supabase } from './supabase';
 const BUCKET = 'wardrobe-images';
 
 /**
- * Copy a temp/cache image URI to permanent document storage so it survives cache eviction.
- * Returns the permanent URI (or the original if it's already permanent/remote).
- */
-export async function saveToPermanentStorage(uri: string): Promise<string> {
-  if (!uri) return uri;
-  if (uri.startsWith('http')) return uri;
-
-  const permanentDir = FileSystem.documentDirectory;
-  if (!permanentDir) return uri;
-
-  if (uri.startsWith(permanentDir)) return uri;
-
-  try {
-    const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2)}.${uri.split('.').pop()?.toLowerCase() || 'jpg'}`;
-    const destUri = `${permanentDir}${filename}`;
-    await FileSystem.copyAsync({ from: uri, to: destUri });
-    return destUri;
-  } catch {
-    return uri;
-  }
-}
-
-/**
  * Upload a local image to Supabase Storage and return the public URL.
  * Images are stored under the user's folder: {userId}/{filename}
  */
@@ -87,3 +64,29 @@ export async function uploadBase64Image(
 
   return urlData.publicUrl;
 }
+
+/**
+ * Save a temporary file (from ImagePicker/Manipulator) to the app's permanent document directory.
+ * Returns the new permanent URI.
+ */
+export async function saveToPermanentStorage(tempUri: string): Promise<string> {
+  // If already in document directory or remote, return as is
+  if (!tempUri || tempUri.startsWith('http') || (FileSystem.documentDirectory && tempUri.includes(FileSystem.documentDirectory))) {
+    return tempUri;
+  }
+
+  const filename = tempUri.split('/').pop() || `file_${Date.now()}`;
+  // Ensure unique name
+  const uniqueName = `${Date.now()}_${filename}`;
+  const dest = `${FileSystem.documentDirectory}${uniqueName}`;
+
+  try {
+    await FileSystem.copyAsync({ from: tempUri, to: dest });
+    if (__DEV__) console.log(`[Persistence] Saved to permanent: ${dest}`);
+    return dest;
+  } catch (e) {
+    console.warn('[Persistence] Failed to save to permanent storage:', e);
+    return tempUri; // Fallback to temp
+  }
+}
+

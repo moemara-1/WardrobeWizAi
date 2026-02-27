@@ -24,7 +24,7 @@ export default function PrivacyPolicyScreen() {
             </SafeAreaView>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                <Text style={styles.lastUpdated}>Last updated: February 2025</Text>
+                <Text style={styles.lastUpdated}>Last updated: February 2026</Text>
 
                 <Text style={styles.sectionTitle}>1. Information We Collect</Text>
                 <Text style={styles.body}>
@@ -76,14 +76,57 @@ export default function PrivacyPolicyScreen() {
                     The App is not intended for children under 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, please contact us and we will delete that information.
                 </Text>
 
-                <Text style={styles.sectionTitle}>7. Changes to This Policy</Text>
+                <Text style={styles.sectionTitle}>7. Legal Basis for Processing (GDPR)</Text>
+                <Text style={styles.body}>
+                    Under the General Data Protection Regulation (GDPR), we process your personal data based on the following legal grounds:{'\\n\\n'}
+                    • <Text style={styles.bold}>Consent</Text> — When you voluntarily upload photos, create a digital twin, or use AI features.{'\\n'}
+                    • <Text style={styles.bold}>Performance of Contract</Text> — To provide you with the App's core services as described in our Terms of Service.{'\\n'}
+                    • <Text style={styles.bold}>Legitimate Interest</Text> — To improve and optimize our services, prevent fraud, and ensure security.{'\\n\\n'}
+                    You may withdraw your consent at any time by deleting your account in Settings.
+                </Text>
+
+                <Text style={styles.sectionTitle}>8. Data Controller</Text>
+                <Text style={styles.body}>
+                    WardrobeWizAI is the data controller for your personal data. For any data protection inquiries, please contact our Data Protection Officer at dpo@wardrobewiz.ai.
+                </Text>
+
+                <Text style={styles.sectionTitle}>9. International Data Transfers</Text>
+                <Text style={styles.body}>
+                    Your data may be transferred to and processed in countries outside the European Economic Area (EEA), including the United States, where our AI service providers (Google, OpenAI) and cloud infrastructure (Supabase) are located. We ensure appropriate safeguards are in place through Standard Contractual Clauses (SCCs) and data processing agreements with all third-party providers.
+                </Text>
+
+                <Text style={styles.sectionTitle}>10. Data Retention</Text>
+                <Text style={styles.body}>
+                    We retain your personal data for as long as your account is active. When you delete your account, all associated data (including closet items, photos, digital twin data, and generated content) is permanently deleted from our servers within 30 days. AI-generated images processed through third-party APIs are not stored by those providers beyond their published retention periods.
+                </Text>
+
+                <Text style={styles.sectionTitle}>11. Your EU Rights (GDPR)</Text>
+                <Text style={styles.body}>
+                    Under GDPR, you have the following rights:{'\\n\\n'}
+                    • <Text style={styles.bold}>Right of Access</Text> — Request a copy of your personal data. Use "Export My Data" in Settings.{'\\n'}
+                    • <Text style={styles.bold}>Right to Rectification</Text> — Update your personal information through your profile.{'\\n'}
+                    • <Text style={styles.bold}>Right to Erasure</Text> — Delete your account and all data via Settings → Delete Account.{'\\n'}
+                    • <Text style={styles.bold}>Right to Data Portability</Text> — Export your closet data in JSON format via Settings → Export My Data.{'\\n'}
+                    • <Text style={styles.bold}>Right to Restrict Processing</Text> — Contact us to restrict how we process your data.{'\\n'}
+                    • <Text style={styles.bold}>Right to Object</Text> — You may object to processing based on legitimate interests by contacting dpo@wardrobewiz.ai.{'\\n\\n'}
+                    To exercise any of these rights, contact us at dpo@wardrobewiz.ai or use the in-app tools provided.
+                </Text>
+
+                <Text style={styles.sectionTitle}>12. Supervisory Authority</Text>
+                <Text style={styles.body}>
+                    If you are located in the EU/EEA and believe we have not adequately addressed your data protection concerns, you have the right to lodge a complaint with your local Data Protection Authority (DPA).
+                </Text>
+
+                <Text style={styles.sectionTitle}>13. Changes to This Policy</Text>
                 <Text style={styles.body}>
                     We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new policy in the App and updating the "Last Updated" date.
                 </Text>
 
-                <Text style={styles.sectionTitle}>8. Contact Us</Text>
+                <Text style={styles.sectionTitle}>14. Contact Us</Text>
                 <Text style={styles.body}>
-                    If you have questions about this Privacy Policy, please contact us at support@wardrobewiz.ai.
+                    If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us at:{'\n\n'}
+                    • General: support@wardrobewiz.ai{'\n'}
+                    • Data Protection Officer: dpo@wardrobewiz.ai
                 </Text>
 
                 <View style={styles.bottomSpacer} />

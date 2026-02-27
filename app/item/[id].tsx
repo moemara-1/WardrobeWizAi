@@ -9,18 +9,18 @@ import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Bookmark, BookmarkCheck, Pencil, Share2, Sparkles, Trash2, X } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -90,10 +90,12 @@ export default function ItemDetailScreen() {
       `Are you sure you want to delete "${item.name}"? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => {
-          deleteItem(item.id);
-          router.back();
-        }},
+        {
+          text: 'Delete', style: 'destructive', onPress: () => {
+            deleteItem(item.id);
+            router.back();
+          }
+        },
       ]
     );
   };
@@ -157,7 +159,9 @@ export default function ItemDetailScreen() {
     if (setCanvasItem) {
       setCanvasItem(slot, item);
     }
-    router.push('/(tabs)/stylist' as Href);
+    Alert.alert('Added', 'Item added to your Stylist canvas!', [
+      { text: 'OK', style: 'default' }
+    ]);
   };
 
   const metadata: MetadataRow[] = [
@@ -302,269 +306,271 @@ export default function ItemDetailScreen() {
   );
 }
 
-function createStyles(C: ReturnType<typeof import('@/contexts/ThemeContext').useThemeColors>) { return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.background,
-  },
-  scrollContent: {
-    paddingBottom: 120,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  headerBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: C.cardSurfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  headerTitle: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 16,
-    color: C.textPrimary,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  imageArea: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    height: 360,
-    backgroundColor: C.white,
-    borderRadius: Radius.xl,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  productImage: {
-    width: '80%',
-    height: '80%',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  createFitBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: C.accentGreen,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: Radius.pill,
-  },
-  createFitText: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 14,
-    color: C.background,
-  },
-  enhanceText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 14,
-    color: C.accentGreen,
-  },
-  metadataSection: {
-    marginTop: 20,
-    marginHorizontal: 16,
-  },
-  metadataRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  metadataLabel: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 14,
-    color: C.textSecondary,
-  },
-  metadataValue: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 14,
-    color: C.textPrimary,
-    textTransform: 'capitalize',
-  },
-  badgePill: {
-    backgroundColor: C.cardSurfaceAlt,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  badgeText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 12,
-    color: C.textPrimary,
-    textTransform: 'capitalize',
-  },
-  deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 24,
-    paddingVertical: 14,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,68,68,0.3)',
-  },
-  deleteBtnText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 14,
-    color: '#FF4444',
-  },
-  ctaWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: C.background,
-  },
-  ctaBtn: {
-    backgroundColor: C.accentGreen,
-    borderRadius: Radius.pill,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  ctaText: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 16,
-    color: C.background,
-  },
-  notFound: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  notFoundText: {
-    fontFamily: Typography.bodyFamily,
-    fontSize: 16,
-    color: C.textSecondary,
-  },
-  backLink: {
-    padding: 12,
-  },
-  backLinkText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 14,
-    color: C.accentGreen,
-  },
-  // Edit Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalKeyboard: {
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: C.cardSurface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    maxHeight: '80%',
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: C.borderLight,
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 18,
-    color: C.textPrimary,
-  },
-  modalScroll: {
-    maxHeight: 340,
-  },
-  fieldLabel: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 12,
-    color: C.textSecondary,
-    marginBottom: 4,
-    marginTop: 12,
-  },
-  fieldInput: {
-    backgroundColor: C.cardSurfaceAlt,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: Typography.bodyFamily,
-    fontSize: 14,
-    color: C.textPrimary,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-  },
-  enhanceImgBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: C.accentGreen,
-  },
-  enhanceImgText: {
-    fontFamily: Typography.bodyFamilyMedium,
-    fontSize: 13,
-    color: C.accentGreen,
-  },
-  saveBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: Radius.pill,
-    backgroundColor: C.accentGreen,
-  },
-  saveBtnText: {
-    fontFamily: Typography.bodyFamilyBold,
-    fontSize: 14,
-    color: C.background,
-  },
-}); }
+function createStyles(Colors: any) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors.background,
+    },
+    scrollContent: {
+      paddingBottom: 120,
+    },
+    headerBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingBottom: 8,
+    },
+    headerBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: Colors.cardSurfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: Colors.border,
+    },
+    headerTitle: {
+      fontFamily: Typography.bodyFamilyBold,
+      fontSize: 16,
+      color: Colors.textPrimary,
+      flex: 1,
+      textAlign: 'center',
+      marginHorizontal: 8,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    imageArea: {
+      marginHorizontal: 16,
+      marginTop: 8,
+      height: 360,
+      backgroundColor: Colors.white,
+      borderRadius: Radius.xl,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    productImage: {
+      width: '80%',
+      height: '80%',
+    },
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      marginTop: 16,
+    },
+    createFitBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: Colors.accentGreen,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: Radius.pill,
+    },
+    createFitText: {
+      fontFamily: Typography.bodyFamilyBold,
+      fontSize: 14,
+      color: Colors.background,
+    },
+    enhanceText: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 14,
+      color: Colors.accentGreen,
+    },
+    metadataSection: {
+      marginTop: 20,
+      marginHorizontal: 16,
+    },
+    metadataRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.border,
+    },
+    metadataLabel: {
+      fontFamily: Typography.bodyFamily,
+      fontSize: 14,
+      color: Colors.textSecondary,
+    },
+    metadataValue: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 14,
+      color: Colors.textPrimary,
+      textTransform: 'capitalize',
+    },
+    badgePill: {
+      backgroundColor: Colors.cardSurfaceAlt,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: Radius.pill,
+      borderWidth: 1,
+      borderColor: Colors.border,
+    },
+    badgeText: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 12,
+      color: Colors.textPrimary,
+      textTransform: 'capitalize',
+    },
+    deleteBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginHorizontal: 16,
+      marginTop: 24,
+      paddingVertical: 14,
+      borderRadius: Radius.md,
+      borderWidth: 1,
+      borderColor: 'rgba(255,68,68,0.3)',
+    },
+    deleteBtnText: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 14,
+      color: '#FF4444',
+    },
+    ctaWrapper: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 8,
+      backgroundColor: Colors.background,
+    },
+    ctaBtn: {
+      backgroundColor: Colors.accentGreen,
+      borderRadius: Radius.pill,
+      paddingVertical: 16,
+      alignItems: 'center',
+    },
+    ctaText: {
+      fontFamily: Typography.bodyFamilyBold,
+      fontSize: 16,
+      color: Colors.background,
+    },
+    notFound: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+    },
+    notFoundText: {
+      fontFamily: Typography.bodyFamily,
+      fontSize: 16,
+      color: Colors.textSecondary,
+    },
+    backLink: {
+      padding: 12,
+    },
+    backLinkText: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 14,
+      color: Colors.accentGreen,
+    },
+    // Edit Modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalKeyboard: {
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      backgroundColor: Colors.cardSurface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 20,
+      paddingBottom: 40,
+      maxHeight: '80%',
+    },
+    modalHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: Colors.borderLight,
+      alignSelf: 'center',
+      marginTop: 10,
+      marginBottom: 16,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    modalTitle: {
+      fontFamily: Typography.bodyFamilyBold,
+      fontSize: 18,
+      color: Colors.textPrimary,
+    },
+    modalScroll: {
+      maxHeight: 340,
+    },
+    fieldLabel: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 12,
+      color: Colors.textSecondary,
+      marginBottom: 4,
+      marginTop: 12,
+    },
+    fieldInput: {
+      backgroundColor: Colors.cardSurfaceAlt,
+      borderRadius: Radius.md,
+      borderWidth: 1,
+      borderColor: Colors.border,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontFamily: Typography.bodyFamily,
+      fontSize: 14,
+      color: Colors.textPrimary,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 20,
+    },
+    enhanceImgBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 14,
+      borderRadius: Radius.pill,
+      borderWidth: 1,
+      borderColor: Colors.accentGreen,
+    },
+    enhanceImgText: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 13,
+      color: Colors.accentGreen,
+    },
+    saveBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 14,
+      borderRadius: Radius.pill,
+      backgroundColor: Colors.accentGreen,
+    },
+    saveBtnText: {
+      fontFamily: Typography.bodyFamilyBold,
+      fontSize: 14,
+      color: Colors.background,
+    },
+  });
+}

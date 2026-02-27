@@ -1,7 +1,8 @@
 import { AddMenuPopover } from '@/components/ui/AddMenuPopover';
 import { ClosetPickerSheet } from '@/components/ui/ClosetPickerSheet';
 import { OutfitFilters } from '@/components/ui/OutfitFilters';
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import { generateOutfitTwin, generateSmartOutfit, OutfitTwinItem } from '@/lib/ai';
 import { classifyGarmentSlot } from '@/lib/backgroundRemoval';
 import { useClosetStore } from '@/stores/closetStore';
@@ -110,6 +111,8 @@ function DraggableCanvasItem({
   onTap: (item: ClosetItem) => void;
   onRemove: (id: string) => void;
 }) {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const pan = useRef(new Animated.ValueXY({ x: entry.defaultX, y: entry.defaultY })).current;
   const lastOffset = useRef({ x: entry.defaultX, y: entry.defaultY });
   const isDragging = useRef(false);
@@ -216,6 +219,8 @@ function DraggableCanvasItem({
 }
 
 export default function StylistScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [styleFilter, setStyleFilter] = useState<string[]>([]);
@@ -228,10 +233,6 @@ export default function StylistScreen() {
   const [savedThisOutfit, setSavedThisOutfit] = useState(false);
   const [selectedAccessories, setSelectedAccessories] = useState<ClosetItem[]>([]);
   const [showFitsPicker, setShowFitsPicker] = useState(false);
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [saveFitName, setSaveFitName] = useState('');
-  const [saveFitOccasion, setSaveFitOccasion] = useState('');
-  const [saveFitDesc, setSaveFitDesc] = useState('');
   const [canvasItems, setCanvasItems] = useState<CanvasItemEntry[]>([]);
 
   const items = useClosetStore((s) => s.items);
@@ -242,7 +243,6 @@ export default function StylistScreen() {
   const setTwinProgress = useClosetStore((s) => s.setTwinProgress);
   const setDigitalTwin = useClosetStore((s) => s.setDigitalTwin);
   const addGeneratedLook = useClosetStore((s) => s.addGeneratedLook);
-  const userId = useClosetStore((s) => s.userId) ?? 'local';
   const canvasItem = useClosetStore((s) => s.canvasItem);
   const clearCanvasItem = useClosetStore((s) => s.clearCanvasItem);
   const canvasOutfit = useClosetStore((s) => s.canvasOutfit);
@@ -345,21 +345,21 @@ export default function StylistScreen() {
     }
 
     const filteredItems = filterItems(items);
+    const hasFilters = styleFilter.length > 0 || colorFilter.length > 0 || weatherFilter.length > 0;
 
-    if (items.length >= 2) {
+    if (hasFilters && filteredItems.length >= 2) {
       try {
-        const smartItems = items.map(i => ({
+        const smartItems = filteredItems.map(i => ({
           id: i.id, name: i.name, category: i.category,
           colors: i.colors, tags: i.tags,
         }));
-        const filters = { style: styleFilter, color: colorFilter, weather: weatherFilter };
         const pickedIds = await Promise.race([
-          generateSmartOutfit(smartItems, filters),
-          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+          generateSmartOutfit(smartItems, { style: styleFilter, color: colorFilter, weather: weatherFilter }),
+          new Promise<string[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
         ]);
         if (pickedIds.length > 0) {
           const pickedItems = pickedIds
-            .map(id => items.find(i => i.id === id))
+            .map(id => filteredItems.find(i => i.id === id))
             .filter(Boolean) as ClosetItem[];
           if (pickedItems.length > 0) {
             setCanvasItems(buildVerticalEntries(pickedItems));
@@ -382,33 +382,22 @@ export default function StylistScreen() {
       return;
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSaveFitName(`Outfit ${new Date().toLocaleDateString()}`);
-    setSaveFitOccasion('Casual');
-    setSaveFitDesc('');
-    setShowSaveModal(true);
-  }, [currentOutfitItems]);
-
-  const confirmSaveFit = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSavedThisOutfit(true);
-    setShowSaveModal(false);
 
     const outfit: Outfit = {
       id: `outfit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      user_id: userId,
+      user_id: 'demo',
       items: currentOutfitItems,
       item_ids: currentOutfitItems.map((i) => i.id),
-      name: saveFitName.trim() || `Outfit ${new Date().toLocaleDateString()}`,
-      occasion: (saveFitOccasion.trim() || 'Casual') as any,
-      ai_notes: saveFitDesc.trim() || undefined,
+      name: `Outfit ${new Date().toLocaleDateString()}`,
       seasons: [],
       pinned: false,
       created_at: new Date().toISOString(),
     };
 
     addOutfit(outfit);
-  }, [currentOutfitItems, addOutfit, saveFitName, saveFitOccasion, saveFitDesc, userId]);
+  }, [currentOutfitItems, addOutfit]);
 
   const handleAddMenuItem = useCallback((action: string) => {
     setShowAddMenu(false);
@@ -511,7 +500,10 @@ export default function StylistScreen() {
 
       setTwinProgress('New fit generated!');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTwinGenerating(false);
+      setTimeout(() => {
+        setTwinGenerating(false);
+        router.push('/digital-twin-preview' as Href);
+      }, 500);
     } catch (e: unknown) {
       setTwinGenerating(false);
       setTwinProgress(null);
@@ -705,68 +697,11 @@ export default function StylistScreen() {
           />
         </SafeAreaView>
       </Modal>
-
-      {/* Premium Save Fit Modal */}
-      <Modal visible={showSaveModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.saveModalOverlay}>
-          <Pressable style={styles.saveModalBackdrop} onPress={() => setShowSaveModal(false)} />
-          <View style={styles.saveModalContent}>
-            <View style={styles.saveModalHandle} />
-            <Text style={styles.saveModalTitle}>Save Fit</Text>
-
-            <View style={styles.saveModalInputGroup}>
-              <Text style={styles.saveModalLabel}>Outfit Name</Text>
-              <TextInput
-                style={styles.saveModalInput}
-                value={saveFitName}
-                onChangeText={setSaveFitName}
-                placeholder="e.g. Summer Brunch"
-                placeholderTextColor={Colors.textTertiary}
-                autoFocus={true}
-              />
-            </View>
-
-            <View style={styles.saveModalInputGroup}>
-              <Text style={styles.saveModalLabel}>Occasion (Optional)</Text>
-              <TextInput
-                style={styles.saveModalInput}
-                value={saveFitOccasion}
-                onChangeText={setSaveFitOccasion}
-                placeholder="e.g. Formal, Casual, Night Out"
-                placeholderTextColor={Colors.textTertiary}
-              />
-            </View>
-
-            <View style={styles.saveModalInputGroup}>
-              <Text style={styles.saveModalLabel}>Notes (Optional)</Text>
-              <TextInput
-                style={[styles.saveModalInput, styles.saveModalInputMulti]}
-                value={saveFitDesc}
-                onChangeText={setSaveFitDesc}
-                placeholder="Vibe, specific layers, etc."
-                placeholderTextColor={Colors.textTertiary}
-                multiline
-                textAlignVertical="top"
-              />
-            </View>
-
-            <View style={styles.saveModalActions}>
-              <Pressable style={styles.saveModalCancelBtn} onPress={() => setShowSaveModal(false)}>
-                <Text style={styles.saveModalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.saveModalSaveBtn} onPress={confirmSaveFit}>
-                <BookmarkCheck size={18} color={Colors.background} />
-                <Text style={styles.saveModalSaveText}>Save Fit</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   topBarBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
@@ -799,25 +734,11 @@ const styles = StyleSheet.create({
   fitsPickerClose: { paddingHorizontal: 8, paddingVertical: 4 },
   fitsPickerCloseText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 15, color: Colors.textSecondary },
   fitsPickerTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary },
-  fitsPickerCard: { flexDirection: 'row', marginBottom: 16, padding: 16, backgroundColor: '#FFFFFF', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, gap: 14 },
+  fitsPickerCard: { flexDirection: 'row', marginBottom: 16, padding: 16, backgroundColor: Colors.cardSurface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, gap: 14 },
   fitsPickerStack: { width: 80, alignItems: 'center' },
-  fitsPickerStackItem: { width: 70, height: 70, marginBottom: -30, backgroundColor: '#FFFFFF' },
+  fitsPickerStackItem: { width: 70, height: 70, marginBottom: -30, backgroundColor: Colors.cardSurfaceAlt },
   fitsPickerStackImage: { width: '100%', height: '100%' },
   fitsPickerInfo: { flex: 1, justifyContent: 'center' },
   fitsPickerName: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
   fitsPickerSub: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  saveModalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
-  saveModalBackdrop: { ...StyleSheet.absoluteFillObject },
-  saveModalContent: { backgroundColor: Colors.background, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 10 },
-  saveModalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 20 },
-  saveModalTitle: { fontFamily: Typography.serifFamilyBold, fontSize: 24, color: Colors.textPrimary, marginBottom: 24, textAlign: 'center' },
-  saveModalInputGroup: { marginBottom: 16 },
-  saveModalLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: Colors.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
-  saveModalInput: { backgroundColor: Colors.cardSurface, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 14, fontFamily: Typography.bodyFamily, fontSize: 15, color: Colors.textPrimary },
-  saveModalInputMulti: { height: 80, paddingTop: 14 },
-  saveModalActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  saveModalCancelBtn: { flex: 1, paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  saveModalCancelText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.textPrimary },
-  saveModalSaveBtn: { flex: 2, flexDirection: 'row', gap: 8, paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center' },
-  saveModalSaveText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: Colors.background },
 });

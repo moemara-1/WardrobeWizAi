@@ -24,7 +24,7 @@ export default function TermsOfServiceScreen() {
             </SafeAreaView>
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                <Text style={styles.lastUpdated}>Last updated: February 2025</Text>
+                <Text style={styles.lastUpdated}>Last updated: February 2026</Text>
 
                 <Text style={styles.sectionTitle}>1. Acceptance of Terms</Text>
                 <Text style={styles.body}>
@@ -73,9 +73,9 @@ export default function TermsOfServiceScreen() {
                     • Violate any applicable laws or regulations while using the App.
                 </Text>
 
-                <Text style={styles.sectionTitle}>7. AI Credits & Features</Text>
+                <Text style={styles.sectionTitle}>7. Service Modifications</Text>
                 <Text style={styles.body}>
-                    Certain AI features (such as virtual try-on generation and digital twin creation) may consume AI credits. The availability and cost of AI credits may change. We reserve the right to modify feature availability, introduce premium tiers, or adjust credit allocations with reasonable notice to users.
+                    We reserve the right to modify, suspend, or discontinue any feature of the App at any time with reasonable notice. We may introduce premium tiers or adjust feature availability in the future.
                 </Text>
 
                 <Text style={styles.sectionTitle}>8. Limitation of Liability</Text>

@@ -17,7 +17,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, username?: string, dob?: string) => Promise<{ needsConfirmation: boolean }>;
+  signUpWithEmail: (email: string, password: string, username?: string, firstName?: string, lastName?: string, dob?: string) => Promise<{ needsConfirmation: boolean }>;
   signInWithApple: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -71,9 +71,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               session.user.user_metadata?.name ||
               session.user.email?.split('@')[0] ||
               'User';
+            const username =
+              session.user.user_metadata?.username ||
+              session.user.email?.split('@')[0];
+
             await supabase.from('profiles').upsert({
               id: userId,
               display_name: displayName,
+              username: username,
               avatar_url: session.user.user_metadata?.avatar_url || null,
               updated_at: new Date().toISOString(),
             }, { onConflict: 'id' });
@@ -90,13 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
-  const signUpWithEmail = async (email: string, password: string, username?: string, dob?: string): Promise<{ needsConfirmation: boolean }> => {
+  const signUpWithEmail = async (email: string, password: string, username?: string, firstName?: string, lastName?: string, dob?: string): Promise<{ needsConfirmation: boolean }> => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           username,
+          first_name: firstName,
+          last_name: lastName,
           dob,
         }
       }

@@ -57,12 +57,17 @@ function makeOutfit(overrides: Partial<Outfit> = {}): Outfit {
 // ─── generateId ───
 
 describe('generateId', () => {
-  it('generates unique UUIDs', () => {
-    const id1 = generateId();
-    const id2 = generateId();
+  it('generates unique IDs with the given prefix', () => {
+    const id1 = generateId('item');
+    const id2 = generateId('item');
     expect(id1).not.toBe(id2);
-    expect(id1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-    expect(id2).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(id1).toMatch(/^item_/);
+    expect(id2).toMatch(/^item_/);
+  });
+
+  it('uses default prefix when none provided', () => {
+    const id = generateId();
+    expect(id).toMatch(/^item_/);
   });
 });
 

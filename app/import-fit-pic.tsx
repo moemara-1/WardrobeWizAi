@@ -3,7 +3,7 @@ import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
-import { ArrowLeft, Camera, ImageIcon, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Camera, ImageIcon } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import {
   Pressable,
@@ -76,10 +76,7 @@ export default function ImportFitPicScreen() {
           <Text style={styles.secondaryBtnText}>Choose from Library</Text>
         </Pressable>
 
-        <View style={styles.creditRow}>
-          <Sparkles size={14} color={Colors.accentGreen} />
-          <Text style={styles.creditText}>Costs 1 AI credit per photo</Text>
-        </View>
+
       </View>
     </SafeAreaView>
   );

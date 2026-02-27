@@ -1,34 +1,43 @@
-import { Colors, Radius, Typography } from '@/constants/Colors';
+import { Radius, Typography } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, CheckCircle, Eye, EyeOff, Lock, Mail, Sparkles } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { ArrowLeft, Calendar, CheckCircle, Eye, EyeOff, Lock, Mail, Sparkles, User } from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
+  const Colors = useThemeColors();
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { signInWithEmail, signUpWithEmail, signInWithApple, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [dob, setDob] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
 
   const handleEmailAuth = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Missing Fields', 'Please enter both email and password.');
+    if (password.length < 6) {
+      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
       return;
     }
     if (password.length < 6) {
@@ -41,9 +50,24 @@ export default function LoginScreen() {
 
     try {
       if (mode === 'login') {
+        if (!email.trim() || !password.trim()) {
+          Alert.alert('Missing Fields', 'Please enter both email and password.');
+          setLoading(false);
+          return;
+        }
         await signInWithEmail(email, password);
       } else {
-        const { needsConfirmation } = await signUpWithEmail(email, password);
+        if (!username.trim() || !firstName.trim() || !lastName.trim() || !dob.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+          Alert.alert('Missing Fields', 'Please fill out all details to create your account.');
+          setLoading(false);
+          return;
+        }
+        if (password !== confirmPassword) {
+          Alert.alert('Password Mismatch', 'Passwords do not match.');
+          setLoading(false);
+          return;
+        }
+        const { needsConfirmation } = await signUpWithEmail(email, password, username, firstName, lastName, dob);
         if (needsConfirmation) {
           setConfirmationSent(true);
         }
@@ -138,11 +162,59 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <Sparkles size={32} color={Colors.accentGreen} />
             <Text style={styles.title}>WardrobeWiz</Text>
-            <Text style={styles.subtitle}>Your AI-powered wardrobe assistant</Text>
+            <Text style={styles.subtitle}>{mode === 'login' ? 'Your AI-powered wardrobe assistant' : 'Create an account to continue'}</Text>
           </View>
 
           {/* Email / Password */}
           <View style={styles.form}>
+            {mode === 'signup' && (
+              <>
+                <View style={styles.inputWrapper}>
+                  <User size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Username"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={[styles.inputWrapper, { flex: 1 }]}>
+                    <User size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="First Name"
+                      placeholderTextColor={Colors.textTertiary}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                    />
+                  </View>
+                  <View style={[styles.inputWrapper, { flex: 1 }]}>
+                    <User size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Last Name"
+                      placeholderTextColor={Colors.textTertiary}
+                      value={lastName}
+                      onChangeText={setLastName}
+                    />
+                  </View>
+                </View>
+                <View style={styles.inputWrapper}>
+                  <Calendar size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Date of Birth (MM/DD/YYYY)"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={dob}
+                    onChangeText={setDob}
+                  />
+                </View>
+              </>
+            )}
+
             <View style={styles.inputWrapper}>
               <Mail size={18} color={Colors.textTertiary} style={styles.inputIcon} />
               <TextInput
@@ -178,6 +250,28 @@ export default function LoginScreen() {
                 )}
               </Pressable>
             </View>
+
+            {mode === 'signup' && (
+              <View style={styles.inputWrapper}>
+                <Lock size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirm Password"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  textContentType="newPassword"
+                />
+                <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeBtn}>
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} color={Colors.textTertiary} />
+                  ) : (
+                    <Eye size={18} color={Colors.textTertiary} />
+                  )}
+                </Pressable>
+              </View>
+            )}
 
             <Pressable
               style={[styles.primaryBtn, loading && styles.btnDisabled]}
@@ -236,12 +330,12 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (Colors: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   safeArea: { flex: 1 },
-  keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
 
-  header: { alignItems: 'center', marginBottom: 40 },
+  header: { alignItems: 'center', marginBottom: 24 },
   title: {
     fontFamily: Typography.serifFamilyBold,
     fontSize: 32,
