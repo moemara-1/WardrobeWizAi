@@ -5,21 +5,23 @@ import * as Haptics from 'expo-haptics';
 import { router, type Href } from 'expo-router';
 import {
   ArrowLeft,
-  Bell,
   ChevronRight,
   FileText,
   LogOut,
+  Mail,
   Moon,
   Shield,
   Trash2,
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from 'react-native';
@@ -28,9 +30,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function SettingsScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
   const { mode, setMode } = useTheme();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -41,18 +43,61 @@ export default function SettingsScreen() {
     }
   };
 
+  const performDeletion = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      router.replace('/login' as Href);
+    } catch {
+      Alert.alert('Error', 'Failed to delete account. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleDeleteAccount = () => {
+    if (isDeleting) return;
     Alert.alert(
       'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently lost.',
+      'Are you sure? This will permanently delete your account and all your data. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Continue',
           style: 'destructive',
           onPress: () => {
-            // TODO: Implement account deletion via Supabase
-            Alert.alert('Coming Soon', 'Account deletion will be available in a future update.');
+            if (Platform.OS === 'ios') {
+              Alert.prompt(
+                'Type DELETE to confirm',
+                'This action is irreversible.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: (input?: string) => {
+                      if (input === 'DELETE') {
+                        performDeletion();
+                      }
+                    },
+                  },
+                ],
+                'plain-text',
+              );
+            } else {
+              Alert.alert(
+                'Final Confirmation',
+                'This will permanently delete your account. Are you absolutely sure?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete My Account',
+                    style: 'destructive',
+                    onPress: performDeletion,
+                  },
+                ],
+              );
+            }
           },
         },
       ],
@@ -114,20 +159,6 @@ export default function SettingsScreen() {
         {/* Preferences Section */}
         <Text style={styles.sectionTitle}>Preferences</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
-            <Bell size={18} color={Colors.textSecondary} />
-            <Text style={[styles.rowLabel, { marginLeft: 10, flex: 1 }]}>Notifications</Text>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={(val) => {
-                Haptics.selectionAsync();
-                setNotificationsEnabled(val);
-              }}
-              trackColor={{ false: Colors.border, true: Colors.accentGreen }}
-              thumbColor={Colors.white}
-            />
-          </View>
-          <View style={styles.separator} />
           <View style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 12 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Moon size={18} color={Colors.textSecondary} />
@@ -180,21 +211,35 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { marginLeft: 10, flex: 1 }]}>Terms of Service</Text>
             <ChevronRight size={18} color={Colors.textTertiary} />
           </Pressable>
+          <View style={styles.separator} />
+          <Pressable style={styles.row} onPress={() => {
+            Haptics.selectionAsync();
+            Linking.openURL('mailto:support@wardrobewizai.com');
+          }}>
+            <Mail size={18} color={Colors.textSecondary} />
+            <Text style={[styles.rowLabel, { marginLeft: 10, flex: 1 }]}>Contact Support</Text>
+            <ChevronRight size={18} color={Colors.textTertiary} />
+          </Pressable>
         </View>
 
         {/* Danger Zone */}
         <Text style={[styles.sectionTitle, { color: Colors.accentCoral }]}>Danger Zone</Text>
         <View style={styles.card}>
           <Pressable
-            style={styles.row}
+            style={[styles.row, isDeleting && { opacity: 0.5 }]}
+            disabled={isDeleting}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               handleDeleteAccount();
             }}
           >
-            <Trash2 size={18} color={Colors.accentCoral} />
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={Colors.accentCoral} />
+            ) : (
+              <Trash2 size={18} color={Colors.accentCoral} />
+            )}
             <Text style={[styles.rowLabel, { color: Colors.accentCoral, marginLeft: 10 }]}>
-              Delete Account
+              {isDeleting ? 'Deleting...' : 'Delete Account'}
             </Text>
           </Pressable>
         </View>

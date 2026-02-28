@@ -41,6 +41,7 @@ async function runNanoBanana(
   garments: VTONGarment[],
   token: string,
   selfieB64?: string,
+  scenePrompt?: string,
 ): Promise<string> {
   if (garments.length === 0) {
     throw new Error("No clothing items provided for try-on.");
@@ -72,6 +73,11 @@ async function runNanoBanana(
     .map((g, i) => `Image ${garmentStartIdx + i}: ${g.name} (${g.category})`)
     .join("\n");
 
+  // Determine scene/setting description
+  const sceneDesc = scenePrompt
+    ? `Setting/scene: ${scenePrompt}. Use this as the background and environment.`
+    : 'Professional photography, clean neutral background, good lighting';
+
   let prompt: string;
   if (hasSeparateSelfie) {
     prompt = `Image 1 is a FACE IDENTITY REFERENCE — a close-up or portrait of a specific real person. Study their face carefully: exact facial features, eye shape, eye color, nose, lips, jawline, skin tone, complexion, eyebrows, hairstyle, hair color.
@@ -95,7 +101,7 @@ CLOTHING:
 
 OUTPUT:
 - Full-body shot head to toe, natural standing pose
-- Professional photography, clean neutral background, good lighting
+- ${sceneDesc}
 - Single photo of the dressed person, NOT a collage`;
   } else {
     prompt = `Image 1 is a reference photo of a specific real person — this is their IDENTITY REFERENCE. Study their face carefully: their exact facial features, eye shape, eye color, nose shape, lip shape, jawline, skin tone, complexion, freckles/moles, eyebrows, hairstyle, and hair color. The remaining images show specific clothing items:
@@ -116,7 +122,7 @@ CLOTHING RULES:
 
 OUTPUT:
 - Full-body shot, head to toe, natural standing pose
-- Professional photography, clean neutral background, good lighting
+- ${sceneDesc}
 - Output a single photo of the dressed person, NOT a collage`;
   }
 
@@ -408,7 +414,7 @@ serve(async (req) => {
             error: "REPLICATE_API_TOKEN not configured on server",
           }),
           {
-            status: 500,
+            status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
@@ -418,10 +424,11 @@ serve(async (req) => {
 
       const garments: VTONGarment[] = body.garments || [];
       const selfieBase64: string | undefined = body.selfieBase64;
-      console.log(`[VTON] Received ${garments.length} garments, person image b64 length: ${imageBase64?.length || 0}, selfie b64 length: ${selfieBase64?.length || 0}`);
+      const scenePrompt: string | undefined = body.scenePrompt;
+      console.log(`[VTON] Received ${garments.length} garments, person image b64 length: ${imageBase64?.length || 0}, selfie b64 length: ${selfieBase64?.length || 0}, scene: ${scenePrompt || 'none'}`);
 
       try {
-        const resultB64 = await runNanoBanana(imageBase64, garments, replicateToken, selfieBase64);
+        const resultB64 = await runNanoBanana(imageBase64, garments, replicateToken, selfieBase64, scenePrompt);
 
         return new Response(
           JSON.stringify({ data: [{ b64_json: resultB64 }] }),
@@ -451,7 +458,7 @@ serve(async (req) => {
       if (!replicateToken) {
         return new Response(
           JSON.stringify({ error: "REPLICATE_API_TOKEN not configured on server" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
@@ -542,7 +549,7 @@ serve(async (req) => {
       if (!replicateToken) {
         return new Response(
           JSON.stringify({ error: "REPLICATE_API_TOKEN not configured on server" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
@@ -711,7 +718,7 @@ POSE & STYLE:
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
         {
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
@@ -752,13 +759,20 @@ POSE & STYLE:
 
     const data = await response.json();
 
+    if (!response.ok) {
+      return new Response(JSON.stringify({ error: data?.error || `DeepInfra returned ${response.status}` }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify(data), {
-      status: response.status,
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

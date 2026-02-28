@@ -2,7 +2,8 @@ import { Radius, Typography } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Calendar, CheckCircle, Eye, EyeOff, Lock, Mail, Sparkles, User } from 'lucide-react-native';
+import { Href, useRouter } from 'expo-router';
+import { ArrowLeft, Calendar, Check, CheckCircle, Eye, EyeOff, Lock, Mail, Sparkles, User } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,8 +22,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function LoginScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const router = useRouter();
   const { signInWithEmail, signUpWithEmail, signInWithApple, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -64,6 +67,11 @@ export default function LoginScreen() {
         }
         if (password !== confirmPassword) {
           Alert.alert('Password Mismatch', 'Passwords do not match.');
+          setLoading(false);
+          return;
+        }
+        if (!termsAccepted) {
+          Alert.alert('Terms Required', 'Please accept the Terms of Service and Privacy Policy.');
           setLoading(false);
           return;
         }
@@ -273,6 +281,24 @@ export default function LoginScreen() {
               </View>
             )}
 
+            {mode === 'signup' && (
+              <Pressable style={styles.termsRow} onPress={() => setTermsAccepted(!termsAccepted)}>
+                <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                  {termsAccepted && <Check size={14} color="#FFF" strokeWidth={3} />}
+                </View>
+                <Text style={styles.termsText}>
+                  I agree to the{' '}
+                  <Text style={styles.termsLink} onPress={() => router.push('/terms-of-service' as Href)}>
+                    Terms of Service
+                  </Text>
+                  {' '}and{' '}
+                  <Text style={styles.termsLink} onPress={() => router.push('/privacy-policy' as Href)}>
+                    Privacy Policy
+                  </Text>
+                </Text>
+              </Pressable>
+            )}
+
             <Pressable
               style={[styles.primaryBtn, loading && styles.btnDisabled]}
               onPress={handleEmailAuth}
@@ -369,6 +395,38 @@ const createStyles = (Colors: any) => StyleSheet.create({
     padding: 0,
   },
   eyeBtn: { padding: 4 },
+
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 2,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: Colors.textTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.accentGreen,
+    borderColor: Colors.accentGreen,
+  },
+  termsText: {
+    flex: 1,
+    fontFamily: Typography.bodyFamily,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  termsLink: {
+    fontFamily: Typography.bodyFamilyBold,
+    color: Colors.accentGreen,
+  },
 
   primaryBtn: {
     height: 52,

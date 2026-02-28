@@ -4,10 +4,17 @@ import { AppThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { Fraunces_400Regular, Fraunces_700Bold, useFonts } from '@expo-google-fonts/fraunces';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as Sentry from '@sentry/react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useState } from 'react';
 import 'react-native-reanimated';
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: !__DEV__,
+  tracesSampleRate: 0.2,
+});
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -19,7 +26,7 @@ SplashScreen.preventAutoHideAsync();
 
 // Removed static APP_DARK_THEME to use dynamic theme inside RootNavigator
 
-export default function RootLayout() {
+function RootLayout() {
   const [loaded, error] = useFonts({
     Fraunces_400Regular,
     Fraunces_700Bold,
@@ -49,6 +56,8 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
 
 function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { session, isLoading } = useAuth();

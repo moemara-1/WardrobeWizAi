@@ -25,25 +25,27 @@ export interface ItemResearch {
 }
 
 async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
-    const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
-    if (!token) throw new Error('Missing EXPO_PUBLIC_DEEPINFRA_KEY');
+    const { data, error } = await supabase.functions.invoke('ai-analyze', { body });
 
-    const response = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`DeepInfra API error (${response.status}): ${errorBody}`);
+    if (error) {
+        if (__DEV__) console.error('[callDeepInfra] Edge function error:', JSON.stringify(error));
+        let detail = error.message;
+        try {
+            const ctx = (error as { context?: Response }).context;
+            if (ctx?.json) detail = JSON.stringify(await ctx.json());
+        } catch { /* ignore */ }
+        throw new Error(`AI service error: ${detail}`);
     }
 
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || '';
+    if (data?.error) {
+        throw new Error(`AI error: ${typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error)}`);
+    }
+
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+        throw new Error(`AI returned empty response: ${JSON.stringify(data).slice(0, 300)}`);
+    }
+    return content;
 }
 
 function parseJSON<T>(text: string): T {
@@ -62,92 +64,21 @@ function parseJSON<T>(text: string): T {
     }
 }
 
-async function callReplicate(model: string, input: Record<string, unknown>): Promise<any> {
-    const token = process.env.EXPO_PUBLIC_REPLICATE_API_TOKEN;
-    if (!token) throw new Error('Missing EXPO_PUBLIC_REPLICATE_API_TOKEN');
-
-    const isVersion = !model.includes('/');
-    const url = isVersion
-        ? 'https://api.replicate.com/v1/predictions'
-        : `https://api.replicate.com/v1/models/${model}/predictions`;
-
-    const body: any = { input };
-    if (isVersion) body.version = model;
-
-    let prediction: any;
-
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'wait',
-            },
-            body: JSON.stringify(body),
-        });
-
-        if (response.status !== 200 && response.status !== 201) {
-            const errorBody = await response.text();
-            throw new Error(`Replicate API error (${response.status}): ${errorBody}`);
-        }
-
-        prediction = await response.json();
-    } catch (fetchErr: unknown) {
-        if (__DEV__) console.warn('Prefer:wait fetch failed, trying without:', fetchErr);
-        const createRes = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-        });
-        if (!createRes.ok) {
-            throw new Error(`Replicate create error (${createRes.status}): ${await createRes.text()}`);
-        }
-        prediction = await createRes.json();
-    }
-
-    const MAX_POLLS = 120;
-    let polls = 0;
-    while ((prediction.status === 'starting' || prediction.status === 'processing') && polls < MAX_POLLS) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        polls++;
-        const pollRes = await fetch(prediction.urls.get, {
-            headers: { 'Authorization': `Bearer ${token}` },
-        });
-        prediction = await pollRes.json();
-    }
-
-    if (prediction.status === 'succeeded') {
-        return prediction.output;
-    } else {
-        throw new Error(`Replicate prediction failed (status=${prediction.status}): ${prediction.error || 'timeout'}`);
-    }
+async function callReplicate(model: string, input: Record<string, unknown>): Promise<unknown> {
+    const { data, error } = await supabase.functions.invoke('ai-proxy', {
+        body: { provider: 'replicate', model, input },
+    });
+    if (error) throw new Error(`Replicate proxy error: ${error.message}`);
+    if (data?.error) throw new Error(`Replicate error: ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}`);
+    return data;
 }
 
 async function callDeepInfraImage(model: string, input: Record<string, unknown>): Promise<string> {
-    const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
-    if (!token) throw new Error('Missing EXPO_PUBLIC_DEEPINFRA_KEY');
-
-    const url = `https://api.deepinfra.com/v1/inference/${model}`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(input),
+    const { data: result, error } = await supabase.functions.invoke('ai-proxy', {
+        body: { provider: 'deepinfra-image', model, input },
     });
-
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`DeepInfra Image API error (${response.status}): ${errorBody}`);
-    }
-
-    const result = await response.json();
+    if (error) throw new Error(`DeepInfra Image proxy error: ${error.message}`);
+    if (result?.error) throw new Error(`DeepInfra Image error: ${typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}`);
 
     if (result.images && result.images.length > 0) {
         const img = result.images[0];
@@ -175,30 +106,20 @@ interface GoogleVisionBox {
 }
 
 async function callGoogleVision(base64: string): Promise<GoogleVisionBox[]> {
-    const key = process.env.EXPO_PUBLIC_GOOGLE_VISION_KEY;
-    if (!key) throw new Error('Missing EXPO_PUBLIC_GOOGLE_VISION_KEY');
-
-    const response = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${key}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+    const { data, error } = await supabase.functions.invoke('ai-proxy', {
+        body: {
+            provider: 'google-vision',
+            body: {
                 requests: [{
                     image: { content: base64 },
                     features: [{ type: 'OBJECT_LOCALIZATION', maxResults: 10 }],
                 }],
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Google Vision API error (${response.status}): ${errorBody}`);
-    }
-
-    const data = await response.json();
-    return data.responses?.[0]?.localizedObjectAnnotations || [];
+            },
+        },
+    });
+    if (error) throw new Error(`Google Vision proxy error: ${error.message}`);
+    if (data?.error) throw new Error(`Google Vision error: ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}`);
+    return data?.responses?.[0]?.localizedObjectAnnotations || [];
 }
 
 async function prepareImageForUpload(uri: string): Promise<string> {
@@ -240,10 +161,7 @@ async function prepareImageForUpload(uri: string): Promise<string> {
 }
 
 export async function analyzeClothingImage(imageUri: string): Promise<ClothingAnalysis> {
-    const preparedUri = await prepareImageForUpload(imageUri);
-    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
+    const base64 = await readFileAsBase64(imageUri);
 
     const content = await callDeepInfra({
         model: VISION_MODEL,
@@ -488,6 +406,9 @@ export interface OutfitAnalysis {
 
 export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalysis> {
     const preparedUri = await prepareImageForUpload(imageUri);
+    const info = await FileSystem.getInfoAsync(preparedUri);
+    if (!info.exists) throw new Error('Image file is no longer available. Please re-upload the photo.');
+
     const { uri: resizedUri } = await manipulateAsync(
         preparedUri,
         [{ resize: { width: 768, height: 768 } }],
@@ -664,6 +585,20 @@ async function saveBase64Image(b64: string): Promise<string> {
     return fileUri;
 }
 
+async function readFileAsBase64(uri: string, maxDimension = 1024): Promise<string> {
+    const prepared = await prepareImageForUpload(uri);
+    const info = await FileSystem.getInfoAsync(prepared);
+    if (!info.exists) {
+        throw new Error('Image file is no longer available. Please re-upload the photo.');
+    }
+    const resized = await manipulateAsync(
+        prepared,
+        [{ resize: { width: maxDimension } }],
+        { format: SaveFormat.JPEG, compress: 0.7 },
+    );
+    return FileSystem.readAsStringAsync(resized.uri, { encoding: FileSystem.EncodingType.Base64 });
+}
+
 export async function generateDigitalTwin(
     selfieUri: string,
     skinColor: string,
@@ -671,17 +606,11 @@ export async function generateDigitalTwin(
     additionalDetails: string,
     bodyPhotoUri?: string,
 ): Promise<DigitalTwinAnalysis> {
-    const preparedSelfie = await prepareImageForUpload(selfieUri);
-    const base64Selfie = await FileSystem.readAsStringAsync(preparedSelfie, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
+    const base64Selfie = await readFileAsBase64(selfieUri);
 
     let bodyBase64: string | undefined;
     if (bodyPhotoUri) {
-        const preparedBody = await prepareImageForUpload(bodyPhotoUri);
-        bodyBase64 = await FileSystem.readAsStringAsync(preparedBody, {
-            encoding: FileSystem.EncodingType.Base64,
-        });
+        bodyBase64 = await readFileAsBase64(bodyPhotoUri);
     }
 
     const { data, error } = await supabase.functions.invoke('ai-image', {
@@ -729,10 +658,7 @@ export interface ProductIdentification {
 }
 
 export async function identifyProduct(imageUri: string): Promise<ProductIdentification> {
-    const preparedUri = await prepareImageForUpload(imageUri);
-    const base64 = await FileSystem.readAsStringAsync(preparedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-    });
+    const base64 = await readFileAsBase64(imageUri);
 
     const content = await callDeepInfra({
         model: VISION_MODEL,
@@ -808,10 +734,11 @@ export async function generateOutfitTwin(
             encoding: FileSystem.EncodingType.Base64,
         });
     } else {
-        const preparedTwin = await prepareImageForUpload(twinImageUrl);
-        twinBase64 = await FileSystem.readAsStringAsync(preparedTwin, {
-            encoding: FileSystem.EncodingType.Base64,
-        });
+        const twinInfo = await FileSystem.getInfoAsync(twinImageUrl);
+        if (!twinInfo.exists) {
+            throw new Error('Your digital twin image is no longer available. Please regenerate your twin from the Digital Twin screen.');
+        }
+        twinBase64 = await readFileAsBase64(twinImageUrl);
     }
 
     const clothingImages: { base64: string; name: string; category: string }[] = [];
@@ -824,6 +751,11 @@ export async function generateOutfitTwin(
                 const dl = await FileSystem.downloadAsync(sourceUri, tmpPath);
                 sourceUri = dl.uri;
             } else {
+                const info = await FileSystem.getInfoAsync(sourceUri);
+                if (!info.exists) {
+                    errors.push(`${item.name}: file no longer exists`);
+                    continue;
+                }
                 sourceUri = await prepareImageForUpload(sourceUri);
             }
             const resized = await manipulateAsync(
@@ -835,22 +767,23 @@ export async function generateOutfitTwin(
                 encoding: FileSystem.EncodingType.Base64,
             });
             clothingImages.push({ base64: b64, name: item.name, category: item.category });
-            if (__DEV__) console.log(`[VTON] Loaded garment: ${item.name} (${item.category}), b64 len: ${b64.length}`);
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             errors.push(`${item.name}: ${msg}`);
-            if (__DEV__) console.warn(`[VTON] Failed to load garment ${item.name}:`, e);
         }
     }
 
     if (clothingImages.length === 0) {
-        throw new Error(`No clothing images could be loaded. Debug: ${errors.join(' | ')}`);
+        throw new Error(
+            errors.length > 0
+                ? `Clothing image files are no longer available. Please re-add these items to your closet: ${errors.map(e => e.split(':')[0]).join(', ')}`
+                : 'No clothing images could be loaded.',
+        );
     }
 
     // ─── Strategy 1: google/nano-banana via Replicate (all categories) ───
-    // Skip Strategy 1 when textPrompt is provided — the edge function ignores it,
-    // only FLUX (Strategy 2) includes scene/setting in the generation prompt.
-    if (!textPrompt) try {
+    // Now supports scene/setting prompts via the scenePrompt param in the edge function.
+    try {
         const twinResized = await manipulateAsync(
             twinImageUrl.startsWith('http') ? twinImageUrl : twinImageUrl,
             [{ resize: { width: 384 } }],
@@ -904,7 +837,7 @@ export async function generateOutfitTwin(
                     category: img.category,
                     name: img.name,
                 })),
-                ...(textPrompt ? { prompt: textPrompt } : {}),
+                ...(textPrompt ? { scenePrompt: textPrompt } : {}),
             },
         });
 

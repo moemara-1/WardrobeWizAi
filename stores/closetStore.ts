@@ -99,6 +99,12 @@ interface ClosetState {
     userProfile: UserProfileData;
     updateUserProfile: (updates: Partial<UserProfileData>) => void;
 
+    // StyleAI Chat
+    styleChatMessages: { id: string; role: 'user' | 'assistant'; content: string }[];
+    styleChatHistory: { role: 'user' | 'assistant' | 'system'; content: string }[];
+    addStyleChatMessage: (msg: { id: string; role: 'user' | 'assistant'; content: string }, historyEntry: { role: 'user' | 'assistant'; content: string }) => void;
+    clearStyleChat: () => void;
+
     // Reset
     clearAllData: () => void;
 }
@@ -289,6 +295,8 @@ export const useClosetStore = create<ClosetState>()(
             posts: [],
             collections: [],
             userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
+            styleChatMessages: [],
+            styleChatHistory: [],
 
             // Auth actions
             setUserId: (id) => set({ userId: id }),
@@ -310,6 +318,8 @@ export const useClosetStore = create<ClosetState>()(
                 categoryFilter: null,
                 colorFilter: null,
                 userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
+                styleChatMessages: [],
+                styleChatHistory: [],
             }),
 
             // Item actions
@@ -448,6 +458,14 @@ export const useClosetStore = create<ClosetState>()(
                     return { userProfile: newProfile };
                 });
             },
+
+            addStyleChatMessage: (msg, historyEntry) => set((state) => {
+                const MAX_CHAT_MESSAGES = 50;
+                const messages = [...state.styleChatMessages, msg].slice(-MAX_CHAT_MESSAGES);
+                const history = [...state.styleChatHistory, historyEntry].slice(-MAX_CHAT_MESSAGES);
+                return { styleChatMessages: messages, styleChatHistory: history };
+            }),
+            clearStyleChat: () => set({ styleChatMessages: [], styleChatHistory: [] }),
         }),
         {
             name: 'closet-storage',
@@ -462,6 +480,8 @@ export const useClosetStore = create<ClosetState>()(
                 posts: state.posts,
                 collections: state.collections,
                 userProfile: state.userProfile,
+                styleChatMessages: state.styleChatMessages,
+                styleChatHistory: state.styleChatHistory,
             }),
             migrate: (persisted: unknown, _version: number) => {
                 // Future migrations go here

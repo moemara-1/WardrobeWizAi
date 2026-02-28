@@ -68,7 +68,7 @@ export default function PrivacyPolicyScreen() {
                     • <Text style={styles.bold}>Access</Text> your personal data stored in the App at any time through your profile.{'\n'}
                     • <Text style={styles.bold}>Delete</Text> individual items, outfits, or your digital twin from within the App.{'\n'}
                     • <Text style={styles.bold}>Delete your account</Text> entirely through Settings → Delete Account, which will permanently remove all your data from our servers.{'\n'}
-                    • <Text style={styles.bold}>Export</Text> your closet data by contacting us at support@wardrobewiz.ai.
+                    • <Text style={styles.bold}>Contact us</Text> at support@wardrobewiz.ai for any data-related requests.
                 </Text>
 
                 <Text style={styles.sectionTitle}>6. Children's Privacy</Text>
@@ -103,13 +103,13 @@ export default function PrivacyPolicyScreen() {
                 <Text style={styles.sectionTitle}>11. Your EU Rights (GDPR)</Text>
                 <Text style={styles.body}>
                     Under GDPR, you have the following rights:{'\\n\\n'}
-                    • <Text style={styles.bold}>Right of Access</Text> — Request a copy of your personal data. Use "Export My Data" in Settings.{'\\n'}
+                    • <Text style={styles.bold}>Right of Access</Text> — Request a copy of your personal data by contacting dpo@wardrobewiz.ai.{'\\n'}
                     • <Text style={styles.bold}>Right to Rectification</Text> — Update your personal information through your profile.{'\\n'}
                     • <Text style={styles.bold}>Right to Erasure</Text> — Delete your account and all data via Settings → Delete Account.{'\\n'}
-                    • <Text style={styles.bold}>Right to Data Portability</Text> — Export your closet data in JSON format via Settings → Export My Data.{'\\n'}
+                    • <Text style={styles.bold}>Right to Data Portability</Text> — Request your closet data by contacting dpo@wardrobewiz.ai.{'\\n'}
                     • <Text style={styles.bold}>Right to Restrict Processing</Text> — Contact us to restrict how we process your data.{'\\n'}
                     • <Text style={styles.bold}>Right to Object</Text> — You may object to processing based on legitimate interests by contacting dpo@wardrobewiz.ai.{'\\n\\n'}
-                    To exercise any of these rights, contact us at dpo@wardrobewiz.ai or use the in-app tools provided.
+                    To exercise any of these rights, contact us at dpo@wardrobewiz.ai.
                 </Text>
 
                 <Text style={styles.sectionTitle}>12. Supervisory Authority</Text>

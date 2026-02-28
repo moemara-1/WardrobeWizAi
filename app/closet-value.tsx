@@ -5,7 +5,7 @@ import { useClosetStore } from '@/stores/closetStore';
 import { useSocialStore } from '@/stores/socialStore';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { ArrowLeft, TrendingUp, Trophy, Users } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -219,7 +219,7 @@ export default function ClosetValueScreen() {
                                     style={styles.itemRow}
                                     onPress={() => {
                                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                        router.push(`/item/${item.id}` as any);
+                                        router.push(`/item/${item.id}` as Href);
                                     }}
                                 >
                                     <Image

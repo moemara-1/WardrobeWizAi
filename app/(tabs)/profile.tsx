@@ -232,7 +232,7 @@ export default function ProfileScreen() {
                 style={styles.gridTile}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push(`/post/${item.id}` as any);
+                  router.push(`/post/${item.id}` as Href);
                 }}
               >
                 <Image

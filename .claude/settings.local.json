@@ -10,7 +10,8 @@
       "WebFetch(domain:www.eachlabs.ai)",
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
-      "Bash(npx eas update:*)"
+      "Bash(npx eas update:*)",
+      "Bash(npx supabase:*)"
     ]
   }
 }

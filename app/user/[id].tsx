@@ -14,14 +14,15 @@ import {
     Grid3X3,
     ImageIcon as ImageIconLucide,
     Layers,
+    MoreHorizontal,
     User,
     UserCheck,
-    UserCircle,
     UserPlus
 } from 'lucide-react-native';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
     Pressable,
@@ -47,6 +48,8 @@ export default function UserProfileScreen() {
     const currentUserId = useClosetStore((s) => s.userId);
     const following = useSocialStore((s) => s.following);
     const toggleFollow = useSocialStore((s) => s.toggleFollow);
+    const reportUser = useSocialStore((s) => s.reportUser);
+    const blockUser = useSocialStore((s) => s.blockUser);
 
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState<{ username: string; avatar_url: string | null; bio: string | null } | null>(null);
@@ -192,6 +195,46 @@ export default function UserProfileScreen() {
         return () => { cancelled = true; };
     }, [id, isMe]);
 
+    const handleMoreMenu = useCallback(() => {
+        if (!profile) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Alert.alert('Options', undefined, [
+            {
+                text: 'Report User',
+                onPress: () => {
+                    Alert.alert('Report User', `Why are you reporting ${profile.username}?`, [
+                        { text: 'Spam', onPress: () => reportUser(id, 'spam').then(() => Alert.alert('Reported', 'Thanks for letting us know.')) },
+                        { text: 'Inappropriate', onPress: () => reportUser(id, 'inappropriate').then(() => Alert.alert('Reported', 'Thanks for letting us know.')) },
+                        { text: 'Harassment', onPress: () => reportUser(id, 'harassment').then(() => Alert.alert('Reported', 'Thanks for letting us know.')) },
+                        { text: 'Cancel', style: 'cancel' },
+                    ]);
+                },
+            },
+            {
+                text: 'Block User',
+                style: 'destructive',
+                onPress: () => {
+                    Alert.alert(
+                        'Block User',
+                        `Block ${profile.username}? You won't see their content anymore.`,
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                                text: 'Block',
+                                style: 'destructive',
+                                onPress: () => {
+                                    blockUser(id);
+                                    router.back();
+                                },
+                            },
+                        ]
+                    );
+                },
+            },
+            { text: 'Cancel', style: 'cancel' },
+        ]);
+    }, [id, profile, reportUser, blockUser]);
+
     const handleFollowToggle = () => {
         if (!profile) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -231,7 +274,9 @@ export default function UserProfileScreen() {
                                 <ArrowLeft size={20} color={Colors.textPrimary} />
                             </Pressable>
                             <Text style={styles.headerTitle}>{profile?.username || 'Profile'}</Text>
-                            <View style={styles.headerSpacer} />
+                            <Pressable style={styles.backBtn} onPress={handleMoreMenu}>
+                                <MoreHorizontal size={20} color={Colors.textPrimary} />
+                            </Pressable>
                         </View>
 
                         {activeMessage ? (
@@ -351,7 +396,7 @@ export default function UserProfileScreen() {
                                 style={styles.gridTile}
                                 onPress={() => {
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                    router.push(`/post/${item.id}` as any);
+                                    router.push(`/post/${item.id}` as Href);
                                 }}
                             >
                                 <Image

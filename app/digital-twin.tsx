@@ -3,6 +3,7 @@ import { useThemeColors } from '@/contexts/ThemeContext';
 import { generateDigitalTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import { GeneratedLook } from '@/types';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,11 +16,10 @@ import {
     Palette,
     Scan,
     Trash2,
-    Upload,
     UserCircle,
     X,
 } from 'lucide-react-native';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -42,18 +42,22 @@ const GALLERY_ITEM_SIZE = (SCREEN_WIDTH - 32 - GALLERY_GAP * (GALLERY_COLUMNS - 
 const DEFAULT_SKIN_COLORS = ['#FDDBB4', '#E8B889', '#C48C5C', '#8D5524', '#3B1F0B'];
 const DEFAULT_HAIR_COLORS = ['#FAF0BE', '#D2691E', '#8B0000', '#2C1A0E', '#1C1C1C'];
 
-/**
- * Simple dominant-color extraction from an image
- * In a real app, you'd use an ML model or service — this analyzes via Canvas or just returns the defaults
- */
-async function detectColorFromPhoto(imageUri: string): Promise<string | null> {
+
+async function persistImage(uri: string): Promise<string> {
+    if (uri.startsWith(FileSystem.documentDirectory ?? '___')) return uri;
+    const ext = uri.split('.').pop()?.split('?')[0] || 'jpg';
+    const dest = `${FileSystem.documentDirectory}twin_photo_${Date.now()}.${ext}`;
+    await FileSystem.copyAsync({ from: uri, to: dest });
+    return dest;
+}
+
+async function fileExists(uri: string | null | undefined): Promise<boolean> {
+    if (!uri) return false;
     try {
-        // In a production app, send to a color detection API
-        // For now, we return a reasonable median color from the photo
-        // The user sees their photo and the picked color as a visual verification
-        return null;
+        const info = await FileSystem.getInfoAsync(uri);
+        return info.exists;
     } catch {
-        return null;
+        return false;
     }
 }
 
@@ -69,14 +73,20 @@ export default function DigitalTwinScreen() {
     const [skinColor, setSkinColor] = useState<string | null>(digitalTwin?.skin_color ?? null);
     const [hairColor, setHairColor] = useState<string | null>(digitalTwin?.hair_color ?? null);
     const [additionalDetails, setAdditionalDetails] = useState(digitalTwin?.additional_details ?? '');
-    const [isDetectingSkin, setIsDetectingSkin] = useState(false);
-    const [isDetectingHair, setIsDetectingHair] = useState(false);
+
+    useEffect(() => {
+        (async () => {
+            if (selfieUri && !(await fileExists(selfieUri))) setSelfieUri(null);
+            if (bodyUri && !(await fileExists(bodyUri))) setBodyUri(null);
+        })();
+    }, []);
 
     const pickImage = async (setter: (uri: string | null) => void) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
         if (!result.canceled && result.assets[0]) {
-            setter(result.assets[0].uri);
+            const persisted = await persistImage(result.assets[0].uri);
+            setter(persisted);
         }
     };
 
@@ -86,57 +96,10 @@ export default function DigitalTwinScreen() {
         if (!permission.granted) return;
         const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
         if (!result.canceled && result.assets[0]) {
-            setter(result.assets[0].uri);
+            const persisted = await persistImage(result.assets[0].uri);
+            setter(persisted);
         }
     };
-
-    /** Detect skin color from uploaded selfie photo */
-    const detectSkinFromPhoto = useCallback(async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        setIsDetectingSkin(true);
-
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-            if (!result.canceled && result.assets[0]) {
-                const detected = await detectColorFromPhoto(result.assets[0].uri);
-                if (detected) {
-                    setSkinColor(detected);
-                } else {
-                    // Auto-pick closest from defaults based on the photo
-                    // For now, pick middle tone as reasonable default
-                    setSkinColor(DEFAULT_SKIN_COLORS[2]);
-                    Alert.alert('Color Detected', `We've selected a close match. You can fine-tune by tapping a swatch below.`);
-                }
-            }
-        } catch {
-            // detection failed — default selected above
-        } finally {
-            setIsDetectingSkin(false);
-        }
-    }, []);
-
-    /** Detect hair color from uploaded photo */
-    const detectHairFromPhoto = useCallback(async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        setIsDetectingHair(true);
-
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-            if (!result.canceled && result.assets[0]) {
-                const detected = await detectColorFromPhoto(result.assets[0].uri);
-                if (detected) {
-                    setHairColor(detected);
-                } else {
-                    setHairColor(DEFAULT_HAIR_COLORS[3]);
-                    Alert.alert('Color Detected', `We've selected a close match. You can fine-tune by tapping a swatch below.`);
-                }
-            }
-        } catch {
-            // detection failed — default selected above
-        } finally {
-            setIsDetectingHair(false);
-        }
-    }, []);
 
     const canGenerate = selfieUri && skinColor && hairColor;
 
@@ -260,25 +223,10 @@ export default function DigitalTwinScreen() {
                     </View>
                 </View>
 
-                {/* Skin Color - with photo upload detect button */}
                 <View style={styles.colorSection}>
                     <View style={styles.colorHeader}>
                         <Palette size={18} color={Colors.textSecondary} />
                         <Text style={styles.colorTitle}>Skin Color</Text>
-                        <Pressable
-                            style={styles.detectBtn}
-                            onPress={detectSkinFromPhoto}
-                            disabled={isDetectingSkin}
-                        >
-                            {isDetectingSkin ? (
-                                <ActivityIndicator size="small" color={Colors.accentGreen} />
-                            ) : (
-                                <>
-                                    <Upload size={12} color={Colors.accentGreen} />
-                                    <Text style={styles.detectBtnText}>Detect from photo</Text>
-                                </>
-                            )}
-                        </Pressable>
                     </View>
                     <View style={styles.colorRow}>
                         {DEFAULT_SKIN_COLORS.map((color) => (
@@ -293,25 +241,10 @@ export default function DigitalTwinScreen() {
                     </View>
                 </View>
 
-                {/* Hair Color - with photo upload detect button */}
                 <View style={styles.colorSection}>
                     <View style={styles.colorHeader}>
                         <Palette size={18} color={Colors.textSecondary} />
                         <Text style={styles.colorTitle}>Hair Color</Text>
-                        <Pressable
-                            style={styles.detectBtn}
-                            onPress={detectHairFromPhoto}
-                            disabled={isDetectingHair}
-                        >
-                            {isDetectingHair ? (
-                                <ActivityIndicator size="small" color={Colors.accentGreen} />
-                            ) : (
-                                <>
-                                    <Upload size={12} color={Colors.accentGreen} />
-                                    <Text style={styles.detectBtnText}>Detect from photo</Text>
-                                </>
-                            )}
-                        </Pressable>
                     </View>
                     <View style={styles.colorRow}>
                         {DEFAULT_HAIR_COLORS.map((color) => (
@@ -452,8 +385,6 @@ function createStyles(Colors: any) {
         colorSection: { marginBottom: 16 },
         colorHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
         colorTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 14, color: Colors.textPrimary, flex: 1 },
-        detectBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.pill, backgroundColor: 'rgba(50, 213, 131, 0.1)', borderWidth: 1, borderColor: 'rgba(50, 213, 131, 0.3)' },
-        detectBtnText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: Colors.accentGreen },
         colorRow: { flexDirection: 'row', gap: 12 },
         colorCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
         colorSelected: { borderColor: Colors.accentGreen },

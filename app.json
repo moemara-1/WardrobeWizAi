@@ -56,7 +56,14 @@
         }
       ],
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "wardrobewizai",
+          "project": "wardrobewizai-mobile"
+        }
+      ]
     ],
     "updates": {
       "url": "https://u.expo.dev/be04d0ab-fc16-4fd0-816f-506f3f2bf5a3"

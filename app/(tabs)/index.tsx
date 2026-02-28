@@ -1,6 +1,7 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 import { useClosetStore } from '@/stores/closetStore';
 import { useSocialStore } from '@/stores/socialStore';
 import { ClosetItem } from '@/types';
@@ -18,10 +19,12 @@ import {
   UserCheck,
   UserPlus
 } from 'lucide-react-native';
+import { useAuth } from '@/contexts/AuthContext';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,6 +37,7 @@ type SubView = 'explore' | 'discover';
 
 interface ExplorePost {
   id: string;
+  userId: string;
   imageUrl: string;
   username: string;
   avatarUrl: string | null;
@@ -182,69 +186,89 @@ function ExploreView() {
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
   const [posts, setPosts] = useState<ExplorePost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const localPosts = useClosetStore((s) => s.posts);
   const localProfile = useClosetStore((s) => s.userProfile);
+  const { session, isLoading: authLoading } = useAuth();
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data: rows, error: postsError } = await supabase
-          .from('posts')
-          .select('id, user_id, image_url')
-          .order('created_at', { ascending: false })
-          .limit(20);
+  const fetchPosts = useCallback(async () => {
+    try {
+      setFetchError(false);
+      const { data: rows, error: postsError } = await supabase
+        .from('posts')
+        .select('id, user_id, image_url')
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-        if (postsError) {
-          console.error('[Supabase Error] ExploreView fetch posts:', JSON.stringify(postsError, null, 2));
-        }
+      if (postsError) throw postsError;
 
-        if (!cancelled && rows?.length) {
-          const userIds = [...new Set(rows.map(r => r.user_id as string))];
-          const { data: profiles, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, display_name, avatar_url')
-            .in('id', userIds);
+      if (rows?.length) {
+        const userIds = [...new Set(rows.map(r => r.user_id as string))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, display_name, avatar_url')
+          .in('id', userIds);
 
-          if (profilesError) {
-            console.error('[Supabase Error] ExploreView fetch profiles:', JSON.stringify(profilesError, null, 2));
-          }
+        const profileMap = new Map<string, { username: string; avatar_url?: string }>();
+        profiles?.forEach(p => profileMap.set(p.id, { username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url }));
 
-          const profileMap = new Map<string, { username: string; avatar_url?: string }>();
-          profiles?.forEach(p => profileMap.set(p.id, { username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url }));
-
-          const mapped: ExplorePost[] = rows.map((row, idx) => ({
-            id: row.id,
-            imageUrl: row.image_url,
-            username: profileMap.get(row.user_id)?.username || 'user',
-            avatarUrl: profileMap.get(row.user_id)?.avatar_url || null,
-            height: MASONRY_HEIGHTS[idx % MASONRY_HEIGHTS.length],
-          }));
-
-          if (!cancelled) setPosts(mapped);
-        }
-      } catch (err) {
-        console.error('[ExploreView Catch Error]', err);
-      } finally {
-        if (!cancelled) setLoading(false);
+        setPosts(rows.map((row, idx) => ({
+          id: row.id,
+          userId: row.user_id as string,
+          imageUrl: row.image_url,
+          username: profileMap.get(row.user_id)?.username || 'user',
+          avatarUrl: profileMap.get(row.user_id)?.avatar_url || null,
+          height: MASONRY_HEIGHTS[idx % MASONRY_HEIGHTS.length],
+        })));
+      } else {
+        setPosts([]);
       }
-    })();
-    return () => { cancelled = true; };
+    } catch {
+      setFetchError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (authLoading) return;
+    setLoading(true);
+    fetchPosts();
+  }, [authLoading, session, fetchPosts]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchPosts();
+    setRefreshing(false);
+  }, [fetchPosts]);
+
+  const hasLoadedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (hasLoadedOnce.current) fetchPosts();
+      hasLoadedOnce.current = true;
+    }, [fetchPosts])
+  );
+
+  const blockedUserIds = useSocialStore((s) => s.blockedUserIds);
+
   const allPosts = useMemo(() => {
+    const blocked = new Set(blockedUserIds);
     const supabaseIds = new Set(posts.map(p => p.id));
+    const filteredRemote = posts.filter(p => !blocked.has(p.userId));
     const localMapped: ExplorePost[] = localPosts
       .filter(p => !supabaseIds.has(p.id))
       .map((p, idx) => ({
         id: p.id,
+        userId: 'me',
         imageUrl: p.image_url,
         username: localProfile.username,
         avatarUrl: localProfile.pfp_url || null,
-        height: MASONRY_HEIGHTS[(posts.length + idx) % MASONRY_HEIGHTS.length],
+        height: MASONRY_HEIGHTS[(filteredRemote.length + idx) % MASONRY_HEIGHTS.length],
       }));
-    return [...posts, ...localMapped];
-  }, [posts, localPosts, localProfile]);
+    return [...filteredRemote, ...localMapped];
+  }, [posts, localPosts, localProfile, blockedUserIds]);
 
   const leftColumn = allPosts.filter((_, i) => i % 2 === 0);
   const rightColumn = allPosts.filter((_, i) => i % 2 === 1);
@@ -257,17 +281,36 @@ function ExploreView() {
     );
   }
 
+  if (fetchError && allPosts.length === 0) {
+    return (
+      <ScrollView
+        contentContainerStyle={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.textSecondary} />}
+      >
+        <Text style={{ fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, textAlign: 'center' }}>Couldn't load posts</Text>
+        <Text style={{ fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 4 }}>Pull to refresh</Text>
+      </ScrollView>
+    );
+  }
+
   if (allPosts.length === 0) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+      <ScrollView
+        contentContainerStyle={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.textSecondary} />}
+      >
         <Text style={{ fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: Colors.textPrimary, textAlign: 'center' }}>No posts yet</Text>
         <Text style={{ fontFamily: Typography.bodyFamily, fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 4 }}>Be the first to share an outfit!</Text>
-      </View>
+      </ScrollView>
     );
   }
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.textSecondary} />}
+    >
       <View style={styles.masonry}>
         {[leftColumn, rightColumn].map((column, colIdx) => (
           <View key={colIdx} style={styles.column}>
@@ -277,7 +320,7 @@ function ExploreView() {
                 style={[styles.masonryTile, { height: post.height }]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push(`/post/${post.id}` as any);
+                  router.push(`/post/${post.id}` as Href);
                 }}
               >
                 <Image source={{ uri: post.imageUrl }} style={styles.masonryImage} contentFit="cover" />
@@ -314,9 +357,10 @@ function DiscoverView({
   const [searchingUsers, setSearchingUsers] = useState(false);
   const following = useSocialStore((s) => s.following);
   const toggleFollow = useSocialStore((s) => s.toggleFollow);
+  const blockedIds = useSocialStore((s) => s.blockedUserIds);
   const currentUserId = useClosetStore((s) => s.userId);
+  const { session, isLoading: authLoading } = useAuth();
 
-  // Search users in Supabase when query changes
   useEffect(() => {
     const q = searchQuery.trim();
     if (q.length < 2) {
@@ -332,7 +376,8 @@ function DiscoverView({
           .ilike('display_name', `%${q}%`)
           .neq('id', currentUserId || '')
           .limit(10);
-        setSearchedUsers((data || []).map(p => ({ id: p.id, username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url })));
+        const blocked = new Set(blockedIds);
+        setSearchedUsers((data || []).filter(p => !blocked.has(p.id)).map(p => ({ id: p.id, username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url })));
       } catch {
         setSearchedUsers([]);
       } finally {
@@ -342,98 +387,105 @@ function DiscoverView({
     return () => clearTimeout(timeout);
   }, [searchQuery, currentUserId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        // Fetch all users who have items
-        // We'll fetching items first, then profiles for those users
-        const { data: itemRows } = await supabase
-          .from('items')
-          .select('id, user_id, name, category, brand, colors, image_url, clean_image_url, garment_type, tags, estimated_value, created_at, updated_at')
-          .order('created_at', { ascending: false })
-          .limit(100);
+  const [refreshingCommunity, setRefreshingCommunity] = useState(false);
 
-        if (cancelled || !itemRows?.length) {
-          if (!cancelled) setLoadingCommunity(false);
-          return;
-        }
+  const fetchCommunity = useCallback(async () => {
+    try {
+      const { data: itemRows } = await supabase
+        .from('items')
+        .select('id, user_id, name, category, brand, colors, image_url, clean_image_url, garment_type, tags, estimated_value, created_at, updated_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-        // Group items by user_id
-        const userItemsMap = new Map<string, ClosetItem[]>();
-        for (const row of itemRows) {
-          const uid = row.user_id as string;
-          if (!userItemsMap.has(uid)) userItemsMap.set(uid, []);
-          userItemsMap.get(uid)!.push({
-            id: row.id,
-            user_id: uid,
-            name: row.name,
-            category: row.category,
-            brand: row.brand,
-            colors: row.colors || [],
-            image_url: row.image_url,
-            clean_image_url: row.clean_image_url,
-            garment_type: row.garment_type,
-            tags: row.tags || [],
-            estimated_value: row.estimated_value ? Number(row.estimated_value) : undefined,
-            detected_confidence: 1,
-            wear_count: 0,
-            favorite: false,
-            created_at: row.created_at,
-            updated_at: row.updated_at || row.created_at,
-          });
-        }
-
-        // Fetch profiles for these users
-        const userIds = Array.from(userItemsMap.keys());
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, display_name, avatar_url')
-          .in('id', userIds);
-
-        const profileMap = new Map<string, { username: string, avatar_url?: string }>();
-        if (profiles) {
-          profiles.forEach(p => {
-            profileMap.set(p.id, { username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url });
-          });
-        }
-
-        // Build community user list
-        const users: CommunityUser[] = [];
-        for (const [uid, items] of userItemsMap) {
-          const profile = profileMap.get(uid);
-
-          // Try to get twin info as fallback
-          let twinUrl: string | undefined;
-          if (!profile?.avatar_url) {
-            const { data: twin } = await supabase
-              .from('digital_twins')
-              .select('twin_image_url, selfie_url')
-              .eq('user_id', uid)
-              .single();
-            twinUrl = twin?.selfie_url || undefined;
-          }
-
-          users.push({
-            id: uid,
-            username: profile?.username || `user_${uid.slice(0, 6)}`,
-            pfp_url: profile?.avatar_url || twinUrl,
-            items,
-          });
-        }
-
-        if (!cancelled) setCommunityUsers(users.filter(u => u.id !== currentUserId));
-      } catch (e) {
-        if (__DEV__) console.warn('Failed to load community:', e);
-      } finally {
-        if (!cancelled) setLoadingCommunity(false);
+      if (!itemRows?.length) {
+        setCommunityUsers([]);
+        return;
       }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+
+      const userItemsMap = new Map<string, ClosetItem[]>();
+      for (const row of itemRows) {
+        const uid = row.user_id as string;
+        if (!userItemsMap.has(uid)) userItemsMap.set(uid, []);
+        userItemsMap.get(uid)!.push({
+          id: row.id,
+          user_id: uid,
+          name: row.name,
+          category: row.category,
+          brand: row.brand,
+          colors: row.colors || [],
+          image_url: row.image_url,
+          clean_image_url: row.clean_image_url,
+          garment_type: row.garment_type,
+          tags: row.tags || [],
+          estimated_value: row.estimated_value ? Number(row.estimated_value) : undefined,
+          detected_confidence: 1,
+          wear_count: 0,
+          favorite: false,
+          created_at: row.created_at,
+          updated_at: row.updated_at || row.created_at,
+        });
+      }
+
+      const userIds = Array.from(userItemsMap.keys());
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name, avatar_url')
+        .in('id', userIds);
+
+      const profileMap = new Map<string, { username: string, avatar_url?: string }>();
+      if (profiles) {
+        profiles.forEach(p => {
+          profileMap.set(p.id, { username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url });
+        });
+      }
+
+      const users: CommunityUser[] = [];
+      for (const [uid, items] of userItemsMap) {
+        const profile = profileMap.get(uid);
+        let twinUrl: string | undefined;
+        if (!profile?.avatar_url) {
+          const { data: twin } = await supabase
+            .from('digital_twins')
+            .select('twin_image_url, selfie_url')
+            .eq('user_id', uid)
+            .single();
+          twinUrl = twin?.selfie_url || undefined;
+        }
+        users.push({
+          id: uid,
+          username: profile?.username || `user_${uid.slice(0, 6)}`,
+          pfp_url: profile?.avatar_url || twinUrl,
+          items,
+        });
+      }
+
+      const blocked = new Set(blockedIds);
+      setCommunityUsers(users.filter(u => u.id !== currentUserId && !blocked.has(u.id)));
+    } catch (e) {
+      if (__DEV__) console.warn('Failed to load community:', e);
+    } finally {
+      setLoadingCommunity(false);
+    }
+  }, [currentUserId, blockedIds]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    setLoadingCommunity(true);
+    fetchCommunity();
+  }, [authLoading, session, fetchCommunity]);
+
+  const onRefreshCommunity = useCallback(async () => {
+    setRefreshingCommunity(true);
+    await fetchCommunity();
+    setRefreshingCommunity(false);
+  }, [fetchCommunity]);
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshingCommunity} onRefresh={onRefreshCommunity} tintColor={Colors.textSecondary} />}
+    >
       <View style={styles.searchBar}>
         <Search size={18} color={Colors.textTertiary} />
         <TextInput
@@ -492,7 +544,7 @@ function DiscoverView({
                       style={styles.profileLeft}
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        router.push(`/user/${u.id}` as any);
+                        router.push(`/user/${u.id}` as Href);
                       }}
                     >
                       {u.avatar_url ? (
@@ -579,7 +631,7 @@ function CommunityUserCard({ user }: { user: CommunityUser }) {
           style={styles.profileLeft}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push(`/user/${user.id}` as any);
+            router.push(`/user/${user.id}` as Href);
           }}
         >
           {user.pfp_url ? (
@@ -668,7 +720,7 @@ function MyClosetProfileCard() {
             style={styles.profileItemThumb}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push(`/item/${item.id}` as any);
+              router.push(`/item/${item.id}` as Href);
             }}
           >
             <Image

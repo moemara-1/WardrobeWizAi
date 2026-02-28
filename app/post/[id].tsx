@@ -6,12 +6,15 @@ import { PostComment, SocialPost, useSocialStore } from '@/stores/socialStore';
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowLeft,
+  Flag,
   Heart,
   MessageCircle,
+  MoreHorizontal,
   Send,
+  ShieldBan,
   Shirt,
   Trash2,
   User,
@@ -183,6 +186,8 @@ export default function PostDetailScreen() {
   }, [resolvedPost, commentText, addComment, currentSessionUserId, closetProfile, displayComments]);
 
   const isOwnPost = resolvedPost?.userId === currentSessionUserId || resolvedPost?.userId === 'me';
+  const reportPost = useSocialStore((s) => s.reportPost);
+  const blockUser = useSocialStore((s) => s.blockUser);
 
   const handleDelete = useCallback(() => {
     if (!resolvedPost) return;
@@ -199,6 +204,46 @@ export default function PostDetailScreen() {
       },
     ]);
   }, [resolvedPost, deleteClosetPost, deleteSocialPost]);
+
+  const handleMoreMenu = useCallback(() => {
+    if (!resolvedPost) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert('Options', undefined, [
+      {
+        text: 'Report Post',
+        onPress: () => {
+          Alert.alert('Report Post', 'Why are you reporting this post?', [
+            { text: 'Spam', onPress: () => reportPost(resolvedPost.id, 'spam').then(() => Alert.alert('Reported', 'Thanks for letting us know.')) },
+            { text: 'Inappropriate', onPress: () => reportPost(resolvedPost.id, 'inappropriate').then(() => Alert.alert('Reported', 'Thanks for letting us know.')) },
+            { text: 'Harassment', onPress: () => reportPost(resolvedPost.id, 'harassment').then(() => Alert.alert('Reported', 'Thanks for letting us know.')) },
+            { text: 'Cancel', style: 'cancel' },
+          ]);
+        },
+      },
+      {
+        text: 'Block User',
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert(
+            'Block User',
+            `Block ${resolvedPost.username}? You won't see their content anymore.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Block',
+                style: 'destructive',
+                onPress: () => {
+                  blockUser(resolvedPost.userId);
+                  router.back();
+                },
+              },
+            ]
+          );
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [resolvedPost, reportPost, blockUser]);
 
   if (!resolvedPost) {
     return (
@@ -239,7 +284,12 @@ export default function PostDetailScreen() {
               <Trash2 size={18} color={Colors.accentCoral} />
             </Pressable>
           ) : (
-            <View style={styles.headerSpacer} />
+            <Pressable
+              style={styles.backBtn}
+              onPress={handleMoreMenu}
+            >
+              <MoreHorizontal size={20} color={Colors.textPrimary} />
+            </Pressable>
           )}
         </View>
 
@@ -250,9 +300,9 @@ export default function PostDetailScreen() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               if (resolvedPost.userId === 'me' || resolvedPost.userId === currentSessionUserId) {
-                router.push('/(tabs)/profile' as any);
+                router.push('/(tabs)/profile' as Href);
               } else {
-                router.push(`/user/${resolvedPost.userId}` as any);
+                router.push(`/user/${resolvedPost.userId}` as Href);
               }
             }}
           >

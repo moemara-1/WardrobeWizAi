@@ -45,8 +45,8 @@ serve(async (req) => {
     const body = await req.json();
     const deepInfraKey = Deno.env.get("DEEPINFRA_KEY");
     if (!deepInfraKey) {
-      return new Response(JSON.stringify({ error: "Server configuration error" }), {
-        status: 500,
+      return new Response(JSON.stringify({ error: "DEEPINFRA_KEY not configured on server" }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -63,13 +63,20 @@ serve(async (req) => {
 
     const data = await response.json();
 
+    if (!response.ok) {
+      return new Response(JSON.stringify({ error: data?.error || `DeepInfra returned ${response.status}`, status: response.status }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify(data), {
-      status: response.status,
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

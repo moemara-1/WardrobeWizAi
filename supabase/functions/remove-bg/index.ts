@@ -45,7 +45,7 @@ serve(async (req) => {
     const removeBgKey = Deno.env.get("REMOVEBG_API_KEY");
     if (!removeBgKey) {
       return new Response(JSON.stringify({ error: "Background removal not configured" }), {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -68,7 +68,7 @@ serve(async (req) => {
     if (!response.ok) {
       const errText = await response.text();
       return new Response(JSON.stringify({ error: `remove.bg error: ${response.status}`, details: errText }), {
-        status: response.status,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -81,7 +81,7 @@ serve(async (req) => {
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

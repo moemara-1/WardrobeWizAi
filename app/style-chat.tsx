@@ -18,6 +18,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -53,11 +54,13 @@ export default function StyleChatScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<ScrollView>(null);
   const items = useClosetStore((s) => s.items);
+  const messages = useClosetStore((s) => s.styleChatMessages);
+  const chatHistory = useClosetStore((s) => s.styleChatHistory);
+  const addStyleChatMessage = useClosetStore((s) => s.addStyleChatMessage);
+  const clearStyleChat = useClosetStore((s) => s.clearStyleChat);
 
   const closetContext = items.length > 0
     ? items.map((i) => `- ${i.name} (${i.category}${i.brand ? `, ${i.brand}` : ''}, colors: ${i.colors.join(', ')})`).join('\n')
@@ -67,26 +70,25 @@ export default function StyleChatScreen() {
     if (!text.trim() || isLoading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const userMsg: DisplayMessage = { id: `msg-${Date.now()}-user`, role: 'user', content: text.trim() };
-    setMessages((prev) => [...prev, userMsg]);
+    const trimmed = text.trim();
+    const userMsg: DisplayMessage = { id: `msg-${Date.now()}-user`, role: 'user', content: trimmed };
+    addStyleChatMessage(userMsg, { role: 'user', content: trimmed });
     setMessage('');
     setIsLoading(true);
 
-    const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: text.trim() }];
-    setChatHistory(newHistory);
+    const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: trimmed }];
 
     try {
       const reply = await chatWithStylist(newHistory, closetContext);
       const assistantMsg: DisplayMessage = { id: `msg-${Date.now()}-ai`, role: 'assistant', content: reply };
-      setMessages((prev) => [...prev, assistantMsg]);
-      setChatHistory((prev) => [...prev, { role: 'assistant', content: reply }]);
+      addStyleChatMessage(assistantMsg, { role: 'assistant', content: reply });
     } catch {
       const errorMsg: DisplayMessage = { id: `msg-${Date.now()}-err`, role: 'assistant', content: 'Sorry, I had trouble processing that. Please try again.' };
-      setMessages((prev) => [...prev, errorMsg]);
+      addStyleChatMessage(errorMsg, { role: 'assistant', content: errorMsg.content });
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, chatHistory, closetContext]);
+  }, [isLoading, chatHistory, closetContext, addStyleChatMessage]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -128,7 +130,12 @@ export default function StyleChatScreen() {
 
           <Text style={styles.headerTitle}>StyleAI</Text>
 
-          <Pressable style={styles.moreBtn}>
+          <Pressable style={styles.moreBtn} onPress={() => {
+            Alert.alert('Chat Options', undefined, [
+              { text: 'Clear Chat', style: 'destructive', onPress: clearStyleChat },
+              { text: 'Cancel', style: 'cancel' },
+            ]);
+          }}>
             <MoreHorizontal size={20} color={Colors.textPrimary} />
           </Pressable>
         </View>

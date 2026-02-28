@@ -1,4 +1,6 @@
+import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 export type GarmentSlot = 'headwear' | 'top' | 'bottom' | 'footwear' | 'accessory' | 'full-body' | 'unknown';
 
@@ -51,27 +53,26 @@ export function classifyGarmentSlot(category: string, garmentType?: string): Gar
 
 export async function removeBackground(imageUri: string): Promise<BackgroundRemovalResult> {
     try {
-        const token = process.env.EXPO_PUBLIC_DEEPINFRA_KEY;
-        if (!token) return { success: false, error: 'Missing EXPO_PUBLIC_DEEPINFRA_KEY' };
-
-        const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        const resized = await manipulateAsync(
+            imageUri,
+            [{ resize: { width: 1024 } }],
+            { format: SaveFormat.JPEG, compress: 0.8 },
+        );
+        const base64 = await FileSystem.readAsStringAsync(resized.uri, {
             encoding: FileSystem.EncodingType.Base64,
         });
 
-        const response = await fetch('https://api.deepinfra.com/v1/inference/briaai/RMBG-2.0', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
+        const { data: result, error } = await supabase.functions.invoke('ai-proxy', {
+            body: {
+                provider: 'deepinfra-image',
+                model: 'briaai/RMBG-2.0',
+                input: { image: `data:image/jpeg;base64,${base64}` },
             },
-            body: JSON.stringify({ image: `data:image/jpeg;base64,${base64}` }),
         });
 
-        if (!response.ok) {
-            return { success: false, error: `DeepInfra RMBG error (${response.status})` };
-        }
+        if (error) return { success: false, error: `RMBG proxy error: ${error.message}` };
+        if (result?.error) return { success: false, error: `RMBG error: ${typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}` };
 
-        const result = await response.json();
         const resultBase64 = result.image;
         if (!resultBase64 || typeof resultBase64 !== 'string') {
             return { success: false, error: 'No image data in response' };

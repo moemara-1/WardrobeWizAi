@@ -42,12 +42,15 @@ export interface UserFollow {
     avatarUrl: string | null;
 }
 
+export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'other';
+
 interface SocialState {
     posts: SocialPost[];
     userPosts: SocialPost[];
     likedPosts: SocialPost[];
     followers: UserFollow[];
     following: UserFollow[];
+    blockedUserIds: string[];
 
     currentUser: {
         username: string;
@@ -61,6 +64,12 @@ interface SocialState {
     addComment: (postId: string, comment: PostComment) => void;
     toggleFollow: (user: UserFollow) => void;
     updateProfile: (updates: Partial<{ username: string; avatarUrl: string | null; bio: string | null }>) => void;
+    reportPost: (postId: string, reason: ReportReason) => Promise<void>;
+    reportUser: (userId: string, reason: ReportReason) => Promise<void>;
+    blockUser: (userId: string) => Promise<void>;
+    unblockUser: (userId: string) => Promise<void>;
+    isBlocked: (userId: string) => boolean;
+    fetchBlockedUsers: (currentUserId: string) => Promise<void>;
     fetchLikedPosts: (userId: string) => Promise<void>;
     fetchFollowers: (userId: string) => Promise<void>;
     fetchFollowing: (userId: string) => Promise<void>;
@@ -74,6 +83,41 @@ interface SocialState {
 
 
 const syncSocial = {
+    async reportContent(reporterId: string, reason: ReportReason, targetUserId?: string, targetPostId?: string) {
+        try {
+            const { error } = await supabase.from('reports').insert({
+                reporter_id: reporterId,
+                reported_user_id: targetUserId || null,
+                reported_post_id: targetPostId || null,
+                reason,
+            });
+            if (error) throw error;
+        } catch (e: any) {
+            console.warn('syncSocial.reportContent failed:', e);
+            throw e;
+        }
+    },
+    async blockUser(blockerId: string, blockedId: string) {
+        try {
+            const { error } = await supabase.from('blocked_users').upsert(
+                { blocker_id: blockerId, blocked_id: blockedId },
+                { ignoreDuplicates: true }
+            );
+            if (error) throw error;
+        } catch (e: any) {
+            console.warn('syncSocial.blockUser failed:', e);
+            throw e;
+        }
+    },
+    async unblockUser(blockerId: string, blockedId: string) {
+        try {
+            const { error } = await supabase.from('blocked_users').delete().match({ blocker_id: blockerId, blocked_id: blockedId });
+            if (error) throw error;
+        } catch (e: any) {
+            console.warn('syncSocial.unblockUser failed:', e);
+            throw e;
+        }
+    },
     async likePost(postId: string, userId: string, liked: boolean) {
         try {
             if (liked) {
@@ -129,6 +173,7 @@ export const useSocialStore = create<SocialState>()(
             likedPosts: [],
             followers: [],
             following: [],
+            blockedUserIds: [],
             currentUser: {
                 username: 'User',
                 avatarUrl: null,
@@ -198,6 +243,55 @@ export const useSocialStore = create<SocialState>()(
                 currentUser: { ...state.currentUser, ...updates }
             })),
 
+            reportPost: async (postId: string, reason: ReportReason) => {
+                const currentUserId = useClosetStore.getState().userId;
+                if (!currentUserId) return;
+                await syncSocial.reportContent(currentUserId, reason, undefined, postId);
+            },
+
+            reportUser: async (userId: string, reason: ReportReason) => {
+                const currentUserId = useClosetStore.getState().userId;
+                if (!currentUserId) return;
+                await syncSocial.reportContent(currentUserId, reason, userId);
+            },
+
+            blockUser: async (userId: string) => {
+                const currentUserId = useClosetStore.getState().userId;
+                if (!currentUserId) return;
+                await syncSocial.blockUser(currentUserId, userId);
+                set((s) => ({
+                    blockedUserIds: [...s.blockedUserIds, userId],
+                    following: s.following.filter((f) => f.userId !== userId),
+                }));
+            },
+
+            unblockUser: async (userId: string) => {
+                const currentUserId = useClosetStore.getState().userId;
+                if (!currentUserId) return;
+                await syncSocial.unblockUser(currentUserId, userId);
+                set((s) => ({
+                    blockedUserIds: s.blockedUserIds.filter((id) => id !== userId),
+                }));
+            },
+
+            isBlocked: (userId: string) => {
+                return get().blockedUserIds.includes(userId);
+            },
+
+            fetchBlockedUsers: async (currentUserId: string) => {
+                try {
+                    const { data } = await supabase
+                        .from('blocked_users')
+                        .select('blocked_id')
+                        .eq('blocker_id', currentUserId);
+                    if (data?.length) {
+                        set({ blockedUserIds: data.map((r: any) => r.blocked_id) });
+                    }
+                } catch (e) {
+                    if (__DEV__) console.warn('fetchBlockedUsers failed:', e);
+                }
+            },
+
             setLikedPosts: (posts) => set({ likedPosts: posts }),
             setFollowers: (followers) => set({ followers }),
             setFollowing: (following) => set({ following }),
@@ -208,6 +302,7 @@ export const useSocialStore = create<SocialState>()(
                 likedPosts: [],
                 followers: [],
                 following: [],
+                blockedUserIds: [],
                 currentUser: {
                     username: 'User',
                     avatarUrl: null,
@@ -293,6 +388,7 @@ export const useSocialStore = create<SocialState>()(
                     store.fetchLikedPosts(userId),
                     store.fetchFollowers(userId),
                     store.fetchFollowing(userId),
+                    store.fetchBlockedUsers(userId),
                 ]);
             },
         }),
@@ -305,6 +401,7 @@ export const useSocialStore = create<SocialState>()(
                 likedPosts: state.likedPosts,
                 followers: state.followers,
                 following: state.following,
+                blockedUserIds: state.blockedUserIds,
                 currentUser: state.currentUser,
             }),
         },
