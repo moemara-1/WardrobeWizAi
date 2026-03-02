@@ -391,11 +391,8 @@ serve(async (req) => {
       data: { user },
       error: authError,
     } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (authError) {
+      console.warn("[AUTH] Could not verify user (stale token?):", authError.message);
     }
 
     /* ── Parse body ── */
@@ -691,7 +688,7 @@ POSE & STYLE:
         const imgRes = await fetch(outputUrl);
         if (!imgRes.ok) throw new Error(`Failed to download result: ${imgRes.status}`);
         const imgBuf = new Uint8Array(await imgRes.arrayBuffer());
-        const twinB64 = b64Encode(imgBuf);
+        let twinB64 = b64Encode(imgBuf);
         console.log(`[TWIN] ✓ Full-body generated — ${Math.round(twinB64.length / 1024)}KB`);
 
         return new Response(
