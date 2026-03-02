@@ -691,12 +691,8 @@ POSE & STYLE:
         const imgRes = await fetch(outputUrl);
         if (!imgRes.ok) throw new Error(`Failed to download result: ${imgRes.status}`);
         const imgBuf = new Uint8Array(await imgRes.arrayBuffer());
-        let twinB64 = b64Encode(imgBuf);
+        const twinB64 = b64Encode(imgBuf);
         console.log(`[TWIN] ✓ Full-body generated — ${Math.round(twinB64.length / 1024)}KB`);
-
-        // Step 2: Face-swap — restore original selfie face onto the twin
-        console.log(`[TWIN] Running cdingram/face-swap to restore face...`);
-        twinB64 = await runFaceSwap(twinB64, selfieBase64, replicateToken);
 
         return new Response(
           JSON.stringify({ data: [{ b64_json: twinB64 }] }),
