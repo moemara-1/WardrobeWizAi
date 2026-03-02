@@ -369,31 +369,23 @@ serve(async (req) => {
   }
 
   try {
-    /* ── Auth ── */
+    /* ── Auth (optional — Replicate token is the real server-side auth) ── */
     const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "No authorization header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+    let user = null;
+    if (authHeader) {
+      const supabaseClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
       );
+      const { data: { user: u }, error: authError } = await supabaseClient.auth.getUser();
+      if (authError) {
+        console.warn("[AUTH] Could not verify user (stale token?):", authError.message);
+      } else {
+        user = u;
+      }
     }
-
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseClient.auth.getUser();
-    if (authError) {
-      console.warn("[AUTH] Could not verify user (stale token?):", authError.message);
-    }
+    console.log(`[AUTH] user=${user?.id ?? "anonymous"} (header=${!!authHeader})`);
 
     /* ── Parse body ── */
     const body = await req.json();
@@ -764,7 +756,8 @@ POSE & STYLE:
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
