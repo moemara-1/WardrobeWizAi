@@ -65,6 +65,30 @@ export default function LoginScreen() {
           setLoading(false);
           return;
         }
+
+        // Validate and convert Date of Birth (MM/DD/YYYY to YYYY-MM-DD)
+        const dobRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+        const match = dob.trim().match(dobRegex);
+        if (!match) {
+          Alert.alert('Invalid Date Format', 'Please enter your Date of Birth in MM/DD/YYYY format. (e.g. 05/25/1990)');
+          setLoading(false);
+          return;
+        }
+        
+        const [_, monthStr, dayStr, yearStr] = match;
+        const month = parseInt(monthStr, 10);
+        const day = parseInt(dayStr, 10);
+        const year = parseInt(yearStr, 10);
+        
+        // Basic sensible date validation
+        if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > new Date().getFullYear()) {
+          Alert.alert('Invalid Date', 'The Date of Birth provided is not a valid date.');
+          setLoading(false);
+          return;
+        }
+        
+        const formattedDob = `${year}-${monthStr}-${dayStr}`;
+
         if (password !== confirmPassword) {
           Alert.alert('Password Mismatch', 'Passwords do not match.');
           setLoading(false);
@@ -75,7 +99,7 @@ export default function LoginScreen() {
           setLoading(false);
           return;
         }
-        const { needsConfirmation } = await signUpWithEmail(email, password, username, firstName, lastName, dob);
+        const { needsConfirmation } = await signUpWithEmail(email, password, username, firstName, lastName, formattedDob);
         if (needsConfirmation) {
           setConfirmationSent(true);
         }
