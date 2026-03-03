@@ -189,30 +189,11 @@ export default function AnalyzeScreen() {
 
     let cleanUri = uri; // Fallback if generation completely fails
 
-    // Step 1: Instantly generate clean image from raw photo (Bypass Vision completely)
-    try {
-      const resultUri = await regenerateCleanImage(uri, null);
-      if (resultUri) {
-        cleanUri = resultUri;
-        setCleanImageUri(resultUri);
-      }
-    } catch (e) {
-      try {
-        const r = await removeBackground(uri);
-        if (r.success && r.cleanImageUri) {
-          cleanUri = r.cleanImageUri;
-          setCleanImageUri(r.cleanImageUri);
-        }
-      } catch (e2) { }
-    }
-    setStep('clean', 'done');
-    setStage('done');
-
-    // Step 2: Research Details (Run Fast Vision + Text on the clean image)
-    // Run this in the background so the user can interact with the clean image immediately
+    // Start Step 2 (Research Details) immediately in the background using the raw photo 
+    // to give the AI a head start while the image is being cleaned
     (async () => {
       try {
-        const result = await analyzeCleanItem(cleanUri);
+        const result = await analyzeCleanItem(uri);
         const product = result.product;
         const analysis = result.analysis;
         singleProductRef.current = product;
@@ -248,6 +229,9 @@ export default function AnalyzeScreen() {
           const updates: Partial<ClosetItem> = {};
 
           // Current React state reflects what the user *might* have typed while waiting
+          updates.name = product.name || analysis.name || 'Clothing Item';
+          updates.category = (product.category || analysis.category || 'other') as ClothingCategory;
+          updates.brand = product.brand || analysis.brand || research.brand || undefined;
           // We'll use the newly fetched data if they didn't override it.
           // Since the user already saved, they likely didn't override anything if it was empty.
           updates.name = product.name || analysis.name || 'Clothing Item';
@@ -269,6 +253,26 @@ export default function AnalyzeScreen() {
       }
       setStep('research', 'done');
     })();
+
+    // Step 1: Instantly generate clean image from raw photo
+    try {
+      const resultUri = await regenerateCleanImage(uri, null);
+      if (resultUri) {
+        cleanUri = resultUri;
+        setCleanImageUri(resultUri);
+      }
+    } catch (e) {
+      try {
+        const r = await removeBackground(uri);
+        if (r.success && r.cleanImageUri) {
+          cleanUri = r.cleanImageUri;
+          setCleanImageUri(r.cleanImageUri);
+        }
+      } catch (e2) { }
+    }
+    setStep('clean', 'done');
+    setStage('done');
+
 
   }, [setStep]);
 

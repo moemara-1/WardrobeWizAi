@@ -183,9 +183,6 @@ export default function TripResultScreen() {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.headerArea}>
         <Text style={styles.tripMeta}>{numDays} days {'\u00B7'} {destination} {'\u00B7'} {occasion}</Text>
-        <Pressable style={styles.listBtn}>
-          <List size={18} color={Colors.textPrimary} />
-        </Pressable>
       </SafeAreaView>
 
       <FlatList<DayOutfit>
