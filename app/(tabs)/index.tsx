@@ -1,10 +1,11 @@
 import { Radius, Typography } from '@/constants/Colors';
+import { useAuth } from '@/contexts/AuthContext';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { useFocusEffect } from '@react-navigation/native';
 import { useClosetStore } from '@/stores/closetStore';
 import { useSocialStore } from '@/stores/socialStore';
 import { ClosetItem } from '@/types';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,7 +20,6 @@ import {
   UserCheck,
   UserPlus
 } from 'lucide-react-native';
-import { useAuth } from '@/contexts/AuthContext';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -442,19 +442,10 @@ function DiscoverView({
       const users: CommunityUser[] = [];
       for (const [uid, items] of userItemsMap) {
         const profile = profileMap.get(uid);
-        let twinUrl: string | undefined;
-        if (!profile?.avatar_url) {
-          const { data: twin } = await supabase
-            .from('digital_twins')
-            .select('twin_image_url, selfie_url')
-            .eq('user_id', uid)
-            .single();
-          twinUrl = twin?.selfie_url || undefined;
-        }
         users.push({
           id: uid,
           username: profile?.username || `user_${uid.slice(0, 6)}`,
-          pfp_url: profile?.avatar_url || twinUrl,
+          pfp_url: profile?.avatar_url || undefined,
           items,
         });
       }
@@ -602,6 +593,7 @@ function DiscoverView({
               i.name.toLowerCase().includes(q) ||
               i.category.toLowerCase().includes(q) ||
               i.brand?.toLowerCase().includes(q) ||
+              i.colors?.some(c => c.toLowerCase().includes(q)) ||
               i.tags?.some(t => t.toLowerCase().includes(q))
             )
           )
@@ -738,12 +730,6 @@ function MyClosetProfileCard() {
           {pfpUrl ? (
             <Image
               source={{ uri: pfpUrl }}
-              style={styles.profileAvatarImage}
-              contentFit="cover"
-            />
-          ) : digitalTwin?.selfie_url ? (
-            <Image
-              source={{ uri: digitalTwin.selfie_url }}
               style={styles.profileAvatarImage}
               contentFit="cover"
             />

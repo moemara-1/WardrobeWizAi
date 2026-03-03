@@ -106,8 +106,6 @@ export default function ProfileScreen() {
               <View style={styles.avatarCircle}>
                 {userProfile.pfp_url ? (
                   <Image source={{ uri: userProfile.pfp_url }} style={styles.avatarImage} />
-                ) : digitalTwin?.selfie_url ? (
-                  <Image source={{ uri: digitalTwin.selfie_url }} style={styles.avatarImage} />
                 ) : (
                   <User size={32} color={Colors.textTertiary} strokeWidth={1.5} />
                 )}
@@ -379,8 +377,6 @@ function EditProfileModal({ visible, onClose, userProfile, onSave, digitalTwin }
             <View style={styles.pfpCircle}>
               {pfpUrl ? (
                 <Image source={{ uri: pfpUrl }} style={styles.pfpImage} />
-              ) : digitalTwin?.selfie_url ? (
-                <Image source={{ uri: digitalTwin.selfie_url }} style={styles.pfpImage} />
               ) : (
                 <User size={32} color={Colors.textTertiary} />
               )}

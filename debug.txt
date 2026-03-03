@@ -1,170 +1,114 @@
-open supabase\.temp\profile: The system cannot find the file specified.
-Loading project ref from file: supabase\.temp\project-ref
-Resolved DNS: [2a05:d01c:30c:9d0b:414:4557:147a:6131]:5432
-Initialising login role...
-Using access token for profile: supabase
-Supabase CLI 2.76.15
-Using profile: supabase (supabase.co)
-Connecting to remote database...
-2026/02/27 04:05:51 PG Send: {"Type":"StartupMessage","ProtocolVersion":196608,"Parameters":{"database":"postgres","user":"cli_login_postgres"}}
-2026/02/27 04:05:51 PG Recv: {"Type":"AuthenticationSASL","AuthMechanisms":["SCRAM-SHA-256"]}
-2026/02/27 04:05:51 PG Send: {"Type":"SASLInitialResponse","AuthMechanism":"SCRAM-SHA-256","Data":"n,,n=,r=7jc2Ccl08pTqlch0alHg+ZKz"}
-2026/02/27 04:05:51 PG Recv: {"Type":"AuthenticationSASLContinue","Data":"r=7jc2Ccl08pTqlch0alHg+ZKzVqlfKCsDdtGbg6Z7l9VBIBDF,s=5mZMjKd/traDMB6DxMTQFg==,i=4096"}
-2026/02/27 04:05:51 PG Send: {"Type":"SASLResponse","Data":"c=biws,r=7jc2Ccl08pTqlch0alHg+ZKzVqlfKCsDdtGbg6Z7l9VBIBDF,p=JMswsJ17wNi9HXnAEU5O2Y5y6U8RRj0/rOw0x/7KD3U="}
-2026/02/27 04:05:51 PG Recv: {"Type":"AuthenticationSASLFinal","Data":"v=d0uhYh/C5AgBjKNts0DeOKnv+FGyZhbHqsun6dSI98Q="}
-2026/02/27 04:05:51 PG Recv: {"Type":"AuthenticationOK"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"in_hot_standby","Value":"off"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"integer_datetimes","Value":"on"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"TimeZone","Value":"UTC"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"IntervalStyle","Value":"postgres"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"is_superuser","Value":"off"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"application_name","Value":""}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"default_transaction_read_only","Value":"off"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"scram_iterations","Value":"4096"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"DateStyle","Value":"ISO, MDY"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"standard_conforming_strings","Value":"on"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"session_authorization","Value":"cli_login_postgres"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"client_encoding","Value":"UTF8"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"server_version","Value":"17.6"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterStatus","Name":"server_encoding","Value":"UTF8"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BackendKeyData","ProcessID":652903,"SecretKey":565956567}
-2026/02/27 04:05:51 PG Recv: {"Type":"ReadyForQuery","TxStatus":"I"}
-2026/02/27 04:05:51 PG Send: {"Type":"Query","String":"SET SESSION ROLE postgres"}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"SET"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ReadyForQuery","TxStatus":"I"}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"lrupsc_1_0","Query":"SELECT version FROM supabase_migrations.schema_migrations ORDER BY version","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"S","Name":"lrupsc_1_0"}
-2026/02/27 04:05:51 PG Send: {"Type":"Sync"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParameterDescription","ParameterOIDs":[]}
-2026/02/27 04:05:51 PG Recv: {"Type":"RowDescription","Fields":[{"Name":"version","TableOID":26556,"TableAttributeNumber":1,"DataTypeOID":25,"DataTypeSize":-1,"TypeModifier":-1,"Format":0}]}
-2026/02/27 04:05:51 PG Recv: {"Type":"ReadyForQuery","TxStatus":"I"}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"lrupsc_1_0","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[0]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Sync"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"RowDescription","Fields":[{"Name":"version","TableOID":26556,"TableAttributeNumber":1,"DataTypeOID":25,"DataTypeSize":-1,"TypeModifier":-1,"Format":0}]}
-2026/02/27 04:05:51 PG Recv: {"Type":"DataRow","Values":[{"text":"001"}]}
-2026/02/27 04:05:51 PG Recv: {"Type":"DataRow","Values":[{"text":"002"}]}
-2026/02/27 04:05:51 PG Recv: {"Type":"DataRow","Values":[{"text":"003"}]}
-2026/02/27 04:05:51 PG Recv: {"Type":"DataRow","Values":[{"text":"004"}]}
-2026/02/27 04:05:51 PG Recv: {"Type":"DataRow","Values":[{"text":"005"}]}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"SELECT 5"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ReadyForQuery","TxStatus":"I"}
-Do you want to push these migrations to the remote database?
- • 006_social_rls.sql
- • 007_auth_username_fix.sql
+﻿node.exe : Usage:
+At line:1 char:1
++ & "C:\Users\User\AppD
+ata\Local\Microsoft\Win
+Get\Packages\OpenJS.Nod
+eJ ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Usage::String   
+ ) [], RemoteExcept    
+ion
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+  supabase db push 
+[flags]
 
- [Y/n] y
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"SET lock_timeout = '4s'","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"CREATE SCHEMA IF NOT EXISTS supabase_migrations","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (version text NOT NULL PRIMARY KEY)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"ALTER TABLE supabase_migrations.schema_migrations ADD COLUMN IF NOT EXISTS statements text[]","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"ALTER TABLE supabase_migrations.schema_migrations ADD COLUMN IF NOT EXISTS name text","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Sync"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"SET"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Severity":"NOTICE","SeverityUnlocalized":"NOTICE","Code":"42P06","Message":"schema \"supabase_migrations\" already exists, skipping","Detail":"","Hint":"","Position":0,"InternalPosition":0,"InternalQuery":"","Where":"","SchemaName":"","TableName":"","ColumnName":"","DataTypeName":"","ConstraintName":"","File":"schemacmds.c","Line":132,"Routine":"CreateSchemaCommand","UnknownFields":null}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"CREATE SCHEMA"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Severity":"NOTICE","SeverityUnlocalized":"NOTICE","Code":"42P07","Message":"relation \"schema_migrations\" already exists, skipping","Detail":"","Hint":"","Position":0,"InternalPosition":0,"InternalQuery":"","Where":"","SchemaName":"","TableName":"","ColumnName":"","DataTypeName":"","ConstraintName":"","File":"parse_utilcmd.c","Line":207,"Routine":"transformCreateStmt","UnknownFields":null}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"CREATE TABLE"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Severity":"NOTICE","SeverityUnlocalized":"NOTICE","Code":"42701","Message":"column \"statements\" of relation \"schema_migrations\" already exists, skipping","Detail":"","Hint":"","Position":0,"InternalPosition":0,"InternalQuery":"","Where":"","SchemaName":"","TableName":"","ColumnName":"","DataTypeName":"","ConstraintName":"","File":"tablecmds.c","Line":7471,"Routine":"check_for_column_name_collision","UnknownFields":null}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"ALTER TABLE"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Severity":"NOTICE","SeverityUnlocalized":"NOTICE","Code":"42701","Message":"column \"name\" of relation \"schema_migrations\" already exists, skipping","Detail":"","Hint":"","Position":0,"InternalPosition":0,"InternalQuery":"","Where":"","SchemaName":"","TableName":"","ColumnName":"","DataTypeName":"","ConstraintName":"","File":"tablecmds.c","Line":7471,"Routine":"check_for_column_name_collision","UnknownFields":null}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"ALTER TABLE"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ReadyForQuery","TxStatus":"I"}
-Applying migration 006_social_rls.sql...
-2026/02/27 04:05:51 PG Send: {"Type":"Query","String":"RESET ALL"}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"RESET"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ReadyForQuery","TxStatus":"I"}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"-- Enable RLS for likes and comments\r\nALTER TABLE likes ENABLE ROW LEVEL SECURITY","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"ALTER TABLE comments ENABLE ROW LEVEL SECURITY","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"-- Policies for 'likes' table\r\nCREATE POLICY \"Likes are viewable by everyone.\" \r\n  ON likes FOR SELECT \r\n  USING (true)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"CREATE POLICY \"Users can insert their own likes.\" \r\n  ON likes FOR INSERT \r\n  WITH CHECK (auth.uid() = user_id)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"CREATE POLICY \"Users can delete their own likes.\" \r\n  ON likes FOR DELETE \r\n  USING (auth.uid() = user_id)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"-- Policies for 'comments' table\r\nCREATE POLICY \"Comments are viewable by everyone.\" \r\n  ON comments FOR SELECT \r\n  USING (true)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"CREATE POLICY \"Users can insert their own comments.\" \r\n  ON comments FOR INSERT \r\n  WITH CHECK (auth.uid() = user_id)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"CREATE POLICY \"Users can update their own comments.\" \r\n  ON comments FOR UPDATE \r\n  USING (auth.uid() = user_id)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"CREATE POLICY \"Users can delete their own comments.\" \r\n  ON comments FOR DELETE \r\n  USING (auth.uid() = user_id)","ParameterOIDs":null}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Parse","Name":"","Query":"INSERT INTO supabase_migrations.schema_migrations(version, name, statements) VALUES($1, $2, $3)","ParameterOIDs":[25,25,1009]}
-2026/02/27 04:05:51 PG Send: {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":[0,0,1],"Parameters":[{"text":"006"},{"text":"social_rls"},{"binary":"0000000100000000000000190000000900000001000000512d2d20456e61626c6520524c5320666f72206c696b657320616e6420636f6d6d656e74730d0a414c544552205441424c45206c696b657320454e41424c4520524f57204c4556454c2053454355524954590000002e414c544552205441424c4520636f6d6d656e747320454e41424c4520524f57204c4556454c205345435552495459000000772d2d20506f6c696369657320666f7220276c696b657327207461626c650d0a43524541544520504f4c49435920224c696b657320617265207669657761626c652062792065766572796f6e652e22200d0a20204f4e206c696b657320464f522053454c454354200d0a20205553494e47202874727565290000006f43524541544520504f4c494359202255736572732063616e20696e73657274207468656972206f776e206c696b65732e22200d0a20204f4e206c696b657320464f5220494e53455254200d0a20205749544820434845434b2028617574682e7569642829203d20757365725f6964290000006a43524541544520504f4c494359202255736572732063616e2064656c657465207468656972206f776e206c696b65732e22200d0a20204f4e206c696b657320464f522044454c455445200d0a20205553494e472028617574682e7569642829203d20757365725f696429000000802d2d20506f6c696369657320666f722027636f6d6d656e747327207461626c650d0a43524541544520504f4c4943592022436f6d6d656e747320617265207669657761626c652062792065766572796f6e652e22200d0a20204f4e20636f6d6d656e747320464f522053454c454354200d0a20205553494e47202874727565290000007543524541544520504f4c494359202255736572732063616e20696e73657274207468656972206f776e20636f6d6d656e74732e22200d0a20204f4e20636f6d6d656e747320464f5220494e53455254200d0a20205749544820434845434b2028617574682e7569642829203d20757365725f6964290000007043524541544520504f4c494359202255736572732063616e20757064617465207468656972206f776e20636f6d6d656e74732e22200d0a20204f4e20636f6d6d656e747320464f5220555044415445200d0a20205553494e472028617574682e7569642829203d20757365725f6964290000007043524541544520504f4c494359202255736572732063616e2064656c657465207468656972206f776e20636f6d6d656e74732e22200d0a20204f4e20636f6d6d656e747320464f522044454c455445200d0a20205553494e472028617574682e7569642829203d20757365725f696429"}],"ResultFormatCodes":[]}
-2026/02/27 04:05:51 PG Send: {"Type":"Describe","ObjectType":"P","Name":""}
-2026/02/27 04:05:51 PG Send: {"Type":"Execute","Portal":"","MaxRows":0}
-2026/02/27 04:05:51 PG Send: {"Type":"Sync"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"ALTER TABLE"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Type":"CommandComplete","CommandTag":"ALTER TABLE"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ParseComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"BindComplete"}
-2026/02/27 04:05:51 PG Recv: {"Type":"NoData"}
-2026/02/27 04:05:51 PG Recv: {"Type":"ErrorResponse","Severity":"ERROR","SeverityUnlocalized":"ERROR","Code":"42710","Message":"policy \"Likes are viewable by everyone.\" for table \"likes\" already exists","Detail":"","Hint":"","Position":0,"InternalPosition":0,"InternalQuery":"","Where":"","SchemaName":"","TableName":"","ColumnName":"","DataTypeName":"","ConstraintName":"","File":"policy.c","Line":684,"Routine":"CreatePolicy","UnknownFields":null}
-2026/02/27 04:05:51 PG Recv: {"Type":"ReadyForQuery","TxStatus":"I"}
-2026/02/27 04:05:51 PG Send: {"Type":"Terminate"}
-ERROR: policy "Likes are viewable by everyone." for table "likes" already exists (SQLSTATE 42710)
-At statement: 2                                                                                  
--- Policies for 'likes' table                                                                    
-CREATE POLICY "Likes are viewable by everyone."                                                  
-  ON likes FOR SELECT                                                                            
-  USING (true)                                                                                   
+Flags:
+      --db-url string  
+   Pushes to the 
+database specified by 
+the connection string 
+(must be 
+percent-encoded).
+      --dry-run        
+   Print the 
+migrations that would 
+be applied, but don't 
+actually apply them.
+  -h, --help           
+   help for push
+      --include-all    
+   Include all 
+migrations not found 
+on remote history 
+table.
+      --include-roles  
+   Include custom 
+roles from 
+supabase\roles.sql.
+      --include-seed   
+   Include seed data 
+from your config.
+      --linked         
+   Pushes to the 
+linked project. 
+(default true)
+      --local          
+   Pushes to the local 
+database.
+  -p, --password 
+string   Password to 
+your remote Postgres 
+database.
+
+Global Flags:
+      --create-ticket  
+                       
+         create a 
+support ticket for any 
+CLI error
+      --debug          
+                       
+         output debug 
+logs to stderr
+      --dns-resolver [ 
+native | https ]       
+         lookup domain 
+names using the 
+specified resolver 
+(default native)
+      --experimental   
+                       
+         enable 
+experimental features
+      --network-id 
+string                 
+             use the 
+specified docker 
+network instead of a 
+generated one
+  -o, --output [ env | 
+pretty | json | toml | 
+yaml ]   output format 
+of status variables 
+(default pretty)
+      --profile string 
+                       
+         use a 
+specific profile for 
+connecting to Supabase 
+API (default 
+"supabase")
+      --workdir string 
+                       
+         path to a 
+Supabase project 
+directory
+      --yes            
+                       
+         answer yes to 
+all prompts
+
+unknown flag: 
+--exclude-all
+Try rerunning the 
+command with --debug 
+to troubleshoot the 
+error.

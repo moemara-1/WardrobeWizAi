@@ -68,7 +68,7 @@ export default function UserProfileScreen() {
     // Fetch user's follower and following counts
     useEffect(() => {
         if (!id || isMe) return;
-        
+
         let cancelled = false;
         (async () => {
             try {
@@ -77,13 +77,13 @@ export default function UserProfileScreen() {
                     .from('follows')
                     .select('*', { count: 'exact', head: true })
                     .eq('following_id', id);
-                
+
                 // Get following count
                 const { count: followingCnt } = await supabase
                     .from('follows')
                     .select('*', { count: 'exact', head: true })
                     .eq('follower_id', id);
-                
+
                 if (!cancelled) {
                     setFollowerCount(followersCount || 0);
                     setFollowingCount(followingCnt || 0);
@@ -92,7 +92,7 @@ export default function UserProfileScreen() {
                 console.warn('Failed to fetch follower counts', e);
             }
         })();
-        
+
         return () => { cancelled = true; };
     }, [id, isMe]);
 
@@ -109,10 +109,6 @@ export default function UserProfileScreen() {
                 if (cancelled || !prof) return;
 
                 let avatar = prof.avatar_url;
-                if (!avatar) {
-                    const { data: twin } = await supabase.from('digital_twins').select('selfie_url').eq('user_id', id).single();
-                    avatar = twin?.selfie_url;
-                }
 
                 setProfile({
                     username: prof.display_name || prof.username || `user_${id.slice(0, 6)}`,
@@ -151,7 +147,7 @@ export default function UserProfileScreen() {
                     }, 0);
                     setWardrobeValue(totalValue);
                 }
-                
+
                 // Fetch user's outfits
                 const { data: userOutfits } = await supabase
                     .from('outfits')
@@ -238,15 +234,15 @@ export default function UserProfileScreen() {
     const handleFollowToggle = () => {
         if (!profile) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        
+
         if (isFollowing) {
             setActiveMessage('Unfollowed');
         } else {
             setActiveMessage('Following');
         }
-        
+
         toggleFollow({ userId: id, username: profile.username, avatarUrl: profile.avatar_url });
-        
+
         // Clear message after delay
         setTimeout(() => setActiveMessage(''), 2000);
     };

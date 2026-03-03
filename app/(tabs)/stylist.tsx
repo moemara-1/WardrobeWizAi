@@ -303,7 +303,7 @@ export default function StylistScreen() {
 
     if (colorFilter.length > 0) {
       filtered = filtered.filter((item) => {
-        const itemColors = item.colors.map(c => c.toLowerCase());
+        const itemColors = (item.colors || []).map(c => c.toLowerCase());
         return colorFilter.some((f) => {
           if (f === 'light') return itemColors.some(c => /white|cream|beige|ivory|pastel|light/.test(c));
           if (f === 'dark') return itemColors.some(c => /black|navy|dark|charcoal/.test(c));
@@ -327,7 +327,7 @@ export default function StylistScreen() {
 
     if (styleFilter.length > 0) {
       filtered = filtered.filter((item) => {
-        const itemTags = item.tags.map(t => t.toLowerCase());
+        const itemTags = (item.tags || []).map(t => t.toLowerCase());
         return styleFilter.some((s) => itemTags.includes(s) || item.garment_type?.toLowerCase().includes(s));
       });
     }
@@ -351,7 +351,7 @@ export default function StylistScreen() {
       try {
         const smartItems = filteredItems.map(i => ({
           id: i.id, name: i.name, category: i.category,
-          colors: i.colors, tags: i.tags,
+          colors: i.colors || [], tags: i.tags || [],
         }));
         const pickedIds = await Promise.race([
           generateSmartOutfit(smartItems, { style: styleFilter, color: colorFilter, weather: weatherFilter }),

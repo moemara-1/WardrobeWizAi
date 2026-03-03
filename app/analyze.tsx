@@ -1,20 +1,21 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { analyzeClothingImage, analyzeOutfitImage, ClothingAnalysis, identifyProduct, ItemResearch, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
+import { analyzeCleanItem, analyzeOutfitImage, ProductIdentification, regenerateCleanImage, researchClothingItem } from '@/lib/ai';
 import { classifyGarmentSlot, GarmentSlot, removeBackground } from '@/lib/backgroundRemoval';
-import { saveToPermanentStorage } from '@/lib/storage';
+import { uploadImage } from '@/lib/storage';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClosetItem, ClothingCategory } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Check, ImageIcon, RefreshCw, Sparkles, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
+  Easing,
   Pressable,
   Image as RNImage,
   ScrollView,
@@ -29,21 +30,83 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type AnalysisStage = 'analyzing' | 'researching' | 'enhancing' | 'done' | 'error';
 
-const STAGE_LABELS: Record<AnalysisStage, string> = {
-  analyzing: 'Identifying item...',
-  researching: 'Researching details...',
-  enhancing: 'Removing background...',
-  done: 'Ready to save',
-  error: 'Analysis failed',
-};
+type StepStatus = 'pending' | 'active' | 'done' | 'error';
+interface PipelineStep {
+  key: string;
+  label: string;
+  status: StepStatus;
+}
 
-const MULTI_STAGE_LABELS: Record<AnalysisStage, string> = {
-  analyzing: 'Detecting outfit pieces...',
-  researching: 'Researching items...',
-  enhancing: 'Enhancing...',
-  done: 'Review & save items',
-  error: 'Analysis failed',
-};
+const SINGLE_STEPS: PipelineStep[] = [
+  { key: 'clean', label: 'Generating clean image', status: 'pending' },
+  { key: 'research', label: 'Extracting details', status: 'pending' },
+  { key: 'upload', label: 'Saving', status: 'pending' },
+];
+
+const MULTI_STEPS: PipelineStep[] = [
+  { key: 'detect', label: 'Detecting outfit pieces', status: 'pending' },
+  { key: 'generate', label: 'Generating piece images', status: 'pending' },
+  { key: 'research', label: 'Researching items', status: 'pending' },
+  { key: 'upload', label: 'Saving', status: 'pending' },
+];
+
+// ─── ProgressStepper component ───
+function ProgressStepper({ steps, colors: C }: { steps: PipelineStep[]; colors: any }) {
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(spin, { toValue: 1, duration: 1000, easing: Easing.linear, useNativeDriver: true })
+    ).start();
+  }, [spin]);
+  const rotation = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  return (
+    <View style={{ gap: 2 }}>
+      {steps.map((step, i) => {
+        const isLast = i === steps.length - 1;
+        const isDone = step.status === 'done';
+        const isActive = step.status === 'active';
+        const isError = step.status === 'error';
+        const isPending = step.status === 'pending';
+        return (
+          <View key={step.key} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+            {/* Indicator column */}
+            <View style={{ alignItems: 'center', width: 22 }}>
+              {isDone ? (
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.accentGreen, alignItems: 'center', justifyContent: 'center' }}>
+                  <Check size={13} color="#FFF" />
+                </View>
+              ) : isActive ? (
+                <Animated.View style={{ transform: [{ rotate: rotation }] }}>
+                  <RefreshCw size={18} color={C.accentGreen} />
+                </Animated.View>
+              ) : isError ? (
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.accentCoral, alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={13} color="#FFF" />
+                </View>
+              ) : (
+                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: C.border }} />
+              )}
+              {/* Connector line */}
+              {!isLast && (
+                <View style={{ width: 2, height: 14, backgroundColor: isDone ? C.accentGreen : C.border, marginVertical: 1 }} />
+              )}
+            </View>
+            {/* Label */}
+            <Text style={{
+              fontFamily: Typography.bodyFamilyMedium,
+              fontSize: 13,
+              color: isDone ? C.accentGreen : isActive ? C.textPrimary : isError ? C.accentCoral : C.textTertiary,
+              paddingTop: 2,
+            }}>
+              {step.label}{isActive ? '...' : ''}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 const CATEGORIES: ClothingCategory[] = [
   'top', 'bottom', 'outerwear', 'dress', 'shoe',
@@ -75,7 +138,7 @@ export default function AnalyzeScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const { imageUri, mode: modeParam } = useLocalSearchParams<{ imageUri: string; mode?: string }>();
-  const addItem = useClosetStore((s) => s.addItem);
+  const { addItem, userId } = useClosetStore();
 
   const mode = modeParam === 'fitpic' ? 'fitpic' : 'single';
 
@@ -105,136 +168,115 @@ export default function AnalyzeScreen() {
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const imageDimsRef = useRef<{ width: number; height: number } | null>(null);
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const savedItemIdRef = useRef<string | null>(null);
+
+  // ─── Pipeline progress ───
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(
+    () => (mode === 'fitpic' ? MULTI_STEPS : SINGLE_STEPS).map(s => ({ ...s }))
+  );
+
+  const setStep = useCallback((key: string, status: StepStatus) => {
+    setPipelineSteps(prev => prev.map(s => s.key === key ? { ...s, status } : s));
+  }, []);
 
   const GENERATION_COOLDOWN_MS = 3000;
 
-  // ─── Single-item pipeline ───
+  // ─── Ultra-Fast Single-item pipeline ───
   const runSinglePipeline = useCallback(async (uri: string) => {
-    setStage('analyzing');
+    setStage('enhancing');
     setErrorMsg(null);
+    setStep('clean', 'active');
 
-    // Step 1: Identify product (like Google Lens) + basic vision analysis in parallel
-    let product: ProductIdentification | null = null;
-    let analysis: ClothingAnalysis;
+    let cleanUri = uri; // Fallback if generation completely fails
 
+    // Step 1: Instantly generate clean image from raw photo (Bypass Vision completely)
     try {
-      const [productResult, analysisResult] = await Promise.allSettled([
-        identifyProduct(uri),
-        analyzeClothingImage(uri),
-      ]);
-
-      if (analysisResult.status === 'fulfilled') {
-        analysis = analysisResult.value;
-      } else {
-        throw new Error('Could not identify this piece. Try a clearer photo or zoom in on the item.');
+      const resultUri = await regenerateCleanImage(uri, null);
+      if (resultUri) {
+        cleanUri = resultUri;
+        setCleanImageUri(resultUri);
       }
-
-      if (productResult.status === 'fulfilled') {
-        product = productResult.value;
-        singleProductRef.current = product;
-      }
-
-      // Merge product identification with analysis (product ID takes priority for name/brand)
-      setName(product?.name || analysis.name);
-      setCategory(product?.category || analysis.category);
-      setBrand(product?.brand || analysis.brand || '');
-      setColors(product?.colors || analysis.colors);
-      setConfidence(analysis.confidence);
-      setGarmentType(product?.garment_type || analysis.garment_type || '');
-      setLayerType(analysis.layer_type || '');
-
-      const resolvedCategory = product?.category || analysis.category;
-      const resolvedGarmentType = product?.garment_type || analysis.garment_type || undefined;
-      setGarmentSlot(classifyGarmentSlot(resolvedCategory, resolvedGarmentType));
-
-      // Step 2: Crop and Clean
-      // We need to wait for product identification to get the bounding box
-      let workingUri = uri;
-
-      if (product?.box_2d) {
-        try {
-          // box is [ymin, xmin, ymax, xmax] in 0-100 scale
-          const [ymin, xmin, ymax, xmax] = product.box_2d;
-
-          // Get image dimensions
-          const dimensions = await new Promise<{ width: number, height: number }>((resolve, reject) => {
-            RNImage.getSize(uri, (width, height) => resolve({ width, height }), reject);
-          });
-
-          // Add some padding (margin)
-          const padding = 18;
-          const y1 = Math.max(0, ymin - padding);
-          const x1 = Math.max(0, xmin - padding);
-          const y2 = Math.min(100, ymax + padding);
-          const x2 = Math.min(100, xmax + padding);
-
-          const cropX = (x1 / 100) * dimensions.width;
-          const cropY = (y1 / 100) * dimensions.height;
-          const cropW = ((x2 - x1) / 100) * dimensions.width;
-          const cropH = ((y2 - y1) / 100) * dimensions.height;
-
-          const cropped = await manipulateAsync(
-            uri,
-            [{ crop: { originX: cropX, originY: cropY, width: cropW, height: cropH } }],
-            { format: SaveFormat.JPEG, compress: 0.9 }
-          );
-
-          workingUri = cropped.uri;
-        } catch (e) {
-          console.warn('Failed to crop single item:', e);
+    } catch (e) {
+      try {
+        const r = await removeBackground(uri);
+        if (r.success && r.cleanImageUri) {
+          cleanUri = r.cleanImageUri;
+          setCleanImageUri(r.cleanImageUri);
         }
-      }
-
-      setStage('researching');
-
-      const researchPromise = researchClothingItem(
-        product?.name || name || analysis!.name,
-        product?.brand || analysis!.brand,
-        product?.category || analysis!.category,
-      ).then((research: ItemResearch) => {
-        if (research.estimated_value) setEstimatedValue(String(research.estimated_value));
-        if (research.brand && !brand) setBrand(research.brand);
-        if (research.tags.length > 0) setTags(research.tags);
-        if (research.subcategory) setGarmentType(research.subcategory);
-      }).catch(() => { });
-
-      // Generate clean product image from the (potentially cropped) working URI
-      const effectiveProduct: ProductIdentification = product || {
-        name: analysis!.name,
-        brand: analysis!.brand,
-        category: analysis!.category,
-        garment_type: analysis!.garment_type,
-        colors: analysis!.colors,
-        material: null,
-        description: analysis!.name,
-      };
-
-      const cleanImagePromise = regenerateCleanImage(workingUri, effectiveProduct)
-        .then((cleanUri) => {
-          if (cleanUri) setCleanImageUri(cleanUri);
-        })
-        .catch(() => {
-          // Fallback: try removeBackground (remove.bg API)
-          return removeBackground(workingUri)
-            .then((r) => {
-              if (r.success && r.cleanImageUri) setCleanImageUri(r.cleanImageUri);
-            });
-        }).catch(() => { });
-
-      await Promise.allSettled([researchPromise, cleanImagePromise]);
-      setStage('done');
-
-    } catch (err) {
-      setStage('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Could not identify this piece. Try a clearer photo or zoom in on the item.');
-      return;
+      } catch (e2) { }
     }
-  }, []);
+    setStep('clean', 'done');
+    setStage('done');
+
+    // Step 2: Research Details (Run Fast Vision + Text on the clean image)
+    // Run this in the background so the user can interact with the clean image immediately
+    (async () => {
+      try {
+        const result = await analyzeCleanItem(cleanUri);
+        const product = result.product;
+        const analysis = result.analysis;
+        singleProductRef.current = product;
+
+        // Only update if user hasn't typed their own values yet (or overwrite defaults)
+        setName((prev) => prev ? prev : (product.name || analysis.name || 'Clothing Item'));
+        setCategory((prev) => prev !== 'other' ? prev : (product.category || analysis.category || 'other'));
+        setBrand((prev) => prev ? prev : (product.brand || analysis.brand || ''));
+        setColors((prev) => prev.length > 0 ? prev : (product.colors || analysis.colors || []));
+        setConfidence(analysis.confidence);
+        setGarmentType((prev) => prev ? prev : (product.garment_type || analysis.garment_type || ''));
+        setLayerType(analysis.layer_type || '');
+
+        const resolvedCategory = product.category || analysis.category;
+        const resolvedGarmentType = product.garment_type || analysis.garment_type || undefined;
+        setGarmentSlot(classifyGarmentSlot(resolvedCategory as any, resolvedGarmentType));
+
+        // Quick text research for value/tags using the extracted name/brand
+        const research = await researchClothingItem(
+          product.name,
+          product.brand,
+          product.category,
+        );
+        if (research.estimated_value) setEstimatedValue((prev) => prev ? prev : String(research.estimated_value));
+        if (research.brand) setBrand((prev) => prev ? prev : (research.brand || ''));
+        if (research.tags && research.tags.length > 0) setTags((prev) => prev.length > 0 ? prev : research.tags);
+        if (research.subcategory) setGarmentType((prev) => prev ? prev : (research.subcategory || ''));
+
+        // If the user already tapped Save while this was running, we manually patch the item.
+        if (savedItemIdRef.current) {
+          const updateClosetItem = useClosetStore.getState().updateItem;
+          // We don't want to blindly overwrite, so we merge
+          const updates: Partial<ClosetItem> = {};
+
+          // Current React state reflects what the user *might* have typed while waiting
+          // We'll use the newly fetched data if they didn't override it.
+          // Since the user already saved, they likely didn't override anything if it was empty.
+          updates.name = product.name || analysis.name || 'Clothing Item';
+          updates.category = (product.category || analysis.category || 'other') as ClothingCategory;
+          updates.brand = product.brand || analysis.brand || research.brand || undefined;
+          updates.colors = product.colors || analysis.colors || [];
+          updates.detected_confidence = analysis.confidence;
+          updates.garment_type = product.garment_type || analysis.garment_type || research.subcategory || undefined;
+          updates.layer_type = (analysis.layer_type as ClosetItem['layer_type']) || undefined;
+
+          if (research.estimated_value) updates.estimated_value = Number(research.estimated_value);
+          if (research.tags && research.tags.length > 0) updates.tags = research.tags;
+
+          updateClosetItem(savedItemIdRef.current, updates);
+        }
+
+      } catch (err) {
+        console.warn('Failed to extract details from clean image:', err);
+      }
+      setStep('research', 'done');
+    })();
+
+  }, [setStep]);
 
   // ─── Multi-item pipeline (fit pic) ───
   const runMultiPipeline = useCallback(async (uri: string) => {
     setStage('analyzing');
     setErrorMsg(null);
+    setStep('detect', 'active');
 
     try {
       const result = await analyzeOutfitImage(uri);
@@ -243,12 +285,13 @@ export default function AnalyzeScreen() {
 
       if (!result.detections || result.detections.length === 0) {
         setStage('error');
+        setStep('detect', 'error');
         setErrorMsg('No clothing items detected in image. Make sure the photo clearly shows a person wearing clothes.');
         return;
       }
 
       const pieces: DetectedPiece[] = result.detections.map((det, idx: number) => ({
-        id: `piece-${Date.now()}-${idx}`,
+        id: `piece - ${Date.now()} -${idx} `,
         name: det.name,
         category: (CATEGORIES.includes(det.category as ClothingCategory) ? det.category : 'other') as ClothingCategory,
         brand: det.brand || '',
@@ -263,20 +306,29 @@ export default function AnalyzeScreen() {
       }));
 
       setDetectedPieces(pieces);
+      setStep('detect', 'done');
 
-      // Get image dimensions for later cropping, auto-generate first piece only
-      RNImage.getSize(uri, (width, height) => {
-        imageDimsRef.current = { width, height };
-        const firstWithBox = pieces.find(p => p.box_2d && p.box_2d.length === 4);
-        if (firstWithBox) {
-          processPieceImage(uri, firstWithBox.id, firstWithBox.box_2d!, width, height, firstWithBox);
-          setLastGenerationTime(Date.now());
-          startCooldownTimer();
-        }
-      }, () => { });
+      // Step 2: Generate first piece image (Await this before doing rest of research)
+      setStage('enhancing');
+      setStep('generate', 'active');
 
-      // Research each piece in parallel for better details
+      const dimensions = await new Promise<{ width: number, height: number }>((resolve, reject) => {
+        RNImage.getSize(uri, (width, height) => resolve({ width, height }), reject);
+      });
+      imageDimsRef.current = dimensions;
+
+      const firstWithBox = pieces.find(p => p.box_2d && p.box_2d.length === 4);
+      if (firstWithBox) {
+        // Explicitly await the first generation so the image pops into the UI fast
+        await processPieceImage(uri, firstWithBox.id, firstWithBox.box_2d!, dimensions.width, dimensions.height, firstWithBox);
+        setLastGenerationTime(Date.now());
+        startCooldownTimer();
+      }
+      setStep('generate', 'done');
+
+      // Step 3: Research each piece in parallel
       setStage('researching');
+      setStep('research', 'active');
       const researchPromises = pieces.map(async (piece, idx) => {
         try {
           const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
@@ -293,12 +345,13 @@ export default function AnalyzeScreen() {
       });
 
       await Promise.allSettled(researchPromises);
+      setStep('research', 'done');
       setStage('done');
     } catch (err) {
       setStage('error');
       setErrorMsg(err instanceof Error ? err.message : 'Could not detect pieces in this photo. Try a clearer image or zoom in closer.');
     }
-  }, []);
+  }, [setStep]);
 
   const processPieceImage = async (
     originalUri: string,
@@ -313,7 +366,7 @@ export default function AnalyzeScreen() {
 
       const colorDesc = piece.colors.length > 0 ? piece.colors.join(' and ') : '';
       const brandDesc = piece.brand ? `${piece.brand} ` : '';
-      const richDescription = `${brandDesc}${colorDesc} ${piece.name}`.trim();
+      const richDescription = `${brandDesc}${colorDesc} ${piece.name} `.trim();
 
       const tempProduct: ProductIdentification = {
         name: piece.name,
@@ -322,7 +375,7 @@ export default function AnalyzeScreen() {
         garment_type: piece.garmentType || null,
         colors: piece.colors,
         material: null,
-        description: `Extract ONLY the ${richDescription} from this outfit photo. Remove the person, background, and all other clothing items. Show just the ${piece.category} item alone on a white background, fully visible from top to bottom.`,
+        description: `Extract ONLY the ${richDescription} from this outfit photo.Remove the person, background, and all other clothing items.Show just the ${piece.category} item alone on a white background, fully visible from top to bottom.`,
       };
 
       const cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
@@ -365,6 +418,16 @@ export default function AnalyzeScreen() {
     processPieceImage(imageUri, pieceId, piece.box_2d, width, height, piece);
   }, [imageUri, lastGenerationTime, detectedPieces, startCooldownTimer]);
 
+  const reEnhancePiece = useCallback((pieceId: string) => {
+    if (!imageUri || !imageDimsRef.current) return;
+    const piece = detectedPieces.find(p => p.id === pieceId);
+    if (!piece?.box_2d || piece.isCleaning) return;
+
+    setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: undefined, cleanError: undefined } : p));
+    const { width, height } = imageDimsRef.current;
+    processPieceImage(imageUri, pieceId, piece.box_2d, width, height, piece);
+  }, [imageUri, detectedPieces]);
+
   useEffect(() => {
     if (!imageUri) return;
     if (mode === 'fitpic') {
@@ -405,40 +468,68 @@ export default function AnalyzeScreen() {
 
   // ─── Single-item save ───
   const handleSaveSingle = useCallback(async () => {
-    if (!imageUri) return;
+    if (!imageUri || !userId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Ensure we save the original image to permanent storage
-    let permanentImageUri = imageUri;
-    // Check if it's a temp file (heuristic) and not already a remote URL
-    if (!imageUri.startsWith('http')) {
-      permanentImageUri = await saveToPermanentStorage(imageUri);
+    setStage('enhancing');
+    setStep('upload', 'active');
+
+    try {
+      let permanentOriginalUri = imageUri;
+      let finalCleanUri = cleanImageUri;
+
+      const uploadPromises = [];
+
+      if (!imageUri.startsWith('http')) {
+        uploadPromises.push(
+          uploadImage(imageUri, userId, 'item_orig').then(uri => {
+            permanentOriginalUri = uri;
+          })
+        );
+      }
+
+      if (cleanImageUri && !cleanImageUri.startsWith('http')) {
+        uploadPromises.push(
+          uploadImage(cleanImageUri, userId, 'item_clean').then(uri => {
+            finalCleanUri = uri;
+          })
+        );
+      }
+
+      await Promise.all(uploadPromises);
+
+      const newItem: ClosetItem = {
+        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        user_id: userId,
+        image_url: finalCleanUri || permanentOriginalUri,
+        clean_image_url: finalCleanUri || undefined,
+        original_image_url: permanentOriginalUri,
+        name: name || 'Clothing Item',
+        category,
+        brand: brand || undefined,
+        colors,
+        detected_confidence: confidence,
+        estimated_value: estimatedValue ? Number(estimatedValue) : undefined,
+        garment_type: garmentType || undefined,
+        layer_type: (layerType as ClosetItem['layer_type']) || undefined,
+        tags,
+        wear_count: 0,
+        favorite: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      savedItemIdRef.current = newItem.id;
+      addItem(newItem);
+      setStep('upload', 'done');
+      router.back();
+    } catch (e) {
+      setStep('upload', 'error');
+      setStage('done');
+      console.error('Failed to save or upload image:', e);
+      Alert.alert('Save Failed', 'Could not upload the image. Please try again.');
     }
-
-    const newItem: ClosetItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      user_id: 'demo',
-      image_url: permanentImageUri,
-      clean_image_url: cleanImageUri || undefined,
-      original_image_url: permanentImageUri,
-      name: name || 'Clothing Item',
-      category,
-      brand: brand || undefined,
-      colors,
-      detected_confidence: confidence,
-      estimated_value: estimatedValue ? Number(estimatedValue) : undefined,
-      garment_type: garmentType || undefined,
-      layer_type: (layerType as ClosetItem['layer_type']) || undefined,
-      tags,
-      wear_count: 0,
-      favorite: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    addItem(newItem);
-    router.back();
-  }, [imageUri, cleanImageUri, name, category, brand, colors, confidence, estimatedValue, garmentType, layerType, tags, addItem]);
+  }, [imageUri, cleanImageUri, name, category, brand, colors, confidence, estimatedValue, garmentType, layerType, tags, addItem, userId, setStep]);
 
   // ─── Multi-item save ───
   const handleSaveMulti = useCallback(async () => {
@@ -464,44 +555,74 @@ export default function AnalyzeScreen() {
   }, [imageUri, detectedPieces, addItem]);
 
   const doSaveMulti = useCallback(async (selectedPieces: DetectedPiece[]) => {
-    if (!imageUri) return;
+    if (!imageUri || !userId) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    let permanentOriginalUri = imageUri;
-    if (!imageUri.startsWith('http')) {
-      permanentOriginalUri = await saveToPermanentStorage(imageUri);
-    }
+    setStage('enhancing');
+    setStep('upload', 'active');
 
-    for (const piece of selectedPieces) {
-      let permanentCleanUri = piece.cleanImageUri;
-      if (permanentCleanUri && !permanentCleanUri.startsWith('http')) {
-        permanentCleanUri = await saveToPermanentStorage(permanentCleanUri);
+    try {
+      let permanentOriginalUri = imageUri;
+      const uploadPromises = [];
+
+      if (!imageUri.startsWith('http')) {
+        uploadPromises.push(
+          uploadImage(imageUri, userId, 'fitpic_orig').then(uri => {
+            permanentOriginalUri = uri;
+          })
+        );
       }
 
-      const newItem: ClosetItem = {
-        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        user_id: 'demo',
-        image_url: permanentCleanUri || permanentOriginalUri,
-        clean_image_url: permanentCleanUri,
-        original_image_url: permanentOriginalUri,
-        name: piece.name || 'Clothing Item',
-        category: piece.category,
-        brand: piece.brand || undefined,
-        colors: piece.colors,
-        detected_confidence: piece.confidence,
-        estimated_value: piece.estimatedValue ? Number(piece.estimatedValue) : undefined,
-        garment_type: piece.garmentType || undefined,
-        tags: piece.tags,
-        wear_count: 0,
-        favorite: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      addItem(newItem);
-    }
+      const cleanUris: Record<string, string | undefined> = {};
 
-    router.back();
-  }, [imageUri, addItem]);
+      for (const piece of selectedPieces) {
+        if (piece.cleanImageUri && !piece.cleanImageUri.startsWith('http')) {
+          uploadPromises.push(
+            uploadImage(piece.cleanImageUri, userId, 'item_clean').then(uri => {
+              cleanUris[piece.id] = uri;
+            })
+          );
+        } else {
+          cleanUris[piece.id] = piece.cleanImageUri;
+        }
+      }
+
+      await Promise.all(uploadPromises);
+
+      for (const piece of selectedPieces) {
+        const permanentCleanUri = cleanUris[piece.id];
+
+        const newItem: ClosetItem = {
+          id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          user_id: userId,
+          image_url: permanentCleanUri || permanentOriginalUri,
+          clean_image_url: permanentCleanUri,
+          original_image_url: permanentOriginalUri,
+          name: piece.name || 'Clothing Item',
+          category: piece.category,
+          brand: piece.brand || undefined,
+          colors: piece.colors,
+          detected_confidence: piece.confidence,
+          estimated_value: piece.estimatedValue ? Number(piece.estimatedValue) : undefined,
+          garment_type: piece.garmentType || undefined,
+          tags: piece.tags,
+          wear_count: 0,
+          favorite: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        addItem(newItem);
+      }
+
+      setStep('upload', 'done');
+      router.back();
+    } catch (e) {
+      setStep('upload', 'error');
+      setStage('done');
+      console.error('Failed to upload some images during multi-save:', e);
+      Alert.alert('Save error', 'Some images failed to upload. Check your connection.');
+    }
+  }, [imageUri, addItem, userId, setStep]);
 
   const togglePiece = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -531,7 +652,6 @@ export default function AnalyzeScreen() {
   }
 
   const isLoading = stage === 'analyzing' || stage === 'researching' || stage === 'enhancing';
-  const stageLabel = mode === 'fitpic' ? MULTI_STAGE_LABELS : STAGE_LABELS;
 
   // ─────────── Multi-item (fit pic) UI ───────────
   if (mode === 'fitpic') {
@@ -561,8 +681,7 @@ export default function AnalyzeScreen() {
             <Image source={{ uri: imageUri }} style={styles.itemImage} contentFit="contain" />
             {isLoading && (
               <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={Colors.accentGreen} />
-                <Text style={styles.loadingText}>{stageLabel[stage]}</Text>
+                <ProgressStepper steps={pipelineSteps} colors={Colors} />
               </View>
             )}
           </View>
@@ -632,6 +751,13 @@ export default function AnalyzeScreen() {
                   {piece.cleanImageUri && (
                     <View style={styles.cleanImagePreview}>
                       <Image source={{ uri: piece.cleanImageUri }} style={styles.cleanImageThumb} contentFit="contain" />
+                      <Pressable
+                        style={styles.reEnhanceBtn}
+                        onPress={() => reEnhancePiece(piece.id)}
+                      >
+                        <RefreshCw size={12} color={Colors.background} />
+                        <Text style={styles.reEnhanceText}>Re-Enhance</Text>
+                      </Pressable>
                     </View>
                   )}
                   {piece.isCleaning && (
@@ -698,8 +824,7 @@ export default function AnalyzeScreen() {
           />
           {isLoading && (
             <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={Colors.accentGreen} />
-              <Text style={styles.loadingText}>{stageLabel[stage]}</Text>
+              <ProgressStepper steps={pipelineSteps} colors={Colors} />
             </View>
           )}
         </View>

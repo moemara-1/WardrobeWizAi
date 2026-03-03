@@ -112,10 +112,6 @@ export default function DigitalTwinScreen() {
         setTwinGenerating(true);
         setTwinProgress('Generating your digital twin...');
 
-        // Navigate back immediately — generation runs in background
-        router.back();
-
-        // Run generation in background
         try {
             const analysis = await generateDigitalTwin(
                 selfieUri,
@@ -144,6 +140,7 @@ export default function DigitalTwinScreen() {
             setDigitalTwin(twin);
             setTwinProgress(null);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.replace('/digital-twin-preview');
         } catch (err) {
             if (__DEV__) console.error('Digital twin generation failed:', err);
             setTwinProgress(null);

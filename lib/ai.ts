@@ -5,6 +5,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 const VISION_MODEL = 'meta-llama/Llama-3.2-11B-Vision-Instruct';
 const TEXT_MODEL = 'meta-llama/Meta-Llama-3.1-70B-Instruct';
+const FAST_TEXT_MODEL = 'meta-llama/Meta-Llama-3.1-8B-Instruct';
 
 export interface ClothingAnalysis {
     name: string;
@@ -226,7 +227,7 @@ export async function researchClothingItem(
     const query = [name, brand, category].filter(Boolean).join(' ');
 
     const content = await callDeepInfra({
-        model: TEXT_MODEL,
+        model: FAST_TEXT_MODEL,
         messages: [
             {
                 role: 'system',
@@ -585,7 +586,7 @@ async function saveBase64Image(b64: string): Promise<string> {
     return fileUri;
 }
 
-async function readFileAsBase64(uri: string, maxDimension = 1024): Promise<string> {
+async function readFileAsBase64(uri: string, maxDimension = 512): Promise<string> {
     const prepared = await prepareImageForUpload(uri);
     const info = await FileSystem.getInfoAsync(prepared);
     if (!info.exists) {
@@ -656,6 +657,180 @@ export interface ProductIdentification {
     description: string;
     box_2d?: [number, number, number, number];
 }
+
+export interface CombinedAnalysis {
+    product: ProductIdentification;
+    analysis: ClothingAnalysis;
+}
+
+/**
+ * Single merged vision call — replaces the old parallel identifyProduct + analyzeClothingImage.
+ * Sends the image once, gets all fields back in one round trip.
+ */
+export async function analyzeAndIdentifyItem(imageUri: string): Promise<CombinedAnalysis> {
+    const base64 = await readFileAsBase64(imageUri);
+
+    const content = await callDeepInfra({
+        model: VISION_MODEL,
+        messages: [{
+            role: 'user',
+            content: [
+                {
+                    type: 'text',
+                    text: `You are a fashion product identification expert. Identify this clothing item as precisely as possible.
+
+Provide ALL of the following in a single JSON response:
+1. Full product name (e.g. "Nike Air Max 90", "Levi's 501 Original Fit Jeans")
+2. Brand (specific brand name or null)
+3. Category: EXACTLY one of: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other
+4. Garment type (e.g. "bomber jacket", "cargo pants", "chelsea boots")
+5. Main colors (array)
+6. Primary material (cotton, leather, polyester, denim, etc. or null)
+7. A concise product description for generating a clean product image
+8. BOUNDING BOX (box_2d) of the item as [ymin, xmin, ymax, xmax] using 0-100 scale
+9. Confidence (0.0 to 1.0) in your identification
+10. Layer type: "inner", "outer", "both", or null
+
+Category rules:
+- t-shirts, shirts, blouses, sweaters, hoodies, tank tops = "top"
+- pants, jeans, shorts, skirts, trousers, leggings = "bottom"
+- jackets, coats, blazers, vests, windbreakers = "outerwear"
+- sneakers, boots, heels, sandals, loafers, slides = "shoe"
+- bags, backpacks, purses, totes = "bag"
+- dresses, jumpsuits, rompers = "dress"
+- hats, caps, beanies = "hat"
+- necklaces, rings, earrings, bracelets, watches = "jewelry"
+- belts, scarves, sunglasses, ties, gloves = "accessory"
+
+Return ONLY valid JSON:
+{
+  "name": "descriptive product name",
+  "brand": "brand or null",
+  "category": "category",
+  "garment_type": "specific garment type or null",
+  "colors": ["color1", "color2"],
+  "material": "primary material or null",
+  "description": "concise 1-sentence visual description",
+  "box_2d": [10, 10, 90, 90],
+  "confidence": 0.9,
+  "layer_type": "inner or outer or both or null"
+}`,
+                },
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${base64}` },
+                },
+            ],
+        }],
+        max_tokens: 512,
+        temperature: 0.2,
+    });
+
+    const raw = parseJSON<any>(content);
+
+    const validCategories: ClothingCategory[] = [
+        'top', 'bottom', 'outerwear', 'dress', 'shoe',
+        'accessory', 'bag', 'hat', 'jewelry', 'other',
+    ];
+    const cat = validCategories.includes(raw.category) ? raw.category : 'other';
+
+    return {
+        product: {
+            name: raw.name || 'Clothing Item',
+            brand: raw.brand || null,
+            category: cat,
+            garment_type: raw.garment_type || null,
+            colors: raw.colors || [],
+            material: raw.material || null,
+            description: raw.description || raw.name || '',
+            box_2d: raw.box_2d,
+        },
+        analysis: {
+            name: raw.name || 'Clothing Item',
+            category: cat,
+            brand: raw.brand || null,
+            colors: raw.colors || [],
+            confidence: raw.confidence || 0.8,
+            garment_type: raw.garment_type || null,
+            layer_type: raw.layer_type || null,
+        },
+    };
+}
+
+/**
+ * Super fast vision call designed to run AFTER the clean image is generated.
+ * Takes the clean product image and extracts category, title, colors, etc.
+ */
+export async function analyzeCleanItem(imageUri: string): Promise<CombinedAnalysis> {
+    const base64 = await readFileAsBase64(imageUri);
+
+    const content = await callDeepInfra({
+        model: VISION_MODEL,
+        messages: [{
+            role: 'user',
+            content: [
+                {
+                    type: 'text',
+                    text: `Analyze this clean product image of a clothing item.
+
+Provide ALL of the following in JSON:
+1. Full product name
+2. Brand (or null)
+3. Category: EXACTLY one of: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other
+4. Garment type
+5. Main colors
+6. Primary material (or null)
+
+Return ONLY valid JSON:
+{
+  "name": "descriptive product name",
+  "brand": "brand or null",
+  "category": "category",
+  "garment_type": "specific garment type or null",
+  "colors": ["color1", "color2"],
+  "material": "primary material or null"
+}`,
+                },
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${base64}` },
+                },
+            ],
+        }],
+        max_tokens: 256,
+        temperature: 0.1,
+    });
+
+    const raw = parseJSON<any>(content);
+
+    const validCategories: ClothingCategory[] = [
+        'top', 'bottom', 'outerwear', 'dress', 'shoe',
+        'accessory', 'bag', 'hat', 'jewelry', 'other',
+    ];
+    const cat = validCategories.includes(raw.category) ? raw.category : 'other';
+
+    return {
+        product: {
+            name: raw.name || 'Clothing Item',
+            brand: raw.brand || null,
+            category: cat,
+            garment_type: raw.garment_type || null,
+            colors: raw.colors || [],
+            material: raw.material || null,
+            description: raw.name || '',
+        },
+        analysis: {
+            name: raw.name || 'Clothing Item',
+            category: cat,
+            brand: raw.brand || null,
+            colors: raw.colors || [],
+            confidence: 0.9,
+            garment_type: raw.garment_type || null,
+            layer_type: null,
+        },
+    };
+}
+
 
 export async function identifyProduct(imageUri: string): Promise<ProductIdentification> {
     const base64 = await readFileAsBase64(imageUri);
@@ -913,13 +1088,20 @@ CRITICAL RULES:
  */
 export async function regenerateCleanImage(
     imageUri: string,
-    _product: ProductIdentification,
+    _product: ProductIdentification | null,
     pipelineType: 'add-item-bria' | 'detect-fit-seedream' = 'add-item-bria'
 ): Promise<string> {
 
+    let localUri = imageUri;
+    if (localUri.startsWith('http://') || localUri.startsWith('https://')) {
+        const tmpPath = `${FileSystem.cacheDirectory}tmp_regenclean_${Date.now()}.jpg`;
+        const dl = await FileSystem.downloadAsync(localUri, tmpPath);
+        localUri = dl.uri;
+    }
+
     const resizeTarget = pipelineType === 'detect-fit-seedream' ? 512 : 1024;
     const { uri: resizedUri } = await manipulateAsync(
-        imageUri,
+        localUri,
         [{ resize: { width: resizeTarget, height: resizeTarget } }],
         { compress: 0.9, format: SaveFormat.JPEG }
     );
@@ -934,7 +1116,7 @@ export async function regenerateCleanImage(
         if (pipelineType === 'detect-fit-seedream') {
             if (__DEV__) console.log('Pipeline 2: Calling Replicate Seedream-4...');
 
-            const desc = _product.description || _product.name;
+            const desc = _product?.description || _product?.name || 'clothing item';
             const isExtractionPrompt = desc.toLowerCase().startsWith('extract');
             const prompt = isExtractionPrompt
                 ? desc
@@ -954,12 +1136,21 @@ export async function regenerateCleanImage(
             if (!seedreamResult || typeof seedreamResult !== 'string') {
                 throw new Error(`Seedream returned unexpected format: ${JSON.stringify(seedreamOutput).slice(0, 200)}`);
             }
-            if (__DEV__) console.log('Seedream complete, result:', seedreamResult.slice(0, 80));
+            if (__DEV__) console.log('Seedream complete, converting to base64 for rembg...');
+
+            let rembgInput = seedreamResult;
+            if (seedreamResult.startsWith('http')) {
+                const tmpPath = `${FileSystem.cacheDirectory}sd_${Date.now()}.png`;
+                await FileSystem.downloadAsync(seedreamResult, tmpPath);
+                const converted = await manipulateAsync(tmpPath, [], { format: SaveFormat.JPEG, compress: 0.9 });
+                const b64 = await FileSystem.readAsStringAsync(converted.uri, { encoding: FileSystem.EncodingType.Base64 });
+                rembgInput = `data:image/jpeg;base64,${b64}`;
+            }
 
             try {
                 if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
                 const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
-                    image: seedreamResult,
+                    image: rembgInput,
                 });
                 const rembgResult = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
                 resultUri = rembgResult || seedreamResult;
@@ -969,21 +1160,27 @@ export async function regenerateCleanImage(
             }
 
         } else {
-            // Pipeline 1: Bria Fibo Edit (DeepInfra) + Rembg (Replicate)
+            // Pipeline 1: Bria Fibo Edit (DeepInfra) — already produces clean white bg
             if (__DEV__) console.log('Pipeline 1: Calling DeepInfra Bria/fibo_edit...');
 
-            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${_product.description || _product.name}`;
+            const desc = _product?.description || _product?.name || 'main clothing item';
+            const prompt = `isolate the clothing piece and display it on a white background like in a product page, DO NOT CHANGE THE CLOTHING PIECE. Subject: ${desc}`;
 
-            resultUri = await callDeepInfraImage('Bria/fibo_edit', {
+            const briaResultUri = await callDeepInfraImage('Bria/fibo_edit', {
                 image: currentImageUri,
                 prompt: prompt,
             });
 
-            if (__DEV__) console.log('Step 2: Removing background with Rembg (Replicate)...');
-            const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
-                image: resultUri,
-            });
-            resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
+            if (__DEV__) console.log('Pipeline 1: Removing white background with Rembg (Replicate)...');
+            try {
+                const rembgOutput = await callReplicate('fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', {
+                    image: briaResultUri,
+                });
+                resultUri = typeof rembgOutput === 'string' ? rembgOutput : (Array.isArray(rembgOutput) ? rembgOutput[0] : '');
+            } catch (rembgErr) {
+                if (__DEV__) console.warn('Rembg on Bria failed, using Bria white bg instead:', rembgErr);
+                resultUri = briaResultUri;
+            }
         }
 
         if (!resultUri) throw new Error('No result from clean pipeline');

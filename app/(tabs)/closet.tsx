@@ -83,7 +83,9 @@ export default function ClosetScreen() {
       if (item.category) sets.category.add(item.category);
       if (item.garment_type) sets.garment_type.add(item.garment_type);
       if (item.brand) sets.brand.add(item.brand);
-      for (const c of item.colors) { if (c) sets.color.add(c); }
+      if (item.colors) {
+        for (const c of item.colors) { if (c) sets.color.add(c); }
+      }
     }
     const opts: Record<FilterKey, string[]> = { category: [], garment_type: [], color: [], brand: [] };
     for (const key of Object.keys(sets) as FilterKey[]) {
@@ -101,14 +103,14 @@ export default function ClosetScreen() {
         i.brand?.toLowerCase().includes(q) ||
         i.category.toLowerCase().includes(q) ||
         i.garment_type?.toLowerCase().includes(q) ||
-        i.tags.some(t => t.toLowerCase().includes(q)) ||
-        i.colors.some(c => c.toLowerCase().includes(q))
+        i.tags?.some(t => t.toLowerCase().includes(q)) ||
+        i.colors?.some(c => c.toLowerCase().includes(q))
       );
     }
     if (favoritesOnly) filtered = filtered.filter((i) => i.favorite);
     if (selectedFilters.category) filtered = filtered.filter((i) => i.category === selectedFilters.category);
     if (selectedFilters.garment_type) filtered = filtered.filter((i) => i.garment_type === selectedFilters.garment_type);
-    if (selectedFilters.color) filtered = filtered.filter((i) => i.colors.includes(selectedFilters.color!));
+    if (selectedFilters.color) filtered = filtered.filter((i) => i.colors?.includes(selectedFilters.color!));
     if (selectedFilters.brand) filtered = filtered.filter((i) => i.brand === selectedFilters.brand);
     return filtered;
   }, [items, searchQuery, favoritesOnly, selectedFilters]);

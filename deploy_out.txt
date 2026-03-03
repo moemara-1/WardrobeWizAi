@@ -1,0 +1,4 @@
+WARNING: Docker is not running
+Uploading asset (ai-image): supabase/functions/ai-image/index.ts
+Deployed Functions on project hnuevdhaaxseaimznjwc: ai-image
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/hnuevdhaaxseaimznjwc/functions
