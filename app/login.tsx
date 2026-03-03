@@ -39,10 +39,18 @@ export default function LoginScreen() {
   const [confirmationSent, setConfirmationSent] = useState(false);
 
   const handleEmailAuth = async () => {
-    if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
-      return;
+    if (mode === 'login') {
+      if (!email.trim() || !password.trim()) {
+        Alert.alert('Missing Fields', 'Please enter both email and password.');
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        Alert.alert('Invalid Email', 'Please enter a valid email address.');
+        return;
+      }
     }
+
     if (password.length < 6) {
       Alert.alert('Weak Password', 'Password must be at least 6 characters.');
       return;
@@ -53,15 +61,17 @@ export default function LoginScreen() {
 
     try {
       if (mode === 'login') {
-        if (!email.trim() || !password.trim()) {
-          Alert.alert('Missing Fields', 'Please enter both email and password.');
-          setLoading(false);
-          return;
-        }
         await signInWithEmail(email, password);
       } else {
         if (!username.trim() || !firstName.trim() || !lastName.trim() || !dob.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
           Alert.alert('Missing Fields', 'Please fill out all details to create your account.');
+          setLoading(false);
+          return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+          Alert.alert('Invalid Email', 'Please enter a valid email address.');
           setLoading(false);
           return;
         }
@@ -74,19 +84,30 @@ export default function LoginScreen() {
           setLoading(false);
           return;
         }
-        
+
         const [_, monthStr, dayStr, yearStr] = match;
         const month = parseInt(monthStr, 10);
         const day = parseInt(dayStr, 10);
         const year = parseInt(yearStr, 10);
-        
-        // Basic sensible date validation
+
         if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > new Date().getFullYear()) {
           Alert.alert('Invalid Date', 'The Date of Birth provided is not a valid date.');
           setLoading(false);
           return;
         }
-        
+
+        // Minimum age: 13 years
+        const today = new Date();
+        const birthDate = new Date(year, month - 1, day);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+        if (age < 13) {
+          Alert.alert('Age Requirement', 'You must be at least 13 years old to use WardrobeWiz.');
+          setLoading(false);
+          return;
+        }
+
         const formattedDob = `${year}-${monthStr}-${dayStr}`;
 
         if (password !== confirmPassword) {
@@ -242,6 +263,7 @@ export default function LoginScreen() {
                     placeholderTextColor={Colors.textTertiary}
                     value={dob}
                     onChangeText={setDob}
+                    keyboardType="numbers-and-punctuation"
                   />
                 </View>
               </>

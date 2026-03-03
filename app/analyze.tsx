@@ -326,27 +326,28 @@ export default function AnalyzeScreen() {
       }
       setStep('generate', 'done');
 
-      // Step 3: Research each piece in parallel
-      setStage('researching');
-      setStep('research', 'active');
-      const researchPromises = pieces.map(async (piece, idx) => {
-        try {
-          const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
-          setDetectedPieces((prev) =>
-            prev.map((p, i) => i === idx ? {
-              ...p,
-              estimatedValue: research.estimated_value ? String(research.estimated_value) : p.estimatedValue,
-              brand: research.brand || p.brand,
-              tags: research.tags.length > 0 ? research.tags : p.tags,
-              garmentType: research.subcategory || p.garmentType,
-            } : p)
-          );
-        } catch { /* ignore research failures */ }
-      });
-
-      await Promise.allSettled(researchPromises);
+      // Step 3: Research each piece in parallel (Backgrounded)
       setStep('research', 'done');
       setStage('done');
+
+      (async () => {
+        const researchPromises = pieces.map(async (piece, idx) => {
+          try {
+            const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
+            setDetectedPieces((prev) =>
+              prev.map((p, i) => i === idx ? {
+                ...p,
+                estimatedValue: research.estimated_value ? String(research.estimated_value) : p.estimatedValue,
+                brand: research.brand || p.brand,
+                tags: research.tags.length > 0 ? research.tags : p.tags,
+                garmentType: research.subcategory || p.garmentType,
+              } : p)
+            );
+          } catch { /* ignore research failures */ }
+        });
+
+        await Promise.allSettled(researchPromises);
+      })();
     } catch (err) {
       setStage('error');
       setErrorMsg(err instanceof Error ? err.message : 'Could not detect pieces in this photo. Try a clearer image or zoom in closer.');
@@ -378,7 +379,7 @@ export default function AnalyzeScreen() {
         description: `Extract ONLY the ${richDescription} from this outfit photo.Remove the person, background, and all other clothing items.Show just the ${piece.category} item alone on a white background, fully visible from top to bottom.`,
       };
 
-      const cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
+      const cleanUri = await regenerateCleanImage(originalUri, null, 'add-item-bria');
 
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
 
@@ -475,35 +476,13 @@ export default function AnalyzeScreen() {
     setStep('upload', 'active');
 
     try {
-      let permanentOriginalUri = imageUri;
-      let finalCleanUri = cleanImageUri;
-
-      const uploadPromises = [];
-
-      if (!imageUri.startsWith('http')) {
-        uploadPromises.push(
-          uploadImage(imageUri, userId, 'item_orig').then(uri => {
-            permanentOriginalUri = uri;
-          })
-        );
-      }
-
-      if (cleanImageUri && !cleanImageUri.startsWith('http')) {
-        uploadPromises.push(
-          uploadImage(cleanImageUri, userId, 'item_clean').then(uri => {
-            finalCleanUri = uri;
-          })
-        );
-      }
-
-      await Promise.all(uploadPromises);
-
+      const baseId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const newItem: ClosetItem = {
-        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: baseId,
         user_id: userId,
-        image_url: finalCleanUri || permanentOriginalUri,
-        clean_image_url: finalCleanUri || undefined,
-        original_image_url: permanentOriginalUri,
+        image_url: cleanImageUri || imageUri,
+        clean_image_url: cleanImageUri || undefined,
+        original_image_url: imageUri,
         name: name || 'Clothing Item',
         category,
         brand: brand || undefined,
@@ -523,6 +502,35 @@ export default function AnalyzeScreen() {
       addItem(newItem);
       setStep('upload', 'done');
       router.back();
+
+      // Background upload
+      (async () => {
+        const uploadPromises = [];
+        let permanentOriginalUri = imageUri;
+        let finalCleanUri = cleanImageUri;
+
+        if (!imageUri.startsWith('http')) {
+          uploadPromises.push(
+            uploadImage(imageUri, userId, 'item_orig').then(uri => { permanentOriginalUri = uri; })
+          );
+        }
+        if (cleanImageUri && !cleanImageUri.startsWith('http')) {
+          uploadPromises.push(
+            uploadImage(cleanImageUri, userId, 'item_clean').then(uri => { finalCleanUri = uri; })
+          );
+        }
+
+        await Promise.all(uploadPromises);
+
+        // Update the item safely
+        if (permanentOriginalUri !== imageUri || finalCleanUri !== cleanImageUri) {
+          useClosetStore.getState().updateItem(baseId, {
+            image_url: finalCleanUri || permanentOriginalUri,
+            clean_image_url: finalCleanUri || undefined,
+            original_image_url: permanentOriginalUri,
+          });
+        }
+      })();
     } catch (e) {
       setStep('upload', 'error');
       setStage('done');
@@ -562,60 +570,73 @@ export default function AnalyzeScreen() {
     setStep('upload', 'active');
 
     try {
-      let permanentOriginalUri = imageUri;
-      const uploadPromises = [];
-
-      if (!imageUri.startsWith('http')) {
-        uploadPromises.push(
-          uploadImage(imageUri, userId, 'fitpic_orig').then(uri => {
-            permanentOriginalUri = uri;
-          })
-        );
-      }
-
-      const cleanUris: Record<string, string | undefined> = {};
-
-      for (const piece of selectedPieces) {
-        if (piece.cleanImageUri && !piece.cleanImageUri.startsWith('http')) {
-          uploadPromises.push(
-            uploadImage(piece.cleanImageUri, userId, 'item_clean').then(uri => {
-              cleanUris[piece.id] = uri;
-            })
-          );
-        } else {
-          cleanUris[piece.id] = piece.cleanImageUri;
-        }
-      }
-
-      await Promise.all(uploadPromises);
-
-      for (const piece of selectedPieces) {
-        const permanentCleanUri = cleanUris[piece.id];
-
+      const savedPieces = selectedPieces.map(piece => {
         const newItem: ClosetItem = {
           id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           user_id: userId,
-          image_url: permanentCleanUri || permanentOriginalUri,
-          clean_image_url: permanentCleanUri,
-          original_image_url: permanentOriginalUri,
+          image_url: piece.cleanImageUri || imageUri,
+          clean_image_url: piece.cleanImageUri,
+          original_image_url: imageUri,
           name: piece.name || 'Clothing Item',
           category: piece.category,
           brand: piece.brand || undefined,
-          colors: piece.colors,
+          colors: piece.colors || [],
           detected_confidence: piece.confidence,
           estimated_value: piece.estimatedValue ? Number(piece.estimatedValue) : undefined,
           garment_type: piece.garmentType || undefined,
-          tags: piece.tags,
+          tags: piece.tags || [],
           wear_count: 0,
           favorite: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
         addItem(newItem);
-      }
+        return { item: newItem, originalPiece: piece };
+      });
 
       setStep('upload', 'done');
       router.back();
+
+      // Background upload
+      (async () => {
+        let permanentOriginalUri = imageUri;
+        const uploadPromises = [];
+
+        if (!imageUri.startsWith('http')) {
+          uploadPromises.push(
+            uploadImage(imageUri, userId, 'fitpic_orig').then(uri => {
+              permanentOriginalUri = uri;
+            })
+          );
+        }
+
+        const cleanUris: Record<string, string | undefined> = {};
+
+        for (const piece of selectedPieces) {
+          if (piece.cleanImageUri && !piece.cleanImageUri.startsWith('http')) {
+            uploadPromises.push(
+              uploadImage(piece.cleanImageUri, userId, 'item_clean').then(uri => {
+                cleanUris[piece.id] = uri;
+              })
+            );
+          } else {
+            cleanUris[piece.id] = piece.cleanImageUri;
+          }
+        }
+
+        await Promise.all(uploadPromises);
+
+        for (const { item, originalPiece } of savedPieces) {
+          const permanentCleanUri = cleanUris[originalPiece.id];
+          if (permanentCleanUri !== originalPiece.cleanImageUri || permanentOriginalUri !== imageUri) {
+            useClosetStore.getState().updateItem(item.id, {
+              image_url: permanentCleanUri || permanentOriginalUri,
+              clean_image_url: permanentCleanUri,
+              original_image_url: permanentOriginalUri,
+            });
+          }
+        }
+      })();
     } catch (e) {
       setStep('upload', 'error');
       setStage('done');

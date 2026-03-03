@@ -3,10 +3,12 @@ import { useThemeColors } from '@/contexts/ThemeContext';
 import { generateOutfitTwin } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import { BlurView } from 'expo-blur';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import * as MediaLibrary from 'expo-media-library';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Clock, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Download, Sparkles } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,8 +41,11 @@ export default function VirtualTryOnResultScreen() {
   const [activeScene, setActiveScene] = useState('studio');
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
-  const { items, digitalTwin } = useClosetStore();
+  const { items, digitalTwin, userProfile } = useClosetStore();
+  const addGeneratedLook = useClosetStore((s) => s.addGeneratedLook);
+  const initials = (userProfile?.username ?? 'U').slice(0, 2).toUpperCase();
 
   // Resolve the selected items from the IDs passed via route params
   const selectedItems = useMemo(() => {
@@ -67,7 +72,6 @@ export default function VirtualTryOnResultScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // Build outfit items using clean_image_url (white bg) when available
       const outfitItems = selectedItems.map(item => ({
         name: item.name,
         category: item.category,
@@ -89,6 +93,36 @@ export default function VirtualTryOnResultScreen() {
     }
   };
 
+  const handleSaveLook = async () => {
+    if (!resultImage) return;
+    setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      // Save to photo library
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        // Download remote URL to local first
+        const localUri = `${FileSystem.cacheDirectory}look_${Date.now()}.jpg`;
+        await FileSystem.downloadAsync(resultImage, localUri);
+        await MediaLibrary.saveToLibraryAsync(localUri);
+      }
+      // Save to app's generated looks store
+      addGeneratedLook({
+        id: `look_${Date.now()}`,
+        image_url: resultImage,
+        outfit_item_ids: selectedItems.map(i => i.id),
+        prompt: `${activeScene}${prompt ? ` - ${prompt}` : ''}`,
+        created_at: new Date().toISOString(),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Look Saved!', 'Your virtual try-on look has been saved to your gallery and profile.');
+    } catch (err) {
+      Alert.alert('Save Failed', 'Could not save the look. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.header}>
@@ -100,11 +134,8 @@ export default function VirtualTryOnResultScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Virtual Try On</Text>
         <View style={styles.headerRight}>
-          <Pressable style={styles.iconBtn}>
-            <Clock size={18} color={Colors.textPrimary} />
-          </Pressable>
           <View style={styles.avatarSmall}>
-            <Text style={styles.avatarSmallText}>U</Text>
+            <Text style={styles.avatarSmallText}>{initials}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -162,12 +193,12 @@ export default function VirtualTryOnResultScreen() {
         </View>
       </ScrollView>
 
-      {/* Generate CTA */}
+      {/* Generate + Save CTA */}
       <SafeAreaView edges={['bottom']} style={styles.ctaWrapper}>
         <Pressable
           style={[styles.generateBtn, generating && { opacity: 0.6 }]}
           onPress={handleGenerate}
-          disabled={generating}
+          disabled={generating || saving}
         >
           {generating ? (
             <ActivityIndicator size="small" color="#FFF" />
@@ -176,7 +207,20 @@ export default function VirtualTryOnResultScreen() {
           )}
           <Text style={styles.generateText}>{generating ? 'Generating...' : 'Generate Image'}</Text>
         </Pressable>
-
+        {resultImage && (
+          <Pressable
+            style={[styles.saveLookBtn, saving && { opacity: 0.6 }]}
+            onPress={handleSaveLook}
+            disabled={saving || generating}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Download size={16} color="#FFF" />
+            )}
+            <Text style={styles.saveLookText}>{saving ? 'Saving...' : 'Save Look'}</Text>
+          </Pressable>
+        )}
       </SafeAreaView>
 
       {/* Loading Overlay */}
@@ -226,6 +270,8 @@ function createStyles(Colors: any) {
     ctaWrapper: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, alignItems: 'center', gap: 6 },
     generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', paddingVertical: 16, borderRadius: Radius.pill, backgroundColor: Colors.accentCoral },
     generateText: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: '#FFF' },
+    saveLookBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', paddingVertical: 14, borderRadius: Radius.pill, backgroundColor: Colors.accentGreen },
+    saveLookText: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: '#FFF' },
     costText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: Colors.textTertiary },
     loadingOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)', padding: 32 },
     loadingText: { fontFamily: Typography.serifFamilyBold, fontSize: 24, color: '#FFF', marginTop: 24, textAlign: 'center' },

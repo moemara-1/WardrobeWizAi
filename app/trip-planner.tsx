@@ -245,7 +245,13 @@ export default function TripPlannerScreen() {
           <Text style={styles.buildBtnText}>Build My Trip</Text>
         </Pressable>
 
-        <Pressable style={styles.savedBtn}>
+        <Pressable
+          style={styles.savedBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/saved-trips' as any);
+          }}
+        >
           <Bookmark size={16} color="#3B82F6" />
           <Text style={styles.savedBtnText}>Saved Trips</Text>
         </Pressable>

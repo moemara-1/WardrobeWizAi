@@ -6,9 +6,9 @@ import { ClosetItem } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, List, Pencil, Sparkles } from 'lucide-react-native';
+import { Check, Pencil, Sparkles } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -105,9 +105,11 @@ export default function TripResultScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const [currentPage, setCurrentPage] = useState(0);
+  const [tripSaved, setTripSaved] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const params = useLocalSearchParams<{ days?: string; destination?: string; occasion?: string }>();
   const closetItems = useClosetStore((s) => s.items);
+  const addSavedTrip = useClosetStore((s) => s.addSavedTrip);
 
   const numDays = parseInt(params.days || '3', 10);
   const destination = params.destination || 'Your Trip';
@@ -129,6 +131,23 @@ export default function TripResultScreen() {
     () => buildTripOutfits(closetItems, numDays, occasion),
     [closetItems, numDays, occasion],
   );
+
+  const handleSaveTrip = () => {
+    if (tripSaved) {
+      Alert.alert('Already Saved', 'This trip is already saved.');
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    addSavedTrip({
+      id: `trip_${Date.now()}`,
+      destination,
+      days: numDays,
+      occasion,
+      created_at: new Date().toISOString(),
+    });
+    setTripSaved(true);
+    Alert.alert('Trip Saved!', `Your ${destination} trip has been saved.`);
+  };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
     if (viewableItems.length > 0 && viewableItems[0].index != null) {
@@ -180,7 +199,6 @@ export default function TripResultScreen() {
             <ScrollView style={styles.page} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
               <View style={styles.dayHeader}>
                 <Text style={styles.dayLabel}>{item.label}</Text>
-                <Pressable style={styles.editBtn}><Pencil size={16} color={Colors.textPrimary} /></Pressable>
               </View>
 
               {/* AI Plan Card */}
@@ -232,9 +250,9 @@ export default function TripResultScreen() {
           <Pencil size={16} color={Colors.textPrimary} />
           <Text style={styles.editTripText}>Edit Trip</Text>
         </Pressable>
-        <Pressable style={styles.saveTripBtn} onPress={() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)}>
+        <Pressable style={[styles.saveTripBtn, tripSaved && { opacity: 0.6 }]} onPress={handleSaveTrip}>
           <Check size={16} color="#FFF" />
-          <Text style={styles.saveTripText}>Save Trip</Text>
+          <Text style={styles.saveTripText}>{tripSaved ? 'Saved!' : 'Save Trip'}</Text>
         </Pressable>
       </SafeAreaView>
     </View>
@@ -246,11 +264,9 @@ function createStyles(C: any) {
     container: { flex: 1, backgroundColor: C.background },
     headerArea: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
     tripMeta: { fontFamily: Typography.bodyFamilyBold, fontSize: 15, color: C.textPrimary, flex: 1, textTransform: 'capitalize' },
-    listBtn: { width: 36, height: 36, borderRadius: Radius.sm, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
     page: { width: SCREEN_WIDTH, paddingHorizontal: 16 },
-    dayHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, marginTop: 8 },
+    dayHeader: { marginBottom: 16, marginTop: 8 },
     dayLabel: { fontFamily: Typography.bodyFamilyBold, fontSize: 22, color: C.textPrimary },
-    editBtn: { width: 36, height: 36, borderRadius: Radius.sm, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center' },
     aiCard: { backgroundColor: C.cardSurface, borderRadius: Radius.lg, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: C.border, gap: 6 },
     aiCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
     aiCardTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 13, color: '#3B82F6' },

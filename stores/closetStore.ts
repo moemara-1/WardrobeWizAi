@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { ClosetItem, ClothingCategory, Collection, DigitalTwin, GeneratedLook, Outfit, SavedFit, UserPost, UserProfileData } from '@/types';
+import { ClosetItem, ClothingCategory, Collection, DigitalTwin, GeneratedLook, Outfit, SavedFit, SavedTrip, UserPost, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -39,6 +38,9 @@ interface ClosetState {
 
     // Saved Fits
     savedFits: SavedFit[];
+
+    // Saved Trips
+    savedTrips: SavedTrip[];
 
     // Generated Looks (VTON results)
     generatedLooks: GeneratedLook[];
@@ -81,6 +83,10 @@ interface ClosetState {
 
     addSavedFit: (fit: SavedFit) => void;
     deleteSavedFit: (id: string) => void;
+
+    // Saved Trips
+    addSavedTrip: (trip: SavedTrip) => void;
+    deleteSavedTrip: (id: string) => void;
 
     // Posts
     posts: UserPost[];
@@ -135,13 +141,10 @@ const syncToSupabase = {
                 updated_at: item.updated_at || new Date().toISOString(),
             });
             if (error) {
-                console.error('[Supabase Error] upsertItem:', JSON.stringify(error, null, 2));
-                Alert.alert('Item Sync Failed', `Error saving to cloud: ${error.message} - ${error.details || ''}`);
-                throw error;
+                console.error('[Supabase] upsertItem failed:', error.message);
             }
         } catch (e: any) {
-            console.error('Sync upsertItem failed:', e);
-            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
+            console.error('[Supabase] upsertItem exception:', e?.message);
         }
     },
 
@@ -168,13 +171,10 @@ const syncToSupabase = {
                 created_at: outfit.created_at,
             });
             if (error) {
-                console.error('[Supabase Error] upsertOutfit:', JSON.stringify(error, null, 2));
-                Alert.alert('Outfit Sync Failed', `Error saving to cloud: ${error.message}`);
-                throw error;
+                console.error('[Supabase] upsertOutfit failed:', error.message);
             }
         } catch (e: any) {
-            console.error('Sync upsertOutfit failed:', e);
-            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
+            console.error('[Supabase] upsertOutfit exception:', e?.message);
         }
     },
 
@@ -232,12 +232,10 @@ const syncToSupabase = {
                 created_at: post.created_at,
             });
             if (error) {
-                console.error('[Supabase Error] upsertPost:', JSON.stringify(error, null, 2));
-                Alert.alert('Post Sync Failed', `Error saving to cloud: ${error.message}`);
+                console.error('[Supabase] upsertPost failed:', error.message);
             }
         } catch (e: any) {
-            console.error('Sync upsertPost failed:', e);
-            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
+            console.error('[Supabase] upsertPost exception:', e?.message);
         }
     },
 
@@ -260,13 +258,10 @@ const syncToSupabase = {
                 updated_at: new Date().toISOString(),
             });
             if (error) {
-                console.error('[Supabase Error] upsertProfile:', JSON.stringify(error, null, 2));
-                Alert.alert('Profile Sync Failed', `Error saving to cloud: ${error.message}`);
-                throw error;
+                console.error('[Supabase] upsertProfile failed:', error.message);
             }
         } catch (e: any) {
-            console.error('Sync upsertProfile failed:', e);
-            Alert.alert('Sync Error', `Could not reach database: ${e.message}`);
+            console.error('[Supabase] upsertProfile exception:', e?.message);
         }
     },
 };
@@ -291,6 +286,7 @@ export const useClosetStore = create<ClosetState>()(
             canvasItem: null,
             canvasOutfit: null,
             savedFits: [],
+            savedTrips: [],
             generatedLooks: [],
             posts: [],
             collections: [],
@@ -410,6 +406,10 @@ export const useClosetStore = create<ClosetState>()(
             addSavedFit: (fit) => set((state) => ({ savedFits: [fit, ...state.savedFits] })),
             deleteSavedFit: (id) => set((state) => ({ savedFits: state.savedFits.filter((f) => f.id !== id) })),
 
+            // Saved Trips
+            addSavedTrip: (trip: SavedTrip) => set((state) => ({ savedTrips: [trip, ...state.savedTrips] })),
+            deleteSavedTrip: (id: string) => set((state) => ({ savedTrips: state.savedTrips.filter((t) => t.id !== id) })),
+
             // Generated Looks
             addGeneratedLook: (look) => set((state) => ({ generatedLooks: [look, ...state.generatedLooks] })),
             deleteGeneratedLook: (id) => set((state) => ({ generatedLooks: state.generatedLooks.filter((l) => l.id !== id) })),
@@ -476,6 +476,7 @@ export const useClosetStore = create<ClosetState>()(
                 outfits: state.outfits,
                 digitalTwin: state.digitalTwin,
                 savedFits: state.savedFits,
+                savedTrips: state.savedTrips,
                 generatedLooks: state.generatedLooks,
                 posts: state.posts,
                 collections: state.collections,

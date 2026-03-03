@@ -335,14 +335,16 @@ function EditProfileModal({ visible, onClose, userProfile, onSave, digitalTwin }
   const Colors = useThemeColors();
   const [username, setUsername] = useState(userProfile.username);
   const [bio, setBio] = useState(userProfile.bio);
-  const [pfpUrl, setPfpUrl] = useState(userProfile.pfp_url);
+  const [pfpLocalUri, setPfpLocalUri] = useState<string | undefined>(userProfile.pfp_url);
+  const [saving, setSaving] = useState(false);
   const styles = useMemo(() => createEditProfileStyles(Colors), [Colors]);
+  const userId = useClosetStore((s) => s.userId);
 
   React.useEffect(() => {
     if (visible) {
       setUsername(userProfile.username);
       setBio(userProfile.bio);
-      setPfpUrl(userProfile.pfp_url);
+      setPfpLocalUri(userProfile.pfp_url);
     }
   }, [visible, userProfile]);
 
@@ -354,7 +356,27 @@ function EditProfileModal({ visible, onClose, userProfile, onSave, digitalTwin }
       aspect: [1, 1],
     });
     if (!result.canceled && result.assets[0]) {
-      setPfpUrl(result.assets[0].uri);
+      setPfpLocalUri(result.assets[0].uri);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!username.trim()) {
+      Alert.alert('Username Required', 'Please enter a username.');
+      return;
+    }
+    setSaving(true);
+    try {
+      let finalPfpUrl = pfpLocalUri;
+      // Only upload if it's a new local file (not already a remote URL)
+      if (pfpLocalUri && !pfpLocalUri.startsWith('http') && userId) {
+        finalPfpUrl = await uploadImage(pfpLocalUri, userId, 'avatar');
+      }
+      onSave({ username: username.trim(), bio, pfp_url: finalPfpUrl });
+    } catch (e) {
+      Alert.alert('Upload Failed', 'Could not upload profile picture. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -364,19 +386,23 @@ function EditProfileModal({ visible, onClose, userProfile, onSave, digitalTwin }
     <Modal visible animationType="slide" presentationStyle="pageSheet">
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={onClose}>
+          <Pressable onPress={onClose} disabled={saving}>
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
           <Text style={styles.title}>Edit Profile</Text>
-          <Pressable onPress={() => onSave({ username, bio, pfp_url: pfpUrl })}>
-            <Text style={styles.saveText}>Save</Text>
+          <Pressable onPress={handleSave} disabled={saving}>
+            {saving ? (
+              <ActivityIndicator size="small" color={Colors.accentGreen} />
+            ) : (
+              <Text style={styles.saveText}>Save</Text>
+            )}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.body}>
-          <Pressable style={styles.pfpSection} onPress={handleChangePfp}>
+          <Pressable style={styles.pfpSection} onPress={handleChangePfp} disabled={saving}>
             <View style={styles.pfpCircle}>
-              {pfpUrl ? (
-                <Image source={{ uri: pfpUrl }} style={styles.pfpImage} />
+              {pfpLocalUri ? (
+                <Image source={{ uri: pfpLocalUri }} style={styles.pfpImage} />
               ) : (
                 <User size={32} color={Colors.textTertiary} />
               )}
@@ -384,7 +410,7 @@ function EditProfileModal({ visible, onClose, userProfile, onSave, digitalTwin }
             <Text style={styles.changePfpText}>Change Photo</Text>
           </Pressable>
           <Text style={styles.label}>Username</Text>
-          <TextInput style={styles.input} value={username} onChangeText={setUsername} placeholder="Username" placeholderTextColor={Colors.textTertiary} />
+          <TextInput style={styles.input} value={username} onChangeText={setUsername} placeholder="Username" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
           <Text style={styles.label}>Bio</Text>
           <TextInput style={[styles.input, styles.bioInput]} value={bio} onChangeText={setBio} placeholder="Write a bio..." placeholderTextColor={Colors.textTertiary} multiline />
         </ScrollView>

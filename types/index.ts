@@ -174,3 +174,11 @@ export interface Collection {
     outfit_ids: string[];
     created_at: string;
 }
+
+export interface SavedTrip {
+    id: string;
+    destination: string;
+    days: number;
+    occasion: string;
+    created_at: string;
+}

@@ -104,12 +104,6 @@ export default function SettingsScreen() {
     );
   };
 
-  const cycleTheme = () => {
-    Haptics.selectionAsync();
-    const nextMode = mode === 'system' ? 'dark' : mode === 'dark' ? 'light' : 'system';
-    setMode(nextMode);
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
