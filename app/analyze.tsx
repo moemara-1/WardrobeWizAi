@@ -326,28 +326,27 @@ export default function AnalyzeScreen() {
       }
       setStep('generate', 'done');
 
-      // Step 3: Research each piece in parallel (Backgrounded)
+      // Step 3: Research each piece in parallel
+      setStage('researching');
+      setStep('research', 'active');
+      const researchPromises = pieces.map(async (piece, idx) => {
+        try {
+          const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
+          setDetectedPieces((prev) =>
+            prev.map((p, i) => i === idx ? {
+              ...p,
+              estimatedValue: research.estimated_value ? String(research.estimated_value) : p.estimatedValue,
+              brand: research.brand || p.brand,
+              tags: research.tags.length > 0 ? research.tags : p.tags,
+              garmentType: research.subcategory || p.garmentType,
+            } : p)
+          );
+        } catch { /* ignore research failures */ }
+      });
+
+      await Promise.allSettled(researchPromises);
       setStep('research', 'done');
       setStage('done');
-
-      (async () => {
-        const researchPromises = pieces.map(async (piece, idx) => {
-          try {
-            const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
-            setDetectedPieces((prev) =>
-              prev.map((p, i) => i === idx ? {
-                ...p,
-                estimatedValue: research.estimated_value ? String(research.estimated_value) : p.estimatedValue,
-                brand: research.brand || p.brand,
-                tags: research.tags.length > 0 ? research.tags : p.tags,
-                garmentType: research.subcategory || p.garmentType,
-              } : p)
-            );
-          } catch { /* ignore research failures */ }
-        });
-
-        await Promise.allSettled(researchPromises);
-      })();
     } catch (err) {
       setStage('error');
       setErrorMsg(err instanceof Error ? err.message : 'Could not detect pieces in this photo. Try a clearer image or zoom in closer.');
@@ -379,7 +378,7 @@ export default function AnalyzeScreen() {
         description: `Extract ONLY the ${richDescription} from this outfit photo.Remove the person, background, and all other clothing items.Show just the ${piece.category} item alone on a white background, fully visible from top to bottom.`,
       };
 
-      const cleanUri = await regenerateCleanImage(originalUri, null, 'add-item-bria');
+      const cleanUri = await regenerateCleanImage(originalUri, tempProduct, 'detect-fit-seedream');
 
       setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: cleanUri, isCleaning: false } : p));
 
