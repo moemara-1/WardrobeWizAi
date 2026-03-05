@@ -180,5 +180,11 @@ export interface SavedTrip {
     destination: string;
     days: number;
     occasion: string;
+    // We store the DayOutfit items directly so the AI generation doesn't regenerate when reopening a saved trip
+    outfits?: {
+        label: string;
+        items: { name: string; category: string; imageUrl: string; reused: boolean }[];
+        aiPlan?: { outfitSuggestion: string; activities: string; packingTips: string };
+    }[];
     created_at: string;
 }

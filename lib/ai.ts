@@ -352,6 +352,28 @@ export async function generateTripPlan(
     closetSummary: string,
 ): Promise<TripDayPlan[]> {
     const destText = destinations.join(', ');
+
+    // Fetch live weather context
+    let weatherContext = '';
+    try {
+        const weatherPromises = destinations.map(async (city) => {
+            const raw = city.split(',')[0].trim();
+            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${raw}&appid=REDACTED_OPENWEATHERMAP_KEY&units=imperial`);
+            if (res.ok) {
+                const data = await res.json();
+                return `${city}: ${Math.round(data.main.temp)}\u00B0F and ${data.weather[0].description}`;
+            }
+            return null;
+        });
+        const results = (await Promise.all(weatherPromises)).filter(Boolean);
+        if (results.length > 0) {
+            weatherContext = `\nCurrent Weather Info:\n${results.join('\n')}`;
+        }
+    } catch {
+        // Fallback gracefully without weather
+        console.warn('Failed to fetch weather for trip generator');
+    }
+
     const content = await callDeepInfra({
         model: TEXT_MODEL,
         messages: [
@@ -361,7 +383,7 @@ export async function generateTripPlan(
             },
             {
                 role: 'user',
-                content: `Plan a ${days}-day ${occasion} trip to ${destText}.
+                content: `Plan a ${days}-day ${occasion} trip to ${destText}.${weatherContext}
 
 The traveler's closet includes: ${closetSummary || 'a mix of casual and smart casual pieces'}
 

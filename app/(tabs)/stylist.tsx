@@ -234,6 +234,7 @@ export default function StylistScreen() {
   const [selectedAccessories, setSelectedAccessories] = useState<ClosetItem[]>([]);
   const [showFitsPicker, setShowFitsPicker] = useState(false);
   const [canvasItems, setCanvasItems] = useState<CanvasItemEntry[]>([]);
+  const [localWeatherLoaded, setLocalWeatherLoaded] = useState(false);
 
   const items = useClosetStore((s) => s.items);
   const outfits = useClosetStore((s) => s.outfits);
@@ -262,6 +263,33 @@ export default function StylistScreen() {
     });
     setSavedThisOutfit(false);
   }, []);
+
+  useEffect(() => {
+    async function fetchLocalWeatherForStylist() {
+      if (localWeatherLoaded) return;
+      try {
+        const ipRes = await fetch('https://get.geojs.io/v1/ip/geo.json');
+        const ipData = await ipRes.json();
+        const city = ipData.city || 'New York';
+        const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=REDACTED_OPENWEATHERMAP_KEY&units=imperial`);
+        const weatherData = await weatherRes.json();
+        const temp = Math.round(weatherData.main.temp);
+
+        if (temp < 60) {
+          setWeatherFilter(['cold']);
+        } else if (temp > 75) {
+          setWeatherFilter(['hot']);
+        } else {
+          setWeatherFilter(['warm']);
+        }
+        setLocalWeatherLoaded(true);
+      } catch (err) {
+        // fail silently for canvas
+        setLocalWeatherLoaded(true);
+      }
+    }
+    fetchLocalWeatherForStylist();
+  }, [localWeatherLoaded]);
 
   const removeCanvasItem = useCallback((canvasId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

@@ -16,6 +16,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface DayOutfit {
   label: string;
   items: { name: string; category: string; imageUrl: string; reused: boolean }[];
+  aiPlan?: TripDayPlan;
 }
 
 // Simple slot-based outfit builder from real closet items
@@ -107,7 +108,7 @@ export default function TripResultScreen() {
   const [currentPage, setCurrentPage] = useState(0);
   const [tripSaved, setTripSaved] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const params = useLocalSearchParams<{ days?: string; destination?: string; occasion?: string }>();
+  const params = useLocalSearchParams<{ days?: string; destination?: string; occasion?: string; outfits?: string }>();
   const closetItems = useClosetStore((s) => s.items);
   const addSavedTrip = useClosetStore((s) => s.addSavedTrip);
 
@@ -118,18 +119,36 @@ export default function TripResultScreen() {
   const [aiPlans, setAiPlans] = useState<TripDayPlan[]>([]);
   const [aiLoading, setAiLoading] = useState(true);
 
+  // Parse outfits from params if we are viewing a previously saved trip
+  const existingOutfits = useMemo(() => {
+    if (!params.outfits) return null;
+    try {
+      return JSON.parse(params.outfits as string) as DayOutfit[];
+    } catch {
+      return null;
+    }
+  }, [params.outfits]);
+
   useEffect(() => {
+    if (existingOutfits) {
+      // If we loaded from a saved trip, extract the AI plans back out
+      const extractedPlans = existingOutfits.map(o => o.aiPlan as TripDayPlan);
+      setAiPlans(extractedPlans);
+      setAiLoading(false);
+      return;
+    }
+
     const destinations = destination.split(',').map(d => d.trim()).filter(Boolean);
     const closetSummary = closetItems.slice(0, 20).map(i => `${i.name} (${i.category}${i.brand ? `, ${i.brand}` : ''})`).join(', ');
     generateTripPlan(destinations, occasion, numDays, closetSummary)
       .then(setAiPlans)
       .catch(() => setAiPlans([]))
       .finally(() => setAiLoading(false));
-  }, [destination, occasion, numDays]);
+  }, [destination, occasion, numDays, existingOutfits]);
 
   const tripDays = useMemo(
-    () => buildTripOutfits(closetItems, numDays, occasion),
-    [closetItems, numDays, occasion],
+    () => existingOutfits || buildTripOutfits(closetItems, numDays, occasion),
+    [closetItems, numDays, occasion, existingOutfits],
   );
 
   const handleSaveTrip = () => {
@@ -137,12 +156,20 @@ export default function TripResultScreen() {
       Alert.alert('Already Saved', 'This trip is already saved.');
       return;
     }
+
+    // Attach the actual generated items and AI plan to the saved object
+    const dayOutfits = tripDays.map((td, index) => ({
+      ...td,
+      aiPlan: aiPlans[index] || undefined,
+    }));
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     addSavedTrip({
       id: `trip_${Date.now()}`,
       destination,
       days: numDays,
       occasion,
+      outfits: dayOutfits,
       created_at: new Date().toISOString(),
     });
     setTripSaved(true);

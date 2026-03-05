@@ -46,7 +46,21 @@ export default function SavedTripsScreen() {
                     </View>
                 }
                 renderItem={({ item }) => (
-                    <View style={styles.tripCard}>
+                    <Pressable
+                        style={styles.tripCard}
+                        onPress={() => {
+                            Haptics.selectionAsync();
+                            router.push({
+                                pathname: '/trip-result',
+                                params: {
+                                    days: String(item.days),
+                                    destination: item.destination,
+                                    occasion: item.occasion,
+                                    outfits: item.outfits ? JSON.stringify(item.outfits) : undefined,
+                                }
+                            } as any);
+                        }}
+                    >
                         <View style={styles.tripInfo}>
                             <Text style={styles.destinationText}>{item.destination}</Text>
                             <View style={styles.metaRow}>
@@ -66,7 +80,7 @@ export default function SavedTripsScreen() {
                         >
                             <Trash2 size={18} color={Colors.accentCoral} />
                         </Pressable>
-                    </View>
+                    </Pressable>
                 )}
             />
         </View>
