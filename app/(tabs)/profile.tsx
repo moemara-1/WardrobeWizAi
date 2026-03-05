@@ -58,23 +58,35 @@ export default function ProfileScreen() {
   const userProfile = useClosetStore((s) => s.userProfile);
   const updateUserProfile = useClosetStore((s) => s.updateUserProfile);
   const addItem = useClosetStore((s) => s.addItem);
+  const addOutfit = useClosetStore((s) => s.addOutfit);
+  const addSavedTrip = useClosetStore((s) => s.addSavedTrip);
 
   const injectDemoData = useCallback(() => {
-    Alert.alert('Load Demo Data?', 'This will inject 12 high-quality items into your closet for App Store screenshots.', [
+    Alert.alert('Load Full Demo Data?', 'This will inject high-quality items, outfits, posts, and trips for App Store screenshots.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Inject',
         style: 'default',
         onPress: async () => {
-          const { generateDemoItems } = await import('@/utils/demoData');
+          const { generateDemoItems, generateDemoOutfits, generateDemoPosts, generateDemoTrips } = await import('@/utils/demoData');
           const demoItems = generateDemoItems();
           demoItems.forEach(item => addItem(item));
+
+          const demoOutfits = generateDemoOutfits(demoItems);
+          demoOutfits.forEach(outfit => addOutfit(outfit));
+
+          const demoPosts = generateDemoPosts(demoItems);
+          demoPosts.forEach(post => addPost(post));
+
+          const demoTrips = generateDemoTrips();
+          demoTrips.forEach(trip => addSavedTrip(trip));
+
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert('Success', '12 demo items added! Navigate to your closet to see them.');
+          Alert.alert('Success', 'Full demo suite added throughout the app!');
         }
       }
     ]);
-  }, [addItem]);
+  }, [addItem, addOutfit, addPost, addSavedTrip]);
 
   const socialFollowers = useSocialStore((s) => s.followers);
   const socialFollowing = useSocialStore((s) => s.following);

@@ -1,5 +1,5 @@
 import { generateId } from '@/stores/closetStore';
-import { ClosetItem, ClothingCategory } from '@/types';
+import { ClosetItem, ClothingCategory, Outfit, SavedTrip, UserPost } from '@/types';
 
 export const DEMO_ITEMS: Partial<ClosetItem>[] = [
     {
@@ -101,11 +101,93 @@ export const DEMO_ITEMS: Partial<ClosetItem>[] = [
 ];
 
 export const generateDemoItems = (): ClosetItem[] => {
-    return DEMO_ITEMS.map(item => ({
+    return DEMO_ITEMS.map((item, index) => ({
         ...item,
-        id: generateId('demo'),
+        id: `demo_${index}_${generateId()}`,
         created_at: new Date().toISOString(),
         garment_slot: undefined, // will auto bucket if needed, but not strictly required
         detected_confidence: 0.99,
     } as ClosetItem));
+};
+
+export const DEMO_OUTFITS: Partial<Outfit>[] = [
+    {
+        name: 'Coffee Shop Casual',
+        item_ids: [],
+        collage_url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80',
+        seasons: ['fall', 'spring'],
+        ai_notes: 'Effortless and comfortable look perfect for a quick weekend outing.',
+    },
+    {
+        name: 'Evening Dinner Plan',
+        item_ids: [],
+        collage_url: 'https://images.unsplash.com/photo-1434389678369-184ea6daea17?auto=format&fit=crop&w=800&q=80',
+        seasons: ['summer'],
+        ai_notes: 'A sharper silhouette that stands out during dim lighting.',
+    },
+    {
+        name: 'Office Hybrid',
+        item_ids: [],
+        collage_url: 'https://images.unsplash.com/photo-1485230895905-ef171bb5723b?auto=format&fit=crop&w=800&q=80',
+        seasons: ['winter'],
+        ai_notes: 'Professional yet relaxed, great for modern workspaces.',
+    }
+];
+
+export const generateDemoOutfits = (demoItems: ClosetItem[]): Outfit[] => {
+    return DEMO_OUTFITS.map((outfit, index) => {
+        // just grab 3 random items from demo items to satisfy the array constraints
+        const itemsSubset = [demoItems[index % demoItems.length], demoItems[(index + 1) % demoItems.length], demoItems[(index + 2) % demoItems.length]];
+        return {
+            ...outfit,
+            id: generateId('demo_outfit'),
+            user_id: 'me',
+            items: itemsSubset,
+            item_ids: itemsSubset.map(i => i.id),
+            created_at: new Date().toISOString(),
+            pinned: true,
+        } as Outfit;
+    });
+};
+
+export const DEMO_POSTS: Partial<UserPost>[] = [
+    {
+        image_url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80',
+        caption: 'Loving this new vintage find matching with the classic sneakers. #ootd #vintage',
+    },
+    {
+        image_url: 'https://images.unsplash.com/photo-1549298240-0d8e60513026?auto=format&fit=crop&w=800&q=80',
+        caption: 'Street style essentials keeping me warm today ☕❄️',
+    },
+    {
+        image_url: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=800&q=80',
+        caption: 'When the layers hit just right. Ready for the weekend trip.',
+    },
+    {
+        image_url: 'https://images.unsplash.com/photo-1550614000-4b95d415d888?auto=format&fit=crop&w=800&q=80',
+        caption: 'Minimalism at its peak. Can never go wrong with these shades.',
+    }
+];
+
+export const generateDemoPosts = (demoItems: ClosetItem[]): UserPost[] => {
+    return DEMO_POSTS.map((post, index) => ({
+        ...post,
+        id: generateId('demo_post'),
+        tagged_item_ids: [demoItems[index % demoItems.length].id],
+        created_at: new Date().toISOString(),
+    } as UserPost));
+};
+
+export const DEMO_TRIPS: Partial<SavedTrip>[] = [
+    { destination: 'Paris, France', days: 5, occasion: 'vacation' },
+    { destination: 'Tokyo, Japan', days: 7, occasion: 'fun' },
+    { destination: 'New York City, NY', days: 3, occasion: 'business' },
+];
+
+export const generateDemoTrips = (): SavedTrip[] => {
+    return DEMO_TRIPS.map(trip => ({
+        ...trip,
+        id: generateId('demo_trip'),
+        created_at: new Date().toISOString(),
+    } as SavedTrip));
 };
