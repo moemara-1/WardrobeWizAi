@@ -52,28 +52,43 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const items = useClosetStore((s) => s.items);
   const outfits = useClosetStore((s) => s.outfits);
-  const digitalTwin = useClosetStore((s) => s.digitalTwin);
   const posts = useClosetStore((s) => s.posts);
+  const savedTrips = useClosetStore((s) => s.savedTrips);
+  const digitalTwin = useClosetStore((s) => s.digitalTwin);
+
   const addPost = useClosetStore((s) => s.addPost);
+  const deletePost = useClosetStore((s) => s.deletePost);
   const userProfile = useClosetStore((s) => s.userProfile);
   const updateUserProfile = useClosetStore((s) => s.updateUserProfile);
   const addItem = useClosetStore((s) => s.addItem);
+  const deleteItem = useClosetStore((s) => s.deleteItem);
   const addOutfit = useClosetStore((s) => s.addOutfit);
+  const deleteOutfit = useClosetStore((s) => s.deleteOutfit);
   const addSavedTrip = useClosetStore((s) => s.addSavedTrip);
+  const deleteSavedTrip = useClosetStore((s) => s.deleteSavedTrip);
 
-  const injectDemoData = useCallback(() => {
-    Alert.alert('Load Full Demo Data?', 'This will inject high-quality items, outfits, posts, and trips for App Store screenshots.', [
+  const manageDemoData = useCallback(() => {
+    Alert.alert('Manage Demo Data', 'Would you like to inject or remove demo data?', [
       { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove All',
+        style: 'destructive',
+        onPress: () => {
+          items.filter(i => i.id.startsWith('demo_')).forEach(i => deleteItem(i.id));
+          outfits.filter(o => o.id.startsWith('demo_')).forEach(o => deleteOutfit(o.id));
+          posts.filter(p => p.id.startsWith('demo_')).forEach(p => deletePost(p.id));
+          savedTrips.filter(t => t.id.startsWith('demo_')).forEach(t => deleteSavedTrip(t.id));
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Cleared', 'All demo data has been cleared from your closet and feeds.');
+        }
+      },
       {
         text: 'Inject',
         style: 'default',
         onPress: async () => {
-          const { generateDemoItems, generateDemoOutfits, generateDemoPosts, generateDemoTrips } = await import('@/utils/demoData');
+          const { generateDemoItems, generateDemoPosts, generateDemoTrips } = await import('@/utils/demoData');
           const demoItems = generateDemoItems();
           demoItems.forEach(item => addItem(item));
-
-          const demoOutfits = generateDemoOutfits(demoItems);
-          demoOutfits.forEach(outfit => addOutfit(outfit));
 
           const demoPosts = generateDemoPosts(demoItems);
           demoPosts.forEach(post => addPost(post));
@@ -86,7 +101,7 @@ export default function ProfileScreen() {
         }
       }
     ]);
-  }, [addItem, addOutfit, addPost, addSavedTrip]);
+  }, [items, outfits, posts, savedTrips, addItem, deleteItem, addPost, deletePost, addSavedTrip, deleteSavedTrip, deleteOutfit]);
 
   const socialFollowers = useSocialStore((s) => s.followers);
   const socialFollowing = useSocialStore((s) => s.following);
@@ -122,7 +137,7 @@ export default function ProfileScreen() {
           <>
             {/* Header row */}
             <View style={styles.headerRow}>
-              <Pressable onLongPress={injectDemoData} delayLongPress={1500}>
+              <Pressable onLongPress={manageDemoData} delayLongPress={1500}>
                 <Text style={styles.screenTitle}>Profile</Text>
               </Pressable>
               <Pressable

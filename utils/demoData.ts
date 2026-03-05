@@ -1,5 +1,5 @@
 import { generateId } from '@/stores/closetStore';
-import { ClosetItem, ClothingCategory, Outfit, SavedTrip, UserPost } from '@/types';
+import { ClosetItem, ClothingCategory, SavedTrip, UserPost } from '@/types';
 
 export const DEMO_ITEMS: Partial<ClosetItem>[] = [
     {
@@ -7,96 +7,64 @@ export const DEMO_ITEMS: Partial<ClosetItem>[] = [
         category: 'top' as ClothingCategory,
         brand: 'Everlane',
         colors: ['white'],
-        image_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80',
+        image_url: 'https://fakestoreapi.com/img/71-3HjGNDUL._AC_SY879._SX._UX._SY._UY_.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/71-3HjGNDUL._AC_SY879._SX._UX._SY._UY_.jpg',
     },
     {
-        name: 'Vintage Denim Jeans',
-        category: 'bottom' as ClothingCategory,
-        brand: 'Levi\'s',
+        name: 'Cotton Jacket',
+        category: 'outerwear' as ClothingCategory,
+        brand: 'Levis',
+        colors: ['green'],
+        image_url: 'https://fakestoreapi.com/img/71li-ujtlVG._AC_UX679_.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/71li-ujtlVG._AC_UX679_.jpg',
+    },
+    {
+        name: 'Casual Slim Fit Shirt',
+        category: 'top' as ClothingCategory,
+        brand: 'J.Crew',
         colors: ['blue'],
-        image_url: 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=800&q=80',
+        image_url: 'https://fakestoreapi.com/img/71YXzeOuslL._AC_UY879_.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/71YXzeOuslL._AC_UY879_.jpg',
     },
     {
-        name: 'Leather Biker Jacket',
+        name: 'Bi-Color T-Shirt',
+        category: 'top' as ClothingCategory,
+        brand: 'Nike',
+        colors: ['red', 'white'],
+        image_url: 'https://fakestoreapi.com/img/51Y5NI-I5jL._AC_UX679_.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/51Y5NI-I5jL._AC_UX679_.jpg',
+    },
+    {
+        name: 'Leather Jacket',
         category: 'outerwear' as ClothingCategory,
         brand: 'AllSaints',
         colors: ['black'],
-        image_url: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=800&q=80',
+        image_url: 'https://fakestoreapi.com/img/81XH0e8fefL._AC_UY879_.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/81XH0e8fefL._AC_UY879_.jpg',
     },
     {
-        name: 'Air Force 1 Sneakers',
-        category: 'shoe' as ClothingCategory,
-        brand: 'Nike',
-        colors: ['white'],
-        image_url: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        name: 'Silk Button-Up',
-        category: 'top' as ClothingCategory,
-        brand: 'Reformation',
-        colors: ['beige'],
-        image_url: 'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        name: 'Pleated Midi Skirt',
-        category: 'bottom' as ClothingCategory,
-        brand: 'Aritzia',
-        colors: ['green'],
-        image_url: 'https://images.unsplash.com/photo-1582142407894-ec85a1260a46?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1582142407894-ec85a1260a46?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        name: 'Cashmere Sweater',
-        category: 'top' as ClothingCategory,
-        brand: 'Naadam',
+        name: 'Raincoat Outerwear',
+        category: 'outerwear' as ClothingCategory,
+        brand: 'Patagonia',
         colors: ['grey'],
-        image_url: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80',
+        image_url: 'https://fakestoreapi.com/img/71HblAHs5xL._AC_UY879_-2.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/71HblAHs5xL._AC_UY879_-2.jpg',
     },
     {
-        name: 'Chelsea Boots',
-        category: 'shoe' as ClothingCategory,
-        brand: 'Dr. Martens',
-        colors: ['black'],
-        image_url: 'https://images.unsplash.com/photo-1638247025967-b4e38f787b76?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1638247025967-b4e38f787b76?auto=format&fit=crop&w=800&q=80',
+        name: 'Solid Short Sleeve',
+        category: 'top' as ClothingCategory,
+        brand: 'Uniqlo',
+        colors: ['red'],
+        image_url: 'https://fakestoreapi.com/img/71z3kpMAYsL._AC_UY879_.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/71z3kpMAYsL._AC_UY879_.jpg',
     },
     {
-        name: 'Classic Trench Coat',
-        category: 'outerwear' as ClothingCategory,
-        brand: 'Burberry',
-        colors: ['tan'],
-        image_url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        name: 'Crossbody Bag',
+        name: 'Everyday Backpack',
         category: 'bag' as ClothingCategory,
-        brand: 'Gucci',
-        colors: ['black'],
-        image_url: 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        name: 'Summer Linen Dress',
-        category: 'dress' as ClothingCategory,
-        brand: 'ZARA',
-        colors: ['white'],
-        image_url: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        name: 'Oversized Blazer',
-        category: 'outerwear' as ClothingCategory,
-        brand: 'Frankie Shop',
-        colors: ['brown'],
-        image_url: 'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=800&q=80',
-        clean_image_url: 'https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&w=800&q=80',
+        brand: 'Fjallraven',
+        colors: ['navy'],
+        image_url: 'https://fakestoreapi.com/img/81fPKd-2AYL._AC_SL1500_.jpg',
+        clean_image_url: 'https://fakestoreapi.com/img/81fPKd-2AYL._AC_SL1500_.jpg',
     }
 ];
 
@@ -110,45 +78,7 @@ export const generateDemoItems = (): ClosetItem[] => {
     } as ClosetItem));
 };
 
-export const DEMO_OUTFITS: Partial<Outfit>[] = [
-    {
-        name: 'Coffee Shop Casual',
-        item_ids: [],
-        collage_url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80',
-        seasons: ['fall', 'spring'],
-        ai_notes: 'Effortless and comfortable look perfect for a quick weekend outing.',
-    },
-    {
-        name: 'Evening Dinner Plan',
-        item_ids: [],
-        collage_url: 'https://images.unsplash.com/photo-1434389678369-184ea6daea17?auto=format&fit=crop&w=800&q=80',
-        seasons: ['summer'],
-        ai_notes: 'A sharper silhouette that stands out during dim lighting.',
-    },
-    {
-        name: 'Office Hybrid',
-        item_ids: [],
-        collage_url: 'https://images.unsplash.com/photo-1485230895905-ef171bb5723b?auto=format&fit=crop&w=800&q=80',
-        seasons: ['winter'],
-        ai_notes: 'Professional yet relaxed, great for modern workspaces.',
-    }
-];
-
-export const generateDemoOutfits = (demoItems: ClosetItem[]): Outfit[] => {
-    return DEMO_OUTFITS.map((outfit, index) => {
-        // just grab 3 random items from demo items to satisfy the array constraints
-        const itemsSubset = [demoItems[index % demoItems.length], demoItems[(index + 1) % demoItems.length], demoItems[(index + 2) % demoItems.length]];
-        return {
-            ...outfit,
-            id: generateId('demo_outfit'),
-            user_id: 'me',
-            items: itemsSubset,
-            item_ids: itemsSubset.map(i => i.id),
-            created_at: new Date().toISOString(),
-            pinned: true,
-        } as Outfit;
-    });
-};
+// Removed broken demo outfits array
 
 export const DEMO_POSTS: Partial<UserPost>[] = [
     {
@@ -166,6 +96,18 @@ export const DEMO_POSTS: Partial<UserPost>[] = [
     {
         image_url: 'https://images.unsplash.com/photo-1550614000-4b95d415d888?auto=format&fit=crop&w=800&q=80',
         caption: 'Minimalism at its peak. Can never go wrong with these shades.',
+    },
+    {
+        image_url: 'https://images.unsplash.com/photo-1520975954732-57dd22299614?auto=format&fit=crop&w=800&q=80',
+        caption: 'Going out tonight! What do we think of the new jacket? ✨',
+    },
+    {
+        image_url: 'https://images.unsplash.com/photo-1620012253295-c15bc3e6590d?auto=format&fit=crop&w=800&q=80',
+        caption: 'NYC street style is always undefeated. Taking inspo.',
+    },
+    {
+        image_url: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=800&q=80',
+        caption: 'Shopping day haul! Cant wait to scan these into the closet.',
     }
 ];
 
