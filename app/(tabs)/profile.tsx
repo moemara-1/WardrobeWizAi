@@ -57,6 +57,24 @@ export default function ProfileScreen() {
   const addPost = useClosetStore((s) => s.addPost);
   const userProfile = useClosetStore((s) => s.userProfile);
   const updateUserProfile = useClosetStore((s) => s.updateUserProfile);
+  const addItem = useClosetStore((s) => s.addItem);
+
+  const injectDemoData = useCallback(() => {
+    Alert.alert('Load Demo Data?', 'This will inject 12 high-quality items into your closet for App Store screenshots.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Inject',
+        style: 'default',
+        onPress: async () => {
+          const { generateDemoItems } = await import('@/utils/demoData');
+          const demoItems = generateDemoItems();
+          demoItems.forEach(item => addItem(item));
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Success', '12 demo items added! Navigate to your closet to see them.');
+        }
+      }
+    ]);
+  }, [addItem]);
 
   const socialFollowers = useSocialStore((s) => s.followers);
   const socialFollowing = useSocialStore((s) => s.following);
@@ -92,7 +110,9 @@ export default function ProfileScreen() {
           <>
             {/* Header row */}
             <View style={styles.headerRow}>
-              <Text style={styles.screenTitle}>Profile</Text>
+              <Pressable onLongPress={injectDemoData} delayLongPress={1500}>
+                <Text style={styles.screenTitle}>Profile</Text>
+              </Pressable>
               <Pressable
                 style={styles.settingsBtn}
                 onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/settings' as Href); }}
