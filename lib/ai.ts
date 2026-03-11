@@ -536,12 +536,20 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
             'outerwear', 'blazer', 'sandal',
         ]);
 
-        const clothingBoxes = visionObjects.filter(obj =>
-            clothingLabels.has(obj.name.toLowerCase()) || obj.score > 0.6
-        );
+        const excludeLabels = new Set([
+            'person', 'human', 'man', 'woman', 'boy', 'girl', 'face',
+            'animal', 'cat', 'dog', 'car', 'furniture', 'table', 'chair',
+            'plant', 'tree', 'building', 'food', 'drink', 'phone', 'laptop',
+        ]);
+
+        const clothingBoxes = visionObjects.filter(obj => {
+            const name = obj.name.toLowerCase();
+            if (excludeLabels.has(name)) return false;
+            return clothingLabels.has(name) || obj.score > 0.6;
+        });
 
         if (clothingBoxes.length > 0) {
-            if (__DEV__) console.log(`[DetectFit] Vision found ${clothingBoxes.length} objects, getting LLM details...`);
+            if (__DEV__) console.log(`[DetectFit] Vision found ${clothingBoxes.length} clothing objects, getting LLM details...`);
 
             const detectionSummary = clothingBoxes.map(obj => {
                 const verts = obj.boundingPoly.normalizedVertices;
@@ -551,23 +559,54 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
                     Math.round((verts[2]?.y ?? 0) * 100),
                     Math.round((verts[2]?.x ?? 0) * 100),
                 ];
-                return `${obj.name} at box [${box.join(',')}]`;
+                return `${obj.name} (confidence ${(obj.score * 100).toFixed(0)}%) at box [${box.join(',')}]`;
             }).join('\n');
+
+            const detailPrompt = `You are a fashion expert. An object detector found these items in an outfit photo:
+${detectionSummary}
+
+For EACH detected clothing item, provide detailed fashion analysis. DO NOT just repeat the detector labels — look at the actual image and describe each item precisely.
+
+Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
+
+IMPORTANT for "name": Be VERY specific and descriptive. Include color, style and type.
+  Good: "bright yellow bodycon midi dress", "white chunky platform sneakers", "oversized black leather bomber jacket"
+  Bad: "dress", "shoes", "jacket", "shorts", "outerwear"
+
+IMPORTANT for "colors": List ALL visible colors precisely.
+
+Return ONLY valid JSON:
+{
+  "detections": [
+    {
+      "name": "very specific descriptive name with colors",
+      "category": "category",
+      "brand": "Brand or Unknown",
+      "modelName": "Model or Unknown",
+      "estimatedValue": 50,
+      "colors": ["color"],
+      "confidence": 0.9,
+      "box_2d": [ymin, xmin, ymax, xmax]
+    }
+  ],
+  "overallStyle": "casual",
+  "occasion": "casual"
+}`;
 
             const content = await callDeepInfra({
                 model: VISION_MODEL,
                 messages: [
-                    { role: 'system', content: 'You are a fashion analysis API. You MUST respond with valid JSON only. No explanations, no markdown.' },
+                    { role: 'system', content: 'You are a fashion analysis API. You MUST respond with valid JSON only. No explanations, no markdown, no code fences.' },
                     {
                         role: 'user',
                         content: [
-                            { type: 'text', text: `Detected items:\n${detectionSummary}\n\nFor each item return JSON: {"detections":[{"name":"descriptive name","category":"top|bottom|outerwear|dress|shoe|accessory|bag|hat|jewelry|other","brand":"Brand","modelName":"Model","estimatedValue":50,"colors":["color"],"confidence":0.9,"box_2d":[ymin,xmin,ymax,xmax]}],"overallStyle":"casual","occasion":"everyday"}` },
+                            { type: 'text', text: detailPrompt },
                             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
                         ],
                     },
                 ],
-                max_tokens: 800,
-                temperature: 0.1,
+                max_tokens: 1000,
+                temperature: 0.2,
             });
 
             const parsed = parseJSON<OutfitAnalysis>(content);
@@ -586,6 +625,34 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
     // Strategy 2: LLM-only fallback
     if (__DEV__) console.log('[DetectFit] LLM-only fallback...');
 
+    const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item.
+
+Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
+
+For EACH item, provide its BOUNDING BOX (box_2d) as [ymin, xmin, ymax, xmax] using 0-100 scale.
+
+IMPORTANT for "name": Be VERY specific and descriptive. Include color, style and type.
+  Good: "bright yellow bodycon midi dress", "white chunky platform sneakers"
+  Bad: "dress", "shoes", "jacket"
+
+Return ONLY valid JSON:
+{
+  "detections": [
+    {
+      "name": "very specific descriptive name with colors",
+      "category": "top",
+      "brand": "Brand or Unknown",
+      "modelName": "Model or Unknown",
+      "estimatedValue": 50,
+      "colors": ["color"],
+      "confidence": 0.9,
+      "box_2d": [10, 10, 50, 50]
+    }
+  ],
+  "overallStyle": "casual",
+  "occasion": "casual"
+}`;
+
     const content = await callDeepInfra({
         model: VISION_MODEL,
         messages: [
@@ -593,13 +660,13 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
             {
                 role: 'user',
                 content: [
-                    { type: 'text', text: `Identify every clothing item. Return JSON: {"detections":[{"name":"descriptive name with color","category":"top|bottom|outerwear|dress|shoe|accessory|bag|hat|jewelry|other","brand":"Brand or Unknown","modelName":"Model or Unknown","estimatedValue":50,"colors":["color"],"confidence":0.9,"box_2d":[ymin,xmin,ymax,xmax]}],"overallStyle":"casual","occasion":"everyday"}` },
+                    { type: 'text', text: prompt },
                     { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
                 ],
             },
         ],
-        max_tokens: 800,
-        temperature: 0.1,
+        max_tokens: 1000,
+        temperature: 0.2,
     });
 
     if (__DEV__) console.log('[DetectFit] Raw:', content.slice(0, 200));
