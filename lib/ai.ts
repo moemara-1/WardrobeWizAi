@@ -513,7 +513,6 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
     const info = await FileSystem.getInfoAsync(preparedUri);
     if (!info.exists) throw new Error('Image file is no longer available. Please re-upload the photo.');
 
-    // Smaller image = faster upload + faster inference
     const { uri: resizedUri } = await manipulateAsync(
         preparedUri,
         [{ resize: { width: 512, height: 512 } }],
@@ -524,54 +523,88 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
         encoding: FileSystem.EncodingType.Base64,
     });
 
-    if (__DEV__) console.log('[DetectFit] Single LLM call for outfit detection...');
+    // Strategy 1: Google Vision for fast bounding boxes + LLM for details
+    try {
+        if (__DEV__) console.log('[DetectFit] Trying Google Vision...');
+        const visionObjects = await callGoogleVision(base64);
 
-    const prompt = `You are a fashion expert. Identify EVERY clothing item in this outfit photo.
+        const clothingLabels = new Set([
+            'clothing', 'shirt', 'pants', 'jeans', 'dress', 'skirt', 'jacket',
+            'coat', 'shoe', 'footwear', 'boot', 'sneaker', 'hat', 'bag',
+            'handbag', 'backpack', 'necklace', 'watch', 'glasses', 'sunglasses',
+            'top', 'shorts', 'sweater', 'hoodie', 'vest', 'belt', 'scarf',
+            'outerwear', 'blazer', 'sandal',
+        ]);
 
-Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
+        const clothingBoxes = visionObjects.filter(obj =>
+            clothingLabels.has(obj.name.toLowerCase()) || obj.score > 0.6
+        );
 
-For EACH item provide its bounding box (box_2d) as [ymin, xmin, ymax, xmax] on a 0-100 scale.
+        if (clothingBoxes.length > 0) {
+            if (__DEV__) console.log(`[DetectFit] Vision found ${clothingBoxes.length} objects, getting LLM details...`);
 
-"name": Be specific with color+style+type. Example: "light blue button-down shirt", "white chunky sneakers"
-"colors": List all visible colors precisely.
+            const detectionSummary = clothingBoxes.map(obj => {
+                const verts = obj.boundingPoly.normalizedVertices;
+                const box = [
+                    Math.round((verts[0]?.y ?? 0) * 100),
+                    Math.round((verts[0]?.x ?? 0) * 100),
+                    Math.round((verts[2]?.y ?? 0) * 100),
+                    Math.round((verts[2]?.x ?? 0) * 100),
+                ];
+                return `${obj.name} at box [${box.join(',')}]`;
+            }).join('\n');
 
-Return ONLY valid JSON:
-{
-  "detections": [
-    {
-      "name": "descriptive name",
-      "category": "top",
-      "brand": "Brand or Unknown",
-      "modelName": "Model or Unknown",
-      "estimatedValue": 50,
-      "colors": ["color"],
-      "confidence": 0.9,
-      "box_2d": [10, 10, 50, 50]
+            const content = await callDeepInfra({
+                model: VISION_MODEL,
+                messages: [
+                    { role: 'system', content: 'You are a fashion analysis API. You MUST respond with valid JSON only. No explanations, no markdown.' },
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: `Detected items:\n${detectionSummary}\n\nFor each item return JSON: {"detections":[{"name":"descriptive name","category":"top|bottom|outerwear|dress|shoe|accessory|bag|hat|jewelry|other","brand":"Brand","modelName":"Model","estimatedValue":50,"colors":["color"],"confidence":0.9,"box_2d":[ymin,xmin,ymax,xmax]}],"overallStyle":"casual","occasion":"everyday"}` },
+                            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+                        ],
+                    },
+                ],
+                max_tokens: 800,
+                temperature: 0.1,
+            });
+
+            const parsed = parseJSON<OutfitAnalysis>(content);
+            if (parsed.detections?.length > 0) {
+                return {
+                    detections: parsed.detections,
+                    overallStyle: parsed.overallStyle,
+                    occasion: parsed.occasion,
+                };
+            }
+        }
+    } catch (e) {
+        if (__DEV__) console.warn('[DetectFit] Google Vision path failed, trying LLM-only:', e);
     }
-  ],
-  "overallStyle": "casual",
-  "occasion": "everyday"
-}
 
-CRITICAL: Return ONLY raw JSON. No markdown. No explanation.`;
+    // Strategy 2: LLM-only fallback
+    if (__DEV__) console.log('[DetectFit] LLM-only fallback...');
 
     const content = await callDeepInfra({
         model: VISION_MODEL,
-        messages: [{
-            role: 'user',
-            content: [
-                { type: 'text', text: prompt },
-                { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            ],
-        }],
+        messages: [
+            { role: 'system', content: 'You are a fashion analysis API. You MUST respond with valid JSON only. No explanations, no markdown, no code fences.' },
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: `Identify every clothing item. Return JSON: {"detections":[{"name":"descriptive name with color","category":"top|bottom|outerwear|dress|shoe|accessory|bag|hat|jewelry|other","brand":"Brand or Unknown","modelName":"Model or Unknown","estimatedValue":50,"colors":["color"],"confidence":0.9,"box_2d":[ymin,xmin,ymax,xmax]}],"overallStyle":"casual","occasion":"everyday"}` },
+                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+                ],
+            },
+        ],
         max_tokens: 800,
-        temperature: 0.2,
+        temperature: 0.1,
     });
 
-    if (__DEV__) console.log('[DetectFit] Raw output:', content.slice(0, 100) + '...');
+    if (__DEV__) console.log('[DetectFit] Raw:', content.slice(0, 200));
 
     const parsed = parseJSON<OutfitAnalysis>(content);
-
     if (!parsed.detections || !Array.isArray(parsed.detections)) {
         parsed.detections = [];
     }
