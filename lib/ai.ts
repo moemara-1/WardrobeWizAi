@@ -513,124 +513,36 @@ export async function analyzeOutfitImage(imageUri: string): Promise<OutfitAnalys
     const info = await FileSystem.getInfoAsync(preparedUri);
     if (!info.exists) throw new Error('Image file is no longer available. Please re-upload the photo.');
 
+    // Smaller image = faster upload + faster inference
     const { uri: resizedUri } = await manipulateAsync(
         preparedUri,
-        [{ resize: { width: 768, height: 768 } }],
-        { compress: 0.8, format: SaveFormat.JPEG }
+        [{ resize: { width: 512, height: 512 } }],
+        { compress: 0.7, format: SaveFormat.JPEG }
     );
 
     const base64 = await FileSystem.readAsStringAsync(resizedUri, {
         encoding: FileSystem.EncodingType.Base64,
     });
 
-    // Strategy 1: Google Vision for fast bounding boxes + LLM for details
-    try {
-        if (__DEV__) console.log('[DetectFit] Trying Google Vision for fast detection...');
-        const visionObjects = await callGoogleVision(base64);
+    if (__DEV__) console.log('[DetectFit] Single LLM call for outfit detection...');
 
-        const clothingLabels = new Set([
-            'clothing', 'shirt', 'pants', 'jeans', 'dress', 'skirt', 'jacket',
-            'coat', 'shoe', 'footwear', 'boot', 'sneaker', 'hat', 'bag',
-            'handbag', 'backpack', 'necklace', 'watch', 'glasses', 'sunglasses',
-            'top', 'shorts', 'sweater', 'hoodie', 'vest', 'belt', 'scarf',
-            'outerwear', 'blazer', 'sandal',
-        ]);
+    const prompt = `You are a fashion expert. Identify EVERY clothing item in this outfit photo.
 
-        const clothingBoxes = visionObjects.filter(obj =>
-            clothingLabels.has(obj.name.toLowerCase()) || obj.score > 0.6
-        );
+Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
 
-        if (clothingBoxes.length > 0) {
-            if (__DEV__) console.log(`[DetectFit] Google Vision found ${clothingBoxes.length} objects, getting LLM details...`);
+For EACH item provide its bounding box (box_2d) as [ymin, xmin, ymax, xmax] on a 0-100 scale.
 
-            const detectionSummary = clothingBoxes.map(obj => {
-                const verts = obj.boundingPoly.normalizedVertices;
-                const box = [
-                    Math.round((verts[0]?.y ?? 0) * 100),
-                    Math.round((verts[0]?.x ?? 0) * 100),
-                    Math.round((verts[2]?.y ?? 0) * 100),
-                    Math.round((verts[2]?.x ?? 0) * 100),
-                ];
-                return `${obj.name} (confidence ${(obj.score * 100).toFixed(0)}%) at box [${box.join(',')}]`;
-            }).join('\n');
-
-            const detailPrompt = `You are a fashion expert. An object detector found these items in an outfit photo:
-${detectionSummary}
-
-For EACH detected clothing item, provide detailed fashion analysis. Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
+"name": Be specific with color+style+type. Example: "light blue button-down shirt", "white chunky sneakers"
+"colors": List all visible colors precisely.
 
 Return ONLY valid JSON:
 {
   "detections": [
     {
-      "name": "very specific descriptive name with colors",
-      "category": "category",
-      "brand": "Brand or Unknown",
-      "brandConfidence": 0.5,
-      "modelName": "Model or Unknown",
-      "estimatedValue": 50,
-      "colors": ["color"],
-      "confidence": 0.9,
-      "box_2d": [ymin, xmin, ymax, xmax]
-    }
-  ],
-  "overallStyle": "casual",
-  "occasion": "casual"
-}`;
-
-            const content = await callDeepInfra({
-                model: VISION_MODEL,
-                messages: [{
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: detailPrompt },
-                        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-                    ],
-                }],
-                max_tokens: 1000,
-                temperature: 0.2,
-            });
-
-            const parsed = parseJSON<OutfitAnalysis>(content);
-            if (parsed.detections?.length > 0) {
-                return {
-                    detections: parsed.detections,
-                    overallStyle: parsed.overallStyle,
-                    occasion: parsed.occasion,
-                };
-            }
-        }
-    } catch (e) {
-        if (__DEV__) console.warn('[DetectFit] Google Vision fast path failed, falling back to LLM-only:', e);
-    }
-
-    // Strategy 2: Full LLM fallback (original approach)
-    if (__DEV__) console.log('[DetectFit] Calling DeepInfra (Llama 3.2 Vision) full analysis...');
-
-    const prompt = `You are a fashion expert analyzing an outfit photo. Identify EVERY visible clothing item.
-
-Categories: top, bottom, outerwear, dress, shoe, accessory, bag, hat, jewelry, other.
-
-For EACH item, provide details and its BOUNDING BOX (box_2d) as [ymin, xmin, ymax, xmax] using 0-100 scale.
-You MUST find at least 1 item.
-
-IMPORTANT for "name": Be VERY specific and descriptive. Include color, style and type.
-  Good: "bright yellow bodycon midi dress", "white chunky platform sneakers", "oversized black leather bomber jacket"
-  Bad: "dress", "shoes", "jacket"
-
-IMPORTANT for "colors": List ALL visible colors precisely.
-  Good: ["bright yellow", "gold"], ["off-white", "cream"]
-  Bad: ["yellow"], ["white"]
-
-Return ONLY valid JSON in this exact format:
-{
-  "detections": [
-    {
-      "name": "very specific descriptive name with colors",
+      "name": "descriptive name",
       "category": "top",
-      "brand": "Brand",
-      "brandConfidence": 0.8,
-      "modelName": "Model",
+      "brand": "Brand or Unknown",
+      "modelName": "Model or Unknown",
       "estimatedValue": 50,
       "colors": ["color"],
       "confidence": 0.9,
@@ -638,10 +550,10 @@ Return ONLY valid JSON in this exact format:
     }
   ],
   "overallStyle": "casual",
-  "occasion": "casual"
+  "occasion": "everyday"
 }
 
-CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
+CRITICAL: Return ONLY raw JSON. No markdown. No explanation.`;
 
     const content = await callDeepInfra({
         model: VISION_MODEL,
@@ -652,7 +564,7 @@ CRITICAL: Return ONLY raw JSON. No markdown formatting. No explanation.`;
                 { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
             ],
         }],
-        max_tokens: 1000,
+        max_tokens: 800,
         temperature: 0.2,
     });
 
