@@ -423,15 +423,22 @@ export default function AnalyzeScreen() {
         if (pendingImport.overallStyle) setOverallStyle(pendingImport.overallStyle);
         if (pendingImport.occasion) setOccasion(pendingImport.occasion);
         setStep('detect', 'done');
+        setStage('done');
 
-        // Grab image dimensions too (since detection is skipped)
+        // Grab image dimensions then auto-generate all clean images sequentially
         if (imageUri) {
-          RNImage.getSize(imageUri, (width, height) => {
+          RNImage.getSize(imageUri, async (width, height) => {
             imageDimsRef.current = { width, height };
+
+            // Auto-generate clean images for all pieces with box_2d, one by one
+            const piecesWithBoxes = pendingImport.pieces.filter(p => p.box_2d && p.selected);
+            for (const piece of piecesWithBoxes) {
+              if (piece.box_2d) {
+                await processPieceImage(imageUri, piece.id, piece.box_2d, width, height, piece);
+              }
+            }
           });
         }
-
-        setStage('done');
         return;
       }
     }

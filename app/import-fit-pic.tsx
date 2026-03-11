@@ -38,7 +38,7 @@ export default function ImportFitPicScreen() {
     });
 
     // Go back to where they came from (usually feed or closet)
-    router.replace('/(tabs)/' as Href);
+    router.replace('/(tabs)/closet' as Href);
 
     // Run detection + research in background
     (async () => {
