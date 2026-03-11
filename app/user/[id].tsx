@@ -406,7 +406,7 @@ export default function UserProfileScreen() {
                     if (activeTab === 'closet') {
                         return (
                             <Pressable
-                                style={styles.gridTile}
+                                style={[styles.gridTile, styles.closetTile]}
                                 onPress={() => {
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                     router.push(`/item/${item.id}` as Href);
@@ -415,7 +415,7 @@ export default function UserProfileScreen() {
                                 <Image
                                     source={{ uri: item.clean_image_url || item.image_url }}
                                     style={styles.gridImage}
-                                    contentFit="cover"
+                                    contentFit="contain"
                                 />
                             </Pressable>
                         );
@@ -506,6 +506,7 @@ function createStyles(Colors: any) {
         tabItemActive: { borderBottomWidth: 2, borderBottomColor: Colors.textPrimary },
         gridTile: { flex: 1, aspectRatio: 1, maxWidth: TILE_SIZE, backgroundColor: Colors.surface, margin: GRID_GAP / 2, borderRadius: 2, overflow: 'hidden' },
         gridImage: { width: '100%', height: '100%' },
+        closetTile: { backgroundColor: '#FFFFFF' },
         outfitCard: { backgroundColor: Colors.surface, marginHorizontal: 16, marginVertical: 8, borderRadius: Radius.md, overflow: 'hidden', padding: 12 },
         outfitItems: { paddingVertical: 8, gap: 8 },
         outfitThumb: { width: 60, height: 60, borderRadius: Radius.sm, overflow: 'hidden', marginRight: 8 },
