@@ -1,6 +1,6 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { analyzeOutfitImage, researchClothingItem } from '@/lib/ai';
+import { analyzeOutfitImage } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClothingCategory, DetectedPiece } from '@/types';
 import { Href, router } from 'expo-router';
@@ -60,26 +60,9 @@ export function PendingImportsBanner() {
                     isCleaning: false,
                 }));
 
-                const researchedPieces = await Promise.all(
-                    pieces.map(async (piece) => {
-                        try {
-                            const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
-                            return {
-                                ...piece,
-                                estimatedValue: research.estimated_value ? String(research.estimated_value) : piece.estimatedValue,
-                                brand: research.brand || piece.brand,
-                                tags: research.tags && research.tags.length > 0 ? research.tags : piece.tags,
-                                garmentType: research.subcategory || piece.garmentType,
-                            };
-                        } catch {
-                            return piece;
-                        }
-                    })
-                );
-
                 updatePendingImport(importId, {
                     status: 'ready',
-                    pieces: researchedPieces,
+                    pieces,
                     overallStyle: result.overallStyle,
                     occasion: result.occasion,
                 });
@@ -126,7 +109,7 @@ export function PendingImportsBanner() {
                             {isProcessing && (
                                 <>
                                     <Text style={[styles.title, { color: Colors.textPrimary }]}>Analyzing outfit...</Text>
-                                    <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>Detecting and researching clothing pieces</Text>
+                                    <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>Detecting clothing pieces</Text>
                                 </>
                             )}
                             {isReady && (
