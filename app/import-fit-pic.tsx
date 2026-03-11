@@ -1,5 +1,8 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
+import { analyzeOutfitImage } from '@/lib/ai';
+import { useClosetStore } from '@/stores/closetStore';
+import { ClothingCategory, DetectedPiece } from '@/types';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router, type Href } from 'expo-router';
@@ -13,9 +16,70 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const CATEGORIES: ClothingCategory[] = [
+  'top', 'bottom', 'outerwear', 'dress', 'shoe',
+  'accessory', 'bag', 'hat', 'jewelry', 'other',
+];
+
 export default function ImportFitPicScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
+
+  const startBackgroundImport = (uri: string) => {
+    const importId = `import-${Date.now()}`;
+    const { addPendingImport, updatePendingImport } = useClosetStore.getState();
+
+    addPendingImport({
+      id: importId,
+      imageUri: uri,
+      status: 'processing',
+      pieces: [],
+      created_at: new Date().toISOString(),
+    });
+
+    // Go back to where they came from (usually feed or closet)
+    router.replace('/(tabs)/' as Href);
+
+    // Run the detection in background
+    (async () => {
+      try {
+        const result = await analyzeOutfitImage(uri);
+
+        if (!result.detections || result.detections.length === 0) {
+          updatePendingImport(importId, { status: 'error', errorMsg: 'No clothing items detected in image.' });
+          return;
+        }
+
+        const pieces: DetectedPiece[] = result.detections.map((det, idx: number) => ({
+          id: `piece-${Date.now()}-${idx}`,
+          name: det.name,
+          category: (CATEGORIES.includes(det.category as ClothingCategory) ? det.category : 'other') as ClothingCategory,
+          brand: det.brand || '',
+          colors: det.colors || [],
+          confidence: det.confidence,
+          estimatedValue: det.estimatedValue ? String(det.estimatedValue) : '',
+          tags: [],
+          garmentType: det.modelName || '',
+          selected: true,
+          box_2d: det.box_2d,
+          isCleaning: false,
+        }));
+
+        updatePendingImport(importId, {
+          status: 'ready',
+          pieces,
+          overallStyle: result.overallStyle,
+          occasion: result.occasion
+        });
+
+      } catch (e) {
+        updatePendingImport(importId, {
+          status: 'error',
+          errorMsg: e instanceof Error ? e.message : 'Detection failed'
+        });
+      }
+    })();
+  };
 
   const handleTakePhoto = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -23,7 +87,7 @@ export default function ImportFitPicScreen() {
     if (!permission.granted) return;
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as Href);
+      startBackgroundImport(result.assets[0].uri);
     }
   };
 
@@ -31,7 +95,7 @@ export default function ImportFitPicScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
-      router.replace({ pathname: '/analyze', params: { imageUri: result.assets[0].uri, mode: 'fitpic' } } as Href);
+      startBackgroundImport(result.assets[0].uri);
     }
   };
 

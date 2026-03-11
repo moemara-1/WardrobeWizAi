@@ -137,7 +137,7 @@ interface DetectedPiece {
 export default function AnalyzeScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
-  const { imageUri, mode: modeParam } = useLocalSearchParams<{ imageUri: string; mode?: string }>();
+  const { imageUri, mode: modeParam, pendingImportId } = useLocalSearchParams<{ imageUri: string; mode?: string; pendingImportId?: string }>();
   const { addItem, userId } = useClosetStore();
 
   const mode = modeParam === 'fitpic' ? 'fitpic' : 'single';
@@ -416,13 +416,33 @@ export default function AnalyzeScreen() {
   }, [imageUri, detectedPieces]);
 
   useEffect(() => {
+    if (pendingImportId) {
+      const pendingImport = useClosetStore.getState().pendingImports.find((pi) => pi.id === pendingImportId);
+      if (pendingImport) {
+        setDetectedPieces(pendingImport.pieces);
+        if (pendingImport.overallStyle) setOverallStyle(pendingImport.overallStyle);
+        if (pendingImport.occasion) setOccasion(pendingImport.occasion);
+        setStep('detect', 'done');
+
+        // Grab image dimensions too (since detection is skipped)
+        if (imageUri) {
+          RNImage.getSize(imageUri, (width, height) => {
+            imageDimsRef.current = { width, height };
+          });
+        }
+
+        setStage('done');
+        return;
+      }
+    }
+
     if (!imageUri) return;
     if (mode === 'fitpic') {
       runMultiPipeline(imageUri);
     } else {
       runSinglePipeline(imageUri);
     }
-  }, [imageUri, mode, runSinglePipeline, runMultiPipeline]);
+  }, [imageUri, mode, pendingImportId, runSinglePipeline, runMultiPipeline]);
 
   useEffect(() => {
     return () => {
@@ -584,6 +604,10 @@ export default function AnalyzeScreen() {
 
       setStep('upload', 'done');
       router.back();
+
+      if (pendingImportId) {
+        useClosetStore.getState().removePendingImport(pendingImportId);
+      }
 
       // Background upload and deep AI research
       (async () => {

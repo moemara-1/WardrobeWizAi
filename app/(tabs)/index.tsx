@@ -1,3 +1,4 @@
+import { PendingImportsBanner } from '@/components/ui/PendingImportsBanner';
 import { Radius, Typography } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeColors } from '@/contexts/ThemeContext';
@@ -135,6 +136,8 @@ export default function CommunityScreen() {
           </Pressable>
         </View>
       </View>
+
+      <PendingImportsBanner />
 
       {activeView === 'explore' ? (
         <ExploreView />

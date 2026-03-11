@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { ClosetItem, ClothingCategory, Collection, DigitalTwin, GeneratedLook, Outfit, SavedFit, SavedTrip, UserPost, UserProfileData } from '@/types';
+import { ClosetItem, ClothingCategory, Collection, DigitalTwin, GeneratedLook, Outfit, PendingImport, SavedFit, SavedTrip, UserPost, UserProfileData } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -100,6 +100,12 @@ interface ClosetState {
     deleteCollection: (id: string) => void;
     addItemToCollection: (collectionId: string, itemId: string) => void;
     removeItemFromCollection: (collectionId: string, itemId: string) => void;
+
+    // Pending Imports (Background fit pics)
+    pendingImports: PendingImport[];
+    addPendingImport: (importData: PendingImport) => void;
+    updatePendingImport: (id: string, updates: Partial<PendingImport>) => void;
+    removePendingImport: (id: string) => void;
 
     // User Profile
     userProfile: UserProfileData;
@@ -293,6 +299,7 @@ export const useClosetStore = create<ClosetState>()(
             userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
             styleChatMessages: [],
             styleChatHistory: [],
+            pendingImports: [],
 
             // Auth actions
             setUserId: (id) => set({ userId: id }),
@@ -316,6 +323,7 @@ export const useClosetStore = create<ClosetState>()(
                 userProfile: { username: 'User', bio: '', pfp_url: undefined, followers: 0, following: 0 },
                 styleChatMessages: [],
                 styleChatHistory: [],
+                pendingImports: [],
             }),
 
             // Item actions
@@ -466,6 +474,23 @@ export const useClosetStore = create<ClosetState>()(
                 return { styleChatMessages: messages, styleChatHistory: history };
             }),
             clearStyleChat: () => set({ styleChatMessages: [], styleChatHistory: [] }),
+
+            // --- Pending Imports ---
+            addPendingImport: (importData) => {
+                set((state) => ({ pendingImports: [...state.pendingImports, importData] }));
+            },
+            updatePendingImport: (id, updates) => {
+                set((state) => ({
+                    pendingImports: state.pendingImports.map((pi) =>
+                        pi.id === id ? { ...pi, ...updates } : pi
+                    ),
+                }));
+            },
+            removePendingImport: (id) => {
+                set((state) => ({
+                    pendingImports: state.pendingImports.filter((pi) => pi.id !== id),
+                }));
+            },
         }),
         {
             name: 'closet-storage',
@@ -480,6 +505,7 @@ export const useClosetStore = create<ClosetState>()(
                 generatedLooks: state.generatedLooks,
                 posts: state.posts,
                 collections: state.collections,
+                pendingImports: state.pendingImports,
                 userProfile: state.userProfile,
                 styleChatMessages: state.styleChatMessages,
                 styleChatHistory: state.styleChatHistory,

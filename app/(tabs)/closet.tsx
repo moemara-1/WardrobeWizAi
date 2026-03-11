@@ -1,4 +1,5 @@
 import { AddToClosetSheet } from '@/components/ui/AddToClosetSheet';
+import { PendingImportsBanner } from '@/components/ui/PendingImportsBanner';
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { classifyGarmentSlot, GarmentSlot } from '@/lib/backgroundRemoval';
@@ -180,6 +181,8 @@ export default function ClosetScreen() {
           </Pressable>
         ))}
       </View>
+
+      <PendingImportsBanner />
 
       {activeTab === 'pieces' && (
         <>

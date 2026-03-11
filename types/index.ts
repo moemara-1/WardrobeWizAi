@@ -64,6 +64,35 @@ export interface Outfit {
     created_at: string;
 }
 
+export interface DetectedPiece {
+    id: string;
+    name: string;
+    category: ClothingCategory;
+    brand: string;
+    colors: string[];
+    confidence: number;
+    estimatedValue: string;
+    tags: string[];
+    garmentType: string;
+
+    selected: boolean;
+    box_2d?: [number, number, number, number];
+    cleanImageUri?: string;
+    isCleaning?: boolean;
+    cleanError?: string;
+}
+
+export interface PendingImport {
+    id: string;
+    imageUri: string;
+    status: 'processing' | 'ready' | 'error';
+    pieces: DetectedPiece[];
+    overallStyle?: string;
+    occasion?: string;
+    errorMsg?: string;
+    created_at: string;
+}
+
 export interface Detection {
     id: string;
     bounding_box: BoundingBox;
