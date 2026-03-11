@@ -515,6 +515,21 @@ export const useClosetStore = create<ClosetState>()(
                 // if (_version === 0) { /* migrate v0 → v1 */ }
                 return persisted as Partial<ClosetState>;
             },
+            onRehydrateStorage: () => (state) => {
+                // Any imports stuck in "processing" from a previous session should become errors
+                // (the background task died when the app closed)
+                if (state?.pendingImports?.some(pi => pi.status === 'processing')) {
+                    setTimeout(() => {
+                        useClosetStore.setState((s) => ({
+                            pendingImports: s.pendingImports.map(pi =>
+                                pi.status === 'processing'
+                                    ? { ...pi, status: 'error' as const, errorMsg: 'Analysis was interrupted. Tap Retry.' }
+                                    : pi
+                            ),
+                        }));
+                    }, 500);
+                }
+            },
         },
     ),
 );
