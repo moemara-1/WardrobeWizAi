@@ -25,44 +25,105 @@ export interface ItemResearch {
     tags: string[];
 }
 
-async function callDeepInfra(body: Record<string, unknown>): Promise<string> {
-    const { data, error } = await supabase.functions.invoke('ai-analyze', { body });
+async function callDeepInfra(body: Record<string, unknown>, maxRetries = 3): Promise<string> {
+    let lastError: Error | null = null;
 
-    if (error) {
-        if (__DEV__) console.error('[callDeepInfra] Edge function error:', JSON.stringify(error));
-        let detail = error.message;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
-            const ctx = (error as { context?: Response }).context;
-            if (ctx?.json) detail = JSON.stringify(await ctx.json());
-        } catch { /* ignore */ }
-        throw new Error(`AI service error: ${detail}`);
-    }
+            if (attempt > 0) {
+                // Exponential backoff: 1s, 2s, 4s
+                const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
+                await new Promise(r => setTimeout(r, delay));
+                if (__DEV__) console.log(`[callDeepInfra] Retry attempt ${attempt + 1}/${maxRetries}...`);
+            }
 
-    if (data?.error) {
-        throw new Error(`AI error: ${typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error)}`);
-    }
+            const { data, error } = await supabase.functions.invoke('ai-analyze', { body });
 
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) {
-        throw new Error(`AI returned empty response: ${JSON.stringify(data).slice(0, 300)}`);
+            if (error) {
+                let detail = error.message;
+                try {
+                    const ctx = (error as { context?: Response }).context;
+                    if (ctx?.json) detail = JSON.stringify(await ctx.json());
+                } catch { /* ignore */ }
+                lastError = new Error(`AI service error: ${detail}`);
+                // Retry on transient errors (network, edge function invocation failures)
+                if (detail.includes('failed to send') || detail.includes('FunctionsHttpError') || detail.includes('timeout') || detail.includes('ECONNRESET') || detail.includes('502') || detail.includes('503') || detail.includes('504') || detail.includes('fetch')) {
+                    continue;
+                }
+                throw lastError;
+            }
+
+            if (data?.error) {
+                const errMsg = typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error);
+                lastError = new Error(`AI error: ${errMsg}`);
+                // Retry on rate limits and server errors
+                if (errMsg.includes('429') || errMsg.includes('rate') || errMsg.includes('500') || errMsg.includes('502') || errMsg.includes('503') || errMsg.includes('overloaded')) {
+                    continue;
+                }
+                throw lastError;
+            }
+
+            const content = data?.choices?.[0]?.message?.content;
+            if (!content) {
+                lastError = new Error(`AI returned empty response: ${JSON.stringify(data).slice(0, 300)}`);
+                continue; // Retry on empty responses
+            }
+            return content;
+        } catch (e) {
+            lastError = e instanceof Error ? e : new Error(String(e));
+            // Don't retry on non-transient errors
+            if (lastError.message.includes('Unauthorized') || lastError.message.includes('401') || lastError.message.includes('DEEPINFRA_KEY not configured')) {
+                throw lastError;
+            }
+            // For unrecognized errors, only retry if we have attempts left
+            if (attempt === maxRetries - 1) throw lastError;
+        }
     }
-    return content;
+    throw lastError || new Error('AI service failed after retries');
 }
 
 function parseJSON<T>(text: string): T {
+    // Try code-fenced JSON first
     const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (codeBlock) {
-        return JSON.parse(codeBlock[1].trim());
+        try {
+            return JSON.parse(codeBlock[1].trim());
+        } catch { /* fall through to other strategies */ }
     }
+    // Try to find any JSON object
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error(`No JSON found in response: ${text.slice(0, 200)}`);
     let jsonStr = match[0];
+
+    // Strategy 1: Direct parse
     try {
         return JSON.parse(jsonStr);
-    } catch (e) {
-        jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
-        return JSON.parse(jsonStr);
+    } catch { /* continue */ }
+
+    // Strategy 2: Remove trailing commas
+    try {
+        const cleaned = jsonStr.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(cleaned);
+    } catch { /* continue */ }
+
+    // Strategy 3: Fix common LLM issues (unescaped quotes, single quotes)
+    try {
+        const fixed = jsonStr
+            .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')  // unquoted keys
+            .replace(/,\s*([}\]])/g, '$1'); // trailing commas
+        return JSON.parse(fixed);
+    } catch { /* continue */ }
+
+    // Strategy 4: Try extracting just the array if present
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+        try {
+            const arr = JSON.parse(arrayMatch[0]);
+            return { detections: arr } as T;
+        } catch { /* continue */ }
     }
+
+    throw new Error(`Failed to parse JSON from AI response: ${text.slice(0, 300)}`);
 }
 
 async function callReplicate(model: string, input: Record<string, unknown>): Promise<unknown> {
@@ -106,21 +167,40 @@ interface GoogleVisionBox {
     boundingPoly: { normalizedVertices: { x: number; y: number }[] };
 }
 
-async function callGoogleVision(base64: string): Promise<GoogleVisionBox[]> {
-    const { data, error } = await supabase.functions.invoke('ai-proxy', {
-        body: {
-            provider: 'google-vision',
-            body: {
-                requests: [{
-                    image: { content: base64 },
-                    features: [{ type: 'OBJECT_LOCALIZATION', maxResults: 10 }],
-                }],
-            },
-        },
-    });
-    if (error) throw new Error(`Google Vision proxy error: ${error.message}`);
-    if (data?.error) throw new Error(`Google Vision error: ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}`);
-    return data?.responses?.[0]?.localizedObjectAnnotations || [];
+async function callGoogleVision(base64: string, maxRetries = 2): Promise<GoogleVisionBox[]> {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            if (attempt > 0) {
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+            const { data, error } = await supabase.functions.invoke('ai-proxy', {
+                body: {
+                    provider: 'google-vision',
+                    body: {
+                        requests: [{
+                            image: { content: base64 },
+                            features: [{ type: 'OBJECT_LOCALIZATION', maxResults: 10 }],
+                        }],
+                    },
+                },
+            });
+            if (error) {
+                lastError = new Error(`Google Vision proxy error: ${error.message}`);
+                if (error.message.includes('failed to send') || error.message.includes('fetch') || error.message.includes('timeout')) continue;
+                throw lastError;
+            }
+            if (data?.error) {
+                lastError = new Error(`Google Vision error: ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}`);
+                throw lastError;
+            }
+            return data?.responses?.[0]?.localizedObjectAnnotations || [];
+        } catch (e) {
+            lastError = e instanceof Error ? e : new Error(String(e));
+            if (attempt === maxRetries - 1) throw lastError;
+        }
+    }
+    throw lastError || new Error('Google Vision failed after retries');
 }
 
 async function prepareImageForUpload(uri: string): Promise<string> {
