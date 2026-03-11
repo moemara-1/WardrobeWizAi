@@ -594,7 +594,7 @@ export default function AnalyzeScreen() {
           tags: piece.tags || [],
           wear_count: 0,
           favorite: false,
-          is_researching: true, // Multi-import always does deep research in background
+          is_researching: pendingImportId ? false : true, // Skip research if already done in background
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -640,6 +640,8 @@ export default function AnalyzeScreen() {
 
         // Research each piece and update store
         const updateStore = useClosetStore.getState().updateItem;
+        const researchAlreadyDone = !!pendingImportId; // Research was done during background detection
+
         for (const { item, originalPiece } of savedPieces) {
           const permanentCleanUri = cleanUris[originalPiece.id];
           let imageUpdates: Partial<ClosetItem> = {};
@@ -657,27 +659,29 @@ export default function AnalyzeScreen() {
             updateStore(item.id, imageUpdates);
           }
 
-          // Perform deep AI research for this piece quietly
-          try {
-            const research = await researchClothingItem(
-              originalPiece.name,
-              originalPiece.brand || null,
-              originalPiece.category
-            );
+          // Only perform deep AI research if it wasn't already done in the background import pipeline
+          if (!researchAlreadyDone) {
+            try {
+              const research = await researchClothingItem(
+                originalPiece.name,
+                originalPiece.brand || null,
+                originalPiece.category
+              );
 
-            const researchUpdates: Partial<ClosetItem> = {
-              is_researching: false,
-            };
+              const researchUpdates: Partial<ClosetItem> = {
+                is_researching: false,
+              };
 
-            if (research.estimated_value) researchUpdates.estimated_value = Number(research.estimated_value);
-            if (research.brand) researchUpdates.brand = research.brand;
-            if (research.tags && research.tags.length > 0) researchUpdates.tags = research.tags;
-            if (research.subcategory) researchUpdates.garment_type = research.subcategory;
+              if (research.estimated_value) researchUpdates.estimated_value = Number(research.estimated_value);
+              if (research.brand) researchUpdates.brand = research.brand;
+              if (research.tags && research.tags.length > 0) researchUpdates.tags = research.tags;
+              if (research.subcategory) researchUpdates.garment_type = research.subcategory;
 
-            updateStore(item.id, researchUpdates);
-          } catch (err) {
-            console.warn(`Failed background research for multi-item ${item.id}`, err);
-            updateStore(item.id, { is_researching: false });
+              updateStore(item.id, researchUpdates);
+            } catch (err) {
+              console.warn(`Failed background research for multi-item ${item.id}`, err);
+              updateStore(item.id, { is_researching: false });
+            }
           }
         }
       })();

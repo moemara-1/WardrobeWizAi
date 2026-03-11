@@ -1,6 +1,6 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
-import { analyzeOutfitImage } from '@/lib/ai';
+import { analyzeOutfitImage, researchClothingItem } from '@/lib/ai';
 import { useClosetStore } from '@/stores/closetStore';
 import { ClothingCategory, DetectedPiece } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -40,7 +40,7 @@ export default function ImportFitPicScreen() {
     // Go back to where they came from (usually feed or closet)
     router.replace('/(tabs)/' as Href);
 
-    // Run the detection in background
+    // Run detection + research in background
     (async () => {
       try {
         const result = await analyzeOutfitImage(uri);
@@ -65,9 +65,28 @@ export default function ImportFitPicScreen() {
           isCleaning: false,
         }));
 
+        // Run deep AI research for each piece in parallel to enrich data BEFORE user reviews
+        const researchedPieces = await Promise.all(
+          pieces.map(async (piece) => {
+            try {
+              const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
+              return {
+                ...piece,
+                estimatedValue: research.estimated_value ? String(research.estimated_value) : piece.estimatedValue,
+                brand: research.brand || piece.brand,
+                tags: research.tags && research.tags.length > 0 ? research.tags : piece.tags,
+                garmentType: research.subcategory || piece.garmentType,
+              };
+            } catch {
+              // If research fails for a piece, keep the original detection data
+              return piece;
+            }
+          })
+        );
+
         updatePendingImport(importId, {
           status: 'ready',
-          pieces,
+          pieces: researchedPieces,
           overallStyle: result.overallStyle,
           occasion: result.occasion
         });
