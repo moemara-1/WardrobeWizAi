@@ -166,10 +166,16 @@ export default function AnalyzeScreen() {
   const [overallStyle, setOverallStyle] = useState<string | undefined>();
   const [occasion, setOccasion] = useState<string | undefined>();
   const [lastGenerationTime, setLastGenerationTime] = useState(0);
+  const lastGenTimeRef = useRef(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const imageDimsRef = useRef<{ width: number; height: number } | null>(null);
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const savedItemIdRef = useRef<string | null>(null);
+  const detectedPiecesRef = useRef<DetectedPiece[]>([]);
+
+  // Keep refs in sync with state
+  useEffect(() => { detectedPiecesRef.current = detectedPieces; }, [detectedPieces]);
+  useEffect(() => { lastGenTimeRef.current = lastGenerationTime; }, [lastGenerationTime]);
 
   // ─── Pipeline progress ───
   const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(
@@ -180,7 +186,7 @@ export default function AnalyzeScreen() {
     setPipelineSteps(prev => prev.map(s => s.key === key ? { ...s, status } : s));
   }, []);
 
-  const GENERATION_COOLDOWN_MS = 3000;
+  const GENERATION_COOLDOWN_MS = 10000;
 
   // ─── Ultra-Fast Single-item pipeline ───
   const runSinglePipeline = useCallback(async (uri: string) => {
@@ -393,9 +399,10 @@ export default function AnalyzeScreen() {
   const generatePieceImage = useCallback((pieceId: string) => {
     if (!imageUri || !imageDimsRef.current) return;
     const now = Date.now();
-    if (now - lastGenerationTime < GENERATION_COOLDOWN_MS) return;
+    if (now - lastGenTimeRef.current < GENERATION_COOLDOWN_MS) return;
 
-    const piece = detectedPieces.find(p => p.id === pieceId);
+    // Use ref to avoid stale closure — always read latest state
+    const piece = detectedPiecesRef.current.find(p => p.id === pieceId);
     if (!piece?.box_2d || piece.isCleaning || piece.cleanImageUri) return;
 
     setLastGenerationTime(now);
@@ -403,17 +410,18 @@ export default function AnalyzeScreen() {
     setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanError: undefined } : p));
     const { width, height } = imageDimsRef.current;
     processPieceImage(imageUri, pieceId, piece.box_2d, width, height, piece);
-  }, [imageUri, lastGenerationTime, detectedPieces, startCooldownTimer]);
+  }, [imageUri, startCooldownTimer]);
 
   const reEnhancePiece = useCallback((pieceId: string) => {
     if (!imageUri || !imageDimsRef.current) return;
-    const piece = detectedPieces.find(p => p.id === pieceId);
+    // Use ref to avoid stale closure
+    const piece = detectedPiecesRef.current.find(p => p.id === pieceId);
     if (!piece?.box_2d || piece.isCleaning) return;
 
     setDetectedPieces(prev => prev.map(p => p.id === pieceId ? { ...p, cleanImageUri: undefined, cleanError: undefined } : p));
     const { width, height } = imageDimsRef.current;
     processPieceImage(imageUri, pieceId, piece.box_2d, width, height, piece);
-  }, [imageUri, detectedPieces]);
+  }, [imageUri]);
 
   useEffect(() => {
     if (pendingImportId) {
@@ -425,18 +433,10 @@ export default function AnalyzeScreen() {
         setStep('detect', 'done');
         setStage('done');
 
-        // Grab image dimensions then auto-generate all clean images sequentially
+        // Grab image dimensions so manual generation works
         if (imageUri) {
-          RNImage.getSize(imageUri, async (width, height) => {
+          RNImage.getSize(imageUri, (width, height) => {
             imageDimsRef.current = { width, height };
-
-            // Auto-generate clean images for all pieces with box_2d, one by one
-            const piecesWithBoxes = pendingImport.pieces.filter(p => p.box_2d && p.selected);
-            for (const piece of piecesWithBoxes) {
-              if (piece.box_2d) {
-                await processPieceImage(imageUri, piece.id, piece.box_2d, width, height, piece);
-              }
-            }
           });
         }
         return;
