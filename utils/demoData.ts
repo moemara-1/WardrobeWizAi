@@ -7,75 +7,131 @@ export const DEMO_ITEMS: Partial<ClosetItem>[] = [
         category: 'top' as ClothingCategory,
         brand: 'Everlane',
         colors: ['white'],
-        image_url: 'https://fakestoreapi.com/img/71-3HjGNDUL._AC_SY879._SX._UX._SY._UY_.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/71-3HjGNDUL._AC_SY879._SX._UX._SY._UY_.jpg',
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/man-short-sleeve-shirt/1.webp',
     },
     {
         name: 'Cotton Jacket',
         category: 'outerwear' as ClothingCategory,
         brand: 'Levis',
         colors: ['green'],
-        image_url: 'https://fakestoreapi.com/img/71li-ujtlVG._AC_UX679_.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/71li-ujtlVG._AC_UX679_.jpg',
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/blue-&-black-check-shirt/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/blue-&-black-check-shirt/1.webp',
     },
     {
         name: 'Casual Slim Fit Shirt',
         category: 'top' as ClothingCategory,
         brand: 'J.Crew',
         colors: ['blue'],
-        image_url: 'https://fakestoreapi.com/img/71YXzeOuslL._AC_UY879_.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/71YXzeOuslL._AC_UY879_.jpg',
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/man-plaid-shirt/1.webp',
     },
     {
         name: 'Bi-Color T-Shirt',
         category: 'top' as ClothingCategory,
         brand: 'Nike',
         colors: ['red', 'white'],
-        image_url: 'https://fakestoreapi.com/img/51Y5NI-I5jL._AC_UX679_.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/51Y5NI-I5jL._AC_UX679_.jpg',
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/gigabyte-aorus-men-tshirt/1.webp',
     },
     {
         name: 'Leather Jacket',
         category: 'outerwear' as ClothingCategory,
         brand: 'AllSaints',
         colors: ['black'],
-        image_url: 'https://fakestoreapi.com/img/81XH0e8fefL._AC_UY879_.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/81XH0e8fefL._AC_UY879_.jpg',
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shirts/men-check-shirt/1.webp',
     },
     {
-        name: 'Raincoat Outerwear',
+        name: 'Air Force 1 Sneakers',
+        category: 'shoe' as ClothingCategory,
+        brand: 'Nike',
+        colors: ['white', 'red', 'black'],
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/nike-air-jordan-1-red-and-black/1.webp',
+    },
+    {
+        name: 'Baseball Cleats',
+        category: 'shoe' as ClothingCategory,
+        brand: 'Nike',
+        colors: ['black', 'white'],
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/nike-baseball-cleats/1.webp',
+    },
+    {
+        name: 'Future Rider Trainers',
+        category: 'shoe' as ClothingCategory,
+        brand: 'Puma',
+        colors: ['grey', 'blue'],
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/puma-future-rider-trainers/1.webp',
+    },
+    {
+        name: 'Classic Trench Coat',
         category: 'outerwear' as ClothingCategory,
-        brand: 'Patagonia',
-        colors: ['grey'],
-        image_url: 'https://fakestoreapi.com/img/71HblAHs5xL._AC_UY879_-2.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/71HblAHs5xL._AC_UY879_-2.jpg',
+        brand: 'Burberry',
+        colors: ['tan'],
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-red/1.webp',
     },
     {
-        name: 'Solid Short Sleeve',
-        category: 'top' as ClothingCategory,
-        brand: 'Uniqlo',
-        colors: ['red'],
-        image_url: 'https://fakestoreapi.com/img/71z3kpMAYsL._AC_UY879_.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/71z3kpMAYsL._AC_UY879_.jpg',
-    },
-    {
-        name: 'Everyday Backpack',
+        name: 'Crossbody Bag',
         category: 'bag' as ClothingCategory,
-        brand: 'Fjallraven',
-        colors: ['navy'],
-        image_url: 'https://fakestoreapi.com/img/81fPKd-2AYL._AC_SL1500_.jpg',
-        clean_image_url: 'https://fakestoreapi.com/img/81fPKd-2AYL._AC_SL1500_.jpg',
+        brand: 'Gucci',
+        colors: ['black'],
+        image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-&-red/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/mens-shoes/sports-sneakers-off-white-&-red/1.webp',
+    },
+    {
+        name: 'Summer Linen Dress',
+        category: 'dress' as ClothingCategory,
+        brand: 'ZARA',
+        colors: ['white'],
+        image_url: 'https://cdn.dummyjson.com/product-images/womens-dresses/corset-leather-with-skirt/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/womens-dresses/corset-leather-with-skirt/1.webp',
+    },
+    {
+        name: 'Oversized Blazer',
+        category: 'outerwear' as ClothingCategory,
+        brand: 'Frankie Shop',
+        colors: ['brown'],
+        image_url: 'https://cdn.dummyjson.com/product-images/womens-shoes/chappal-gold-without-heel/1.webp',
+        clean_image_url: 'https://cdn.dummyjson.com/product-images/womens-shoes/chappal-gold-without-heel/1.webp',
     }
 ];
 
 export const generateDemoItems = (): ClosetItem[] => {
     return DEMO_ITEMS.map((item, index) => ({
         ...item,
-        id: `demo_${index}_${generateId()}`,
+        id: `demo_item_${index}_${generateId()}`,
         created_at: new Date().toISOString(),
-        garment_slot: undefined, // will auto bucket if needed, but not strictly required
+        updated_at: new Date().toISOString(),
+        favorite: false,
+        wear_count: 0,
+        tags: [],
+        colors: item.colors || [],
         detected_confidence: 0.99,
     } as ClosetItem));
+};
+
+export const DEMO_PROFILES = [
+    { id: 'demo_prof_1', display_name: 'Sarah Mitchell', avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80', items: [] },
+    { id: 'demo_prof_2', display_name: 'Alex Rivera', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80', items: [] },
+    { id: 'demo_prof_3', display_name: 'Jessica Chu', avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80', items: [] },
+];
+
+export const generateDemoProfiles = (demoItems: ClosetItem[]) => {
+    // Distribute the demo items among the 3 profiles to show in Discover
+    return DEMO_PROFILES.map((prof, i) => ({
+        ...prof,
+        username: prof.display_name,
+        pfp_url: prof.avatar_url,
+        items: [
+            demoItems[(i * 2) % demoItems.length],
+            demoItems[((i * 2) + 1) % demoItems.length],
+            demoItems[((i * 2) + 2) % demoItems.length]
+        ],
+    }));
 };
 
 // Removed broken demo outfits array
@@ -94,15 +150,15 @@ export const DEMO_POSTS: Partial<UserPost>[] = [
         caption: 'When the layers hit just right. Ready for the weekend trip.',
     },
     {
-        image_url: 'https://images.unsplash.com/photo-1550614000-4b95d415d888?auto=format&fit=crop&w=800&q=80',
+        image_url: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?auto=format&fit=crop&w=800&q=80',
         caption: 'Minimalism at its peak. Can never go wrong with these shades.',
     },
     {
-        image_url: 'https://images.unsplash.com/photo-1520975954732-57dd22299614?auto=format&fit=crop&w=800&q=80',
+        image_url: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=800&q=80',
         caption: 'Going out tonight! What do we think of the new jacket? ✨',
     },
     {
-        image_url: 'https://images.unsplash.com/photo-1620012253295-c15bc3e6590d?auto=format&fit=crop&w=800&q=80',
+        image_url: 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=800&q=80',
         caption: 'NYC street style is always undefeated. Taking inspo.',
     },
     {

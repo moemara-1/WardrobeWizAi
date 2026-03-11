@@ -46,9 +46,12 @@ export default function ItemDetailScreen() {
   const [editName, setEditName] = useState('');
   const [editBrand, setEditBrand] = useState('');
   const [editSize, setEditSize] = useState('');
+  const [editCategory, setEditCategory] = useState('');
   const [editGarmentType, setEditGarmentType] = useState('');
   const [editColors, setEditColors] = useState('');
   const [editTags, setEditTags] = useState('');
+  const [editProductUrl, setEditProductUrl] = useState('');
+  const [editEstimatedValue, setEditEstimatedValue] = useState('');
   const [isEnhancing, setIsEnhancing] = useState(false);
 
   if (!item) {
@@ -110,9 +113,12 @@ export default function ItemDetailScreen() {
     setEditName(item.name);
     setEditBrand(item.brand || '');
     setEditSize(item.size || '');
+    setEditCategory(item.category || '');
     setEditGarmentType(item.garment_type || '');
     setEditColors((item.colors || []).join(', '));
     setEditTags((item.tags || []).join(', '));
+    setEditProductUrl(item.product_url || '');
+    setEditEstimatedValue(item.estimated_value ? String(item.estimated_value) : '');
     setShowEditModal(true);
   };
 
@@ -122,9 +128,12 @@ export default function ItemDetailScreen() {
       name: editName.trim() || item.name,
       brand: editBrand.trim() || undefined,
       size: editSize.trim() || undefined,
+      category: (editCategory.trim() as any) || item.category,
       garment_type: editGarmentType.trim() || undefined,
-      colors: editColors.split(',').map(c => c.trim()).filter(Boolean),
-      tags: editTags.split(',').map(t => t.trim()).filter(Boolean),
+      colors: editColors.split(',').map(c => c.trim().toLowerCase()).filter(Boolean),
+      tags: editTags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
+      product_url: editProductUrl.trim() || undefined,
+      estimated_value: editEstimatedValue.trim() ? Number(editEstimatedValue.trim()) : undefined,
     });
     setShowEditModal(false);
   };
@@ -272,14 +281,23 @@ export default function ItemDetailScreen() {
                 <Text style={styles.fieldLabel}>Size</Text>
                 <TextInput style={styles.fieldInput} value={editSize} onChangeText={setEditSize} placeholder="e.g. M, 32, 10" placeholderTextColor={Colors.textTertiary} />
 
+                <Text style={styles.fieldLabel}>Category</Text>
+                <TextInput style={styles.fieldInput} value={editCategory} onChangeText={setEditCategory} placeholder="e.g. top, bottom, shoe" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
+
                 <Text style={styles.fieldLabel}>Garment Type</Text>
-                <TextInput style={styles.fieldInput} value={editGarmentType} onChangeText={setEditGarmentType} placeholder="e.g. crewneck, jogger" placeholderTextColor={Colors.textTertiary} />
+                <TextInput style={styles.fieldInput} value={editGarmentType} onChangeText={setEditGarmentType} placeholder="e.g. crewneck, jogger" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
 
                 <Text style={styles.fieldLabel}>Colors (comma separated)</Text>
-                <TextInput style={styles.fieldInput} value={editColors} onChangeText={setEditColors} placeholder="black, white" placeholderTextColor={Colors.textTertiary} />
+                <TextInput style={styles.fieldInput} value={editColors} onChangeText={setEditColors} placeholder="black, white" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
 
                 <Text style={styles.fieldLabel}>Tags (comma separated)</Text>
-                <TextInput style={styles.fieldInput} value={editTags} onChangeText={setEditTags} placeholder="casual, summer" placeholderTextColor={Colors.textTertiary} />
+                <TextInput style={styles.fieldInput} value={editTags} onChangeText={setEditTags} placeholder="casual, summer" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
+
+                <Text style={styles.fieldLabel}>Estimated Value ($)</Text>
+                <TextInput style={styles.fieldInput} value={editEstimatedValue} onChangeText={setEditEstimatedValue} placeholder="0.00" keyboardType="numeric" placeholderTextColor={Colors.textTertiary} />
+
+                <Text style={styles.fieldLabel}>Product URL</Text>
+                <TextInput style={styles.fieldInput} value={editProductUrl} onChangeText={setEditProductUrl} placeholder="https://..." keyboardType="url" autoCapitalize="none" placeholderTextColor={Colors.textTertiary} />
               </ScrollView>
 
               <View style={styles.modalActions}>

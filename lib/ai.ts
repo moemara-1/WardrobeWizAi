@@ -125,7 +125,8 @@ async function callGoogleVision(base64: string): Promise<GoogleVisionBox[]> {
 
 async function prepareImageForUpload(uri: string): Promise<string> {
     if (!uri) return uri;
-    if (uri.startsWith('http') || uri.startsWith('data:')) return uri;
+    if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
+    if (uri.startsWith('data:')) return uri;
 
     try {
         let safeUri = uri;
@@ -610,12 +611,25 @@ async function saveBase64Image(b64: string): Promise<string> {
 
 async function readFileAsBase64(uri: string, maxDimension = 512): Promise<string> {
     const prepared = await prepareImageForUpload(uri);
-    const info = await FileSystem.getInfoAsync(prepared);
-    if (!info.exists) {
-        throw new Error('Image file is no longer available. Please re-upload the photo.');
+
+    let localUri = prepared;
+    if (localUri.startsWith('http://') || localUri.startsWith('https://')) {
+        const tmpPath = `${FileSystem.cacheDirectory}tmp_read_base64_${Date.now()}.jpg`;
+        const dl = await FileSystem.downloadAsync(localUri, tmpPath);
+        localUri = dl.uri;
+    } else if (!localUri.startsWith('data:')) {
+        const info = await FileSystem.getInfoAsync(localUri);
+        if (!info.exists) {
+            throw new Error('Image file is no longer available. Please re-upload the photo.');
+        }
     }
+
+    if (localUri.startsWith('data:')) {
+        return localUri.split(',')[1] || localUri; // Just return base64 part
+    }
+
     const resized = await manipulateAsync(
-        prepared,
+        localUri,
         [{ resize: { width: maxDimension } }],
         { format: SaveFormat.JPEG, compress: 0.7 },
     );

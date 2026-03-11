@@ -208,7 +208,7 @@ export default function SettingsScreen() {
           <View style={styles.separator} />
           <Pressable style={styles.row} onPress={() => {
             Haptics.selectionAsync();
-            Linking.openURL('mailto:support@wardrobewizai.com');
+            Linking.openURL('mailto:emaramt@gmail.com');
           }}>
             <Mail size={18} color={Colors.textSecondary} />
             <Text style={[styles.rowLabel, { marginLeft: 10, flex: 1 }]}>Contact Support</Text>

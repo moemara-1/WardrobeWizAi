@@ -672,6 +672,11 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
   const [garmentType, setGarmentType] = useState('');
+  const [colors, setColors] = useState('');
+  const [size, setSize] = useState('');
+  const [productUrl, setProductUrl] = useState('');
+  const [tags, setTags] = useState('');
+  const [estimatedValue, setEstimatedValue] = useState('');
 
   React.useEffect(() => {
     if (item) {
@@ -679,6 +684,11 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
       setBrand(item.brand || '');
       setCategory(item.category || '');
       setGarmentType(item.garment_type || '');
+      setColors(item.colors?.join(', ') || '');
+      setSize(item.size || '');
+      setProductUrl(item.product_url || '');
+      setTags(item.tags?.join(', ') || '');
+      setEstimatedValue(item.estimated_value ? String(item.estimated_value) : '');
     }
   }, [item]);
 
@@ -706,18 +716,39 @@ function EditItemModal({ item, onClose, onSave, onDelete }: {
             <TextInput style={editStyles.input} value={brand} onChangeText={setBrand} placeholder="Enter brand" placeholderTextColor={Colors.textTertiary} />
 
             <Text style={editStyles.fieldLabel}>Category</Text>
-            <TextInput style={editStyles.input} value={category} onChangeText={setCategory} placeholder="e.g. top, bottom, shoe" placeholderTextColor={Colors.textTertiary} />
+            <TextInput style={editStyles.input} value={category} onChangeText={setCategory} placeholder="e.g. top, bottom, shoe" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
 
             <Text style={editStyles.fieldLabel}>Garment Type</Text>
-            <TextInput style={editStyles.input} value={garmentType} onChangeText={setGarmentType} placeholder="e.g. t-shirt, jeans" placeholderTextColor={Colors.textTertiary} />
+            <TextInput style={editStyles.input} value={garmentType} onChangeText={setGarmentType} placeholder="e.g. t-shirt, jeans" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
+
+            <Text style={editStyles.fieldLabel}>Colors (comma separated)</Text>
+            <TextInput style={editStyles.input} value={colors} onChangeText={setColors} placeholder="e.g. red, navy, white" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
+
+            <Text style={editStyles.fieldLabel}>Size</Text>
+            <TextInput style={editStyles.input} value={size} onChangeText={setSize} placeholder="e.g. M, 32, 10.5" placeholderTextColor={Colors.textTertiary} />
+
+            <Text style={editStyles.fieldLabel}>Tags (comma separated)</Text>
+            <TextInput style={editStyles.input} value={tags} onChangeText={setTags} placeholder="e.g. vintage, summer, formal" placeholderTextColor={Colors.textTertiary} autoCapitalize="none" />
+
+            <Text style={editStyles.fieldLabel}>Estimated Value ($)</Text>
+            <TextInput style={editStyles.input} value={estimatedValue} onChangeText={setEstimatedValue} placeholder="0.00" keyboardType="numeric" placeholderTextColor={Colors.textTertiary} />
+
+            <Text style={editStyles.fieldLabel}>Product URL</Text>
+            <TextInput style={editStyles.input} value={productUrl} onChangeText={setProductUrl} placeholder="https://..." keyboardType="url" autoCapitalize="none" placeholderTextColor={Colors.textTertiary} />
 
             <View style={editStyles.actions}>
               <Pressable style={editStyles.saveBtn} onPress={() => {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 onSave(item.id, {
-                  name, brand: brand || undefined,
-                  category: (category as ClothingCategory) || item.category,
-                  garment_type: garmentType || undefined,
+                  name: name.trim() || item.name,
+                  brand: brand.trim() || undefined,
+                  category: (category.trim() as ClothingCategory) || item.category,
+                  garment_type: garmentType.trim() || undefined,
+                  size: size.trim() || undefined,
+                  product_url: productUrl.trim() || undefined,
+                  estimated_value: estimatedValue.trim() ? Number(estimatedValue.trim()) : undefined,
+                  colors: colors.split(',').map(c => c.trim().toLowerCase()).filter(Boolean),
+                  tags: tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
                 });
               }}>
                 <Pencil size={16} color={Colors.background} />

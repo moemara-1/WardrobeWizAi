@@ -1,6 +1,7 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { uploadImage } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
 import { useClosetStore } from '@/stores/closetStore';
 import { useSocialStore } from '@/stores/socialStore';
 import { UserPost } from '@/types';
@@ -66,6 +67,8 @@ export default function ProfileScreen() {
   const deleteOutfit = useClosetStore((s) => s.deleteOutfit);
   const addSavedTrip = useClosetStore((s) => s.addSavedTrip);
   const deleteSavedTrip = useClosetStore((s) => s.deleteSavedTrip);
+  const setDigitalTwin = useClosetStore((s) => s.setDigitalTwin);
+  const clearDigitalTwin = useClosetStore((s) => s.clearDigitalTwin);
 
   const manageDemoData = useCallback(() => {
     Alert.alert('Manage Demo Data', 'Would you like to inject or remove demo data?', [
@@ -73,11 +76,26 @@ export default function ProfileScreen() {
       {
         text: 'Remove All',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
           items.filter(i => i.id.startsWith('demo_')).forEach(i => deleteItem(i.id));
           outfits.filter(o => o.id.startsWith('demo_')).forEach(o => deleteOutfit(o.id));
           posts.filter(p => p.id.startsWith('demo_')).forEach(p => deletePost(p.id));
           savedTrips.filter(t => t.id.startsWith('demo_')).forEach(t => deleteSavedTrip(t.id));
+          updateUserProfile({ username: 'User', bio: '', pfp_url: undefined });
+          clearDigitalTwin();
+
+          // Global Purge
+          try {
+            await Promise.all([
+              supabase.from('items').delete().like('id', 'demo_%'),
+              supabase.from('outfits').delete().like('id', 'demo_%'),
+              supabase.from('posts').delete().like('id', 'demo_%'),
+              supabase.from('saved_trips').delete().like('id', 'demo_%')
+            ]);
+          } catch (e) {
+            console.error('Failed to wipe remote demo data:', e);
+          }
+
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert('Cleared', 'All demo data has been cleared from your closet and feeds.');
         }
@@ -96,12 +114,33 @@ export default function ProfileScreen() {
           const demoTrips = generateDemoTrips();
           demoTrips.forEach(trip => addSavedTrip(trip));
 
+          updateUserProfile({
+            username: 'Mia Anderson',
+            bio: 'New York City 📍 • Vintage lover • Sharing my daily fits and finds ☕️✨',
+            pfp_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
+          });
+
+          setDigitalTwin({
+            id: 'demo_twin',
+            user_id: 'demo',
+            selfie_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80',
+            body_url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80',
+            skin_color: '#FDDBB4',
+            hair_color: '#2C1A0E',
+            body_type: '',
+            ai_description: '',
+            style_recommendations: '',
+            twin_image_url: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert('Success', 'Full demo suite added throughout the app!');
+          Alert.alert('Success', 'Full demo suite (incl. Stylist Twin) added throughout the app!');
         }
       }
     ]);
-  }, [items, outfits, posts, savedTrips, addItem, deleteItem, addPost, deletePost, addSavedTrip, deleteSavedTrip, deleteOutfit]);
+  }, [items, outfits, posts, savedTrips, addItem, deleteItem, addPost, deletePost, addSavedTrip, deleteSavedTrip, deleteOutfit, updateUserProfile, setDigitalTwin, clearDigitalTwin]);
 
   const socialFollowers = useSocialStore((s) => s.followers);
   const socialFollowing = useSocialStore((s) => s.following);

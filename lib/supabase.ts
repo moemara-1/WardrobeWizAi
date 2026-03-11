@@ -4,9 +4,29 @@ import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
 const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+  getItem: async (key: string) => {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch (e) {
+      console.warn('SecureStore getItem error:', e);
+      try { await SecureStore.deleteItemAsync(key); } catch (err) { }
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string) => {
+    try {
+      return await SecureStore.setItemAsync(key, value);
+    } catch (e) {
+      console.warn('SecureStore setItem error:', e);
+    }
+  },
+  removeItem: async (key: string) => {
+    try {
+      return await SecureStore.deleteItemAsync(key);
+    } catch (e) {
+      console.warn('SecureStore removeItem error:', e);
+    }
+  },
 };
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;

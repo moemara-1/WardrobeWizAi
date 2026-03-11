@@ -76,8 +76,8 @@ export default function DigitalTwinScreen() {
 
     useEffect(() => {
         (async () => {
-            if (selfieUri && !(await fileExists(selfieUri))) setSelfieUri(null);
-            if (bodyUri && !(await fileExists(bodyUri))) setBodyUri(null);
+            if (selfieUri && (selfieUri.startsWith('file://') || selfieUri.startsWith('/')) && !(await fileExists(selfieUri))) setSelfieUri(null);
+            if (bodyUri && (bodyUri.startsWith('file://') || bodyUri.startsWith('/')) && !(await fileExists(bodyUri))) setBodyUri(null);
         })();
     }, []);
 

@@ -359,6 +359,7 @@ function DiscoverView({
   const toggleFollow = useSocialStore((s) => s.toggleFollow);
   const blockedIds = useSocialStore((s) => s.blockedUserIds);
   const currentUserId = useClosetStore((s) => s.userId);
+  const localItems = useClosetStore((s) => s.items);
   const { session, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -451,13 +452,22 @@ function DiscoverView({
       }
 
       const blocked = new Set(blockedIds);
-      setCommunityUsers(users.filter(u => u.id !== currentUserId && !blocked.has(u.id)));
+      let finalUsers = users.filter(u => u.id !== currentUserId && !blocked.has(u.id));
+
+      const demoItems = localItems.filter(i => i.id.startsWith('demo_'));
+      if (demoItems.length > 0) {
+        const { generateDemoProfiles } = await import('@/utils/demoData');
+        const demoProfiles = generateDemoProfiles(demoItems);
+        finalUsers = [...demoProfiles, ...finalUsers];
+      }
+
+      setCommunityUsers(finalUsers);
     } catch (e) {
       if (__DEV__) console.warn('Failed to load community:', e);
     } finally {
       setLoadingCommunity(false);
     }
-  }, [currentUserId, blockedIds]);
+  }, [currentUserId, blockedIds, localItems]);
 
   useEffect(() => {
     if (authLoading) return;

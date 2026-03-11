@@ -32,14 +32,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsLoading(false);
-      if (session?.user) {
-        useClosetStore.getState().setUserId(session.user.id);
-        hydrateFromSupabase(session.user.id);
-      }
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setIsLoading(false);
+        if (session?.user) {
+          useClosetStore.getState().setUserId(session.user.id);
+          hydrateFromSupabase(session.user.id);
+        }
+      })
+      .catch((error) => {
+        console.warn('Error getting initial session:', error);
+        setSession(null);
+        setIsLoading(false);
+      });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
