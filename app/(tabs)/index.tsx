@@ -22,6 +22,7 @@ import {
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Pressable,
   RefreshControl,
@@ -679,6 +680,11 @@ function CommunityUserCard({ user }: { user: CommunityUser }) {
               style={styles.profileItemImage}
               contentFit="contain"
             />
+            {item.is_researching && (
+              <View style={styles.researchingBadge}>
+                <ActivityIndicator size="small" color={Colors.accentGreen} />
+              </View>
+            )}
           </View>
         ))}
       </ScrollView>
@@ -730,6 +736,11 @@ function MyClosetProfileCard() {
               style={styles.profileItemImage}
               contentFit="contain"
             />
+            {item.is_researching && (
+              <View style={styles.researchingBadge}>
+                <ActivityIndicator size="small" color={Colors.accentGreen} />
+              </View>
+            )}
           </Pressable>
         ))}
       </ScrollView>
@@ -794,6 +805,7 @@ function createIndexStyles(C: any) {
     profileItemsRow: { gap: 8 },
     profileItemThumb: { width: 85, height: 85, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: C.border },
     profileItemImage: { width: '100%', height: '100%' },
+    researchingBadge: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: C.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
     profileInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     profileLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
     profileAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center' as const, justifyContent: 'center' as const },

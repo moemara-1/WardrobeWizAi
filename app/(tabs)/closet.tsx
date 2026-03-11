@@ -11,6 +11,7 @@ import { router, type Href } from 'expo-router';
 import { ChevronDown, Pencil, Play, Plus, Search, Sparkles, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   FlatList,
@@ -286,6 +287,11 @@ export default function ClosetScreen() {
                   onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); setEditingItem(item); }}
                 >
                   <Image source={{ uri: item.clean_image_url || item.image_url }} style={styles.gridImage} contentFit="contain" />
+                  {item.is_researching && (
+                    <View style={styles.researchingBadge}>
+                      <ActivityIndicator size="small" color={Colors.accentGreen} />
+                    </View>
+                  )}
                 </Pressable>
               )}
               contentContainerStyle={styles.gridContent}
@@ -874,6 +880,7 @@ function createMainStyles(Colors: any) {
     gridRow: { gap: GRID_GAP },
     gridItem: { width: ITEM_SIZE, height: ITEM_SIZE, backgroundColor: '#FFFFFF', marginBottom: GRID_GAP },
     gridImage: { width: '100%', height: '100%' },
+    researchingBadge: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.cardSurfaceAlt, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
     fab: { position: 'absolute', bottom: 110, alignSelf: 'center', width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.accentGreen, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
     emptyTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 18, color: Colors.textPrimary },

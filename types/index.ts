@@ -42,6 +42,7 @@ export interface ClosetItem {
     favorite: boolean;
     garment_type?: string;
     layer_type?: 'inner' | 'outer' | 'both';
+    is_researching?: boolean;      // Background AI task is running
     created_at: string;
     updated_at: string;
 }

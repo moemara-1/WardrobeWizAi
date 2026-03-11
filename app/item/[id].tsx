@@ -215,16 +215,22 @@ export default function ItemDetailScreen() {
             style={styles.productImage}
             contentFit="contain"
           />
+          {item.is_researching && (
+            <View style={styles.researchingBadge}>
+              <ActivityIndicator size="small" color={Colors.accentGreen} />
+              <Text style={styles.researchingText}>Researching details...</Text>
+            </View>
+          )}
         </View>
 
         {/* Action Row */}
         <View style={styles.actionRow}>
-          <Pressable style={styles.createFitBtn} onPress={handleCreateFit}>
+          <Pressable style={[styles.createFitBtn, item.is_researching && { opacity: 0.5 }]} onPress={handleCreateFit} disabled={item.is_researching}>
             <Sparkles size={16} color={Colors.background} />
             <Text style={styles.createFitText}>Create Fit</Text>
           </Pressable>
-          <Pressable onPress={openEditModal}>
-            <Text style={styles.enhanceText}>Enhance</Text>
+          <Pressable onPress={openEditModal} disabled={item.is_researching}>
+            <Text style={[styles.enhanceText, item.is_researching && { color: Colors.textTertiary }]}>Enhance</Text>
           </Pressable>
         </View>
 
@@ -375,6 +381,28 @@ function createStyles(Colors: any) {
     productImage: {
       width: '80%',
       height: '80%',
+    },
+    researchingBadge: {
+      position: 'absolute',
+      top: 16,
+      right: 16,
+      backgroundColor: Colors.cardSurfaceAlt,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: Radius.pill,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    researchingText: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 13,
+      color: Colors.textPrimary,
     },
     actionRow: {
       flexDirection: 'row',

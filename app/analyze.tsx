@@ -159,6 +159,7 @@ export default function AnalyzeScreen() {
   const [garmentSlot, setGarmentSlot] = useState<GarmentSlot>('unknown');
   const [isReEnhancing, setIsReEnhancing] = useState(false);
   const singleProductRef = useRef<ProductIdentification | null>(null);
+  const isResearchingRef = useRef(true);
 
   // ─── Multi-item state ───
   const [detectedPieces, setDetectedPieces] = useState<DetectedPiece[]>([]);
@@ -186,14 +187,34 @@ export default function AnalyzeScreen() {
     setStage('enhancing');
     setErrorMsg(null);
     setStep('clean', 'active');
+    isResearchingRef.current = true;
 
     let cleanUri = uri; // Fallback if generation completely fails
 
-    // Start Step 2 (Research Details) immediately in the background using the raw photo 
-    // to give the AI a head start while the image is being cleaned
+    // Step 1: Instantly generate clean image from raw photo
+    try {
+      const resultUri = await regenerateCleanImage(uri, null);
+      if (resultUri) {
+        cleanUri = resultUri;
+        setCleanImageUri(resultUri);
+      }
+    } catch (e) {
+      try {
+        const r = await removeBackground(uri);
+        if (r.success && r.cleanImageUri) {
+          cleanUri = r.cleanImageUri;
+          setCleanImageUri(r.cleanImageUri);
+        }
+      } catch (e2) { }
+    }
+    setStep('clean', 'done');
+    setStage('done');
+
+    // Start Step 2 (Research Details) in the background using the CLEAN photo 
     (async () => {
       try {
-        const result = await analyzeCleanItem(uri);
+        setStep('research', 'active');
+        const result = await analyzeCleanItem(cleanUri);
         const product = result.product;
         const analysis = result.analysis;
         singleProductRef.current = product;
@@ -222,18 +243,14 @@ export default function AnalyzeScreen() {
         if (research.tags && research.tags.length > 0) setTags((prev) => prev.length > 0 ? prev : research.tags);
         if (research.subcategory) setGarmentType((prev) => prev ? prev : (research.subcategory || ''));
 
+        isResearchingRef.current = false;
+
         // If the user already tapped Save while this was running, we manually patch the item.
         if (savedItemIdRef.current) {
           const updateClosetItem = useClosetStore.getState().updateItem;
           // We don't want to blindly overwrite, so we merge
           const updates: Partial<ClosetItem> = {};
 
-          // Current React state reflects what the user *might* have typed while waiting
-          updates.name = product.name || analysis.name || 'Clothing Item';
-          updates.category = (product.category || analysis.category || 'other') as ClothingCategory;
-          updates.brand = product.brand || analysis.brand || research.brand || undefined;
-          // We'll use the newly fetched data if they didn't override it.
-          // Since the user already saved, they likely didn't override anything if it was empty.
           updates.name = product.name || analysis.name || 'Clothing Item';
           updates.category = (product.category || analysis.category || 'other') as ClothingCategory;
           updates.brand = product.brand || analysis.brand || research.brand || undefined;
@@ -241,6 +258,7 @@ export default function AnalyzeScreen() {
           updates.detected_confidence = analysis.confidence;
           updates.garment_type = product.garment_type || analysis.garment_type || research.subcategory || undefined;
           updates.layer_type = (analysis.layer_type as ClosetItem['layer_type']) || undefined;
+          updates.is_researching = false;
 
           if (research.estimated_value) updates.estimated_value = Number(research.estimated_value);
           if (research.tags && research.tags.length > 0) updates.tags = research.tags;
@@ -250,29 +268,13 @@ export default function AnalyzeScreen() {
 
       } catch (err) {
         console.warn('Failed to extract details from clean image:', err);
+        isResearchingRef.current = false;
+        if (savedItemIdRef.current) {
+          useClosetStore.getState().updateItem(savedItemIdRef.current, { is_researching: false });
+        }
       }
       setStep('research', 'done');
     })();
-
-    // Step 1: Instantly generate clean image from raw photo
-    try {
-      const resultUri = await regenerateCleanImage(uri, null);
-      if (resultUri) {
-        cleanUri = resultUri;
-        setCleanImageUri(resultUri);
-      }
-    } catch (e) {
-      try {
-        const r = await removeBackground(uri);
-        if (r.success && r.cleanImageUri) {
-          cleanUri = r.cleanImageUri;
-          setCleanImageUri(r.cleanImageUri);
-        }
-      } catch (e2) { }
-    }
-    setStep('clean', 'done');
-    setStage('done');
-
 
   }, [setStep]);
 
@@ -330,26 +332,7 @@ export default function AnalyzeScreen() {
       }
       setStep('generate', 'done');
 
-      // Step 3: Research each piece in parallel
-      setStage('researching');
-      setStep('research', 'active');
-      const researchPromises = pieces.map(async (piece, idx) => {
-        try {
-          const research = await researchClothingItem(piece.name, piece.brand || null, piece.category);
-          setDetectedPieces((prev) =>
-            prev.map((p, i) => i === idx ? {
-              ...p,
-              estimatedValue: research.estimated_value ? String(research.estimated_value) : p.estimatedValue,
-              brand: research.brand || p.brand,
-              tags: research.tags.length > 0 ? research.tags : p.tags,
-              garmentType: research.subcategory || p.garmentType,
-            } : p)
-          );
-        } catch { /* ignore research failures */ }
-      });
-
-      await Promise.allSettled(researchPromises);
-      setStep('research', 'done');
+      // The deep research will be done in the background after the user hits "Save"
       setStage('done');
     } catch (err) {
       setStage('error');
@@ -497,6 +480,7 @@ export default function AnalyzeScreen() {
         tags,
         wear_count: 0,
         favorite: false,
+        is_researching: isResearchingRef.current,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -590,6 +574,7 @@ export default function AnalyzeScreen() {
           tags: piece.tags || [],
           wear_count: 0,
           favorite: false,
+          is_researching: true, // Multi-import always does deep research in background
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -600,7 +585,7 @@ export default function AnalyzeScreen() {
       setStep('upload', 'done');
       router.back();
 
-      // Background upload
+      // Background upload and deep AI research
       (async () => {
         let permanentOriginalUri = imageUri;
         const uploadPromises = [];
@@ -629,14 +614,46 @@ export default function AnalyzeScreen() {
 
         await Promise.all(uploadPromises);
 
+        // Research each piece and update store
+        const updateStore = useClosetStore.getState().updateItem;
         for (const { item, originalPiece } of savedPieces) {
           const permanentCleanUri = cleanUris[originalPiece.id];
+          let imageUpdates: Partial<ClosetItem> = {};
+
           if (permanentCleanUri !== originalPiece.cleanImageUri || permanentOriginalUri !== imageUri) {
-            useClosetStore.getState().updateItem(item.id, {
+            imageUpdates = {
               image_url: permanentCleanUri || permanentOriginalUri,
               clean_image_url: permanentCleanUri,
               original_image_url: permanentOriginalUri,
-            });
+            };
+          }
+
+          // Initial update for image URIs if changed
+          if (Object.keys(imageUpdates).length > 0) {
+            updateStore(item.id, imageUpdates);
+          }
+
+          // Perform deep AI research for this piece quietly
+          try {
+            const research = await researchClothingItem(
+              originalPiece.name,
+              originalPiece.brand || null,
+              originalPiece.category
+            );
+
+            const researchUpdates: Partial<ClosetItem> = {
+              is_researching: false,
+            };
+
+            if (research.estimated_value) researchUpdates.estimated_value = Number(research.estimated_value);
+            if (research.brand) researchUpdates.brand = research.brand;
+            if (research.tags && research.tags.length > 0) researchUpdates.tags = research.tags;
+            if (research.subcategory) researchUpdates.garment_type = research.subcategory;
+
+            updateStore(item.id, researchUpdates);
+          } catch (err) {
+            console.warn(`Failed background research for multi-item ${item.id}`, err);
+            updateStore(item.id, { is_researching: false });
           }
         }
       })();
@@ -773,16 +790,19 @@ export default function AnalyzeScreen() {
                     </View>
                   )}
                   {piece.cleanImageUri && (
-                    <View style={styles.cleanImagePreview}>
-                      <Image source={{ uri: piece.cleanImageUri }} style={styles.cleanImageThumb} contentFit="contain" />
+                    <>
+                      <View style={styles.cleanImagePreview}>
+                        <Image source={{ uri: piece.cleanImageUri }} style={styles.cleanImageThumb} contentFit="contain" />
+                      </View>
                       <Pressable
-                        style={styles.reEnhanceBtn}
-                        onPress={() => reEnhancePiece(piece.id)}
+                        style={[styles.generateBtn, piece.isCleaning && styles.generateBtnDisabled]}
+                        onPress={(e) => { e.stopPropagation(); reEnhancePiece(piece.id); }}
+                        disabled={piece.isCleaning}
                       >
-                        <RefreshCw size={12} color={Colors.background} />
-                        <Text style={styles.reEnhanceText}>Re-Enhance</Text>
+                        <RefreshCw size={14} color={piece.isCleaning ? Colors.textTertiary : Colors.accentGreen} />
+                        <Text style={[styles.generateBtnText, piece.isCleaning && styles.generateBtnTextDisabled]}>Re-Enhance</Text>
                       </Pressable>
-                    </View>
+                    </>
                   )}
                   {piece.isCleaning && (
                     <View style={styles.cleaningIndicator}>
@@ -1049,7 +1069,7 @@ function createStyles(C: any) {
     pieceConfidenceText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: C.accentGreen },
     pieceColors: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     pieceValue: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: C.textSecondary },
-    cleanImagePreview: { marginTop: 8, height: 100, backgroundColor: '#FFFFFF', borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+    cleanImagePreview: { marginTop: 8, height: 120, backgroundColor: C.cardSurfaceAlt, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
     cleanImageThumb: { width: '100%', height: '100%' },
     cleaningIndicator: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
     cleaningText: { fontFamily: Typography.bodyFamily, fontSize: 12, color: C.textTertiary },
