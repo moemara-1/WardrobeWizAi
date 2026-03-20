@@ -271,7 +271,7 @@ export default function StylistScreen() {
         const ipRes = await fetch('https://get.geojs.io/v1/ip/geo.json');
         const ipData = await ipRes.json();
         const city = ipData.city || 'New York';
-        const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=REDACTED_OPENWEATHERMAP_KEY&units=imperial`);
+        const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${process.env.EXPO_PUBLIC_OPENWEATHERMAP_KEY}&units=imperial`);
         const weatherData = await weatherRes.json();
         const temp = Math.round(weatherData.main.temp);
 

@@ -439,7 +439,7 @@ export async function generateTripPlan(
     try {
         const weatherPromises = destinations.map(async (city) => {
             const raw = city.split(',')[0].trim();
-            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${raw}&appid=REDACTED_OPENWEATHERMAP_KEY&units=imperial`);
+            const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${raw}&appid=${process.env.EXPO_PUBLIC_OPENWEATHERMAP_KEY}&units=imperial`);
             if (res.ok) {
                 const data = await res.json();
                 return `${city}: ${Math.round(data.main.temp)}\u00B0F and ${data.weather[0].description}`;
