@@ -735,18 +735,17 @@ export async function generateDigitalTwin(
     additionalDetails: string,
     bodyPhotoUri?: string,
 ): Promise<DigitalTwinAnalysis> {
-    const base64Selfie = await readFileAsBase64(selfieUri);
+    const base64Selfie = await readFileAsBase64(selfieUri, 768);
 
     let bodyBase64: string | undefined;
     if (bodyPhotoUri) {
-        bodyBase64 = await readFileAsBase64(bodyPhotoUri);
+        bodyBase64 = await readFileAsBase64(bodyPhotoUri, 768);
     }
 
     const { data, error } = await supabase.functions.invoke('ai-image', {
         body: {
             mode: 'twin',
             imageBase64: base64Selfie,
-            selfieBase64: base64Selfie,
             bodyBase64,
             skinColor,
             hairColor,
@@ -1112,7 +1111,7 @@ export async function generateOutfitTwin(
                 }
                 const selfieResized = await manipulateAsync(
                     selfieSourceUri,
-                    [{ resize: { width: 512 } }],
+                    [{ resize: { width: 768 } }],
                     { format: SaveFormat.JPEG, compress: 0.8 },
                 );
                 selfieB64 = await FileSystem.readAsStringAsync(selfieResized.uri, {

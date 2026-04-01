@@ -125,6 +125,15 @@ interface ClosetState {
 
 const syncToSupabase = {
     async upsertItem(item: ClosetItem, userId: string) {
+        if (!item.image_url || item.image_url.trim() === '') {
+            console.warn('[Supabase] Refused to upsert item without an image_url.');
+            return;
+        }
+        if (item.image_url.startsWith('file://')) {
+            console.log('[Supabase] Skipping sync for temporary local image.');
+            return;
+        }
+        
         try {
             const { error } = await supabase.from('items').upsert({
                 id: item.id,
@@ -133,7 +142,7 @@ const syncToSupabase = {
                 category: item.category,
                 brand: item.brand || null,
                 colors: item.colors,
-                image_url: item.image_url || null,
+                image_url: item.image_url,
                 clean_image_url: item.clean_image_url || null,
                 garment_type: item.garment_type || null,
                 layer_type: item.layer_type || null,
@@ -330,6 +339,10 @@ export const useClosetStore = create<ClosetState>()(
             setItems: (items) => set({ items }),
 
             addItem: (item) => {
+                if (!item.image_url || item.image_url.trim() === '') {
+                    console.warn('[ClosetStore] Attempted to add an item with no image. Aborting.');
+                    return;
+                }
                 set((state) => ({ items: [item, ...state.items] }));
                 const userId = get().userId;
                 if (userId) syncToSupabase.upsertItem(item, userId);

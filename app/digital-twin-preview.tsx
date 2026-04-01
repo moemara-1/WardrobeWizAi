@@ -1,14 +1,16 @@
 import { Radius, Typography } from '@/constants/Colors';
 import { useThemeColors } from '@/contexts/ThemeContext';
 import { useClosetStore } from '@/stores/closetStore';
+import { GeneratedLook } from '@/types';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
-import { ArrowLeft, RefreshCw, Sparkles, Trash2, User } from 'lucide-react-native';
-import React, { useMemo } from 'react';
+import { ArrowLeft, RefreshCw, Sparkles, Trash2, User, X } from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,7 +26,8 @@ const FIT_CARD_SIZE = 140;
 export default function DigitalTwinPreviewScreen() {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
-  const { digitalTwin, savedFits, deleteSavedFit } = useClosetStore();
+  const { digitalTwin, generatedLooks, deleteGeneratedLook, savedFits, deleteSavedFit } = useClosetStore();
+  const [previewLook, setPreviewLook] = useState<GeneratedLook | null>(null);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -99,6 +102,34 @@ export default function DigitalTwinPreviewScreen() {
             </View>
           )}
 
+          {generatedLooks.length > 0 && (
+            <View style={styles.savedFitsSection}>
+              <Text style={styles.savedFitsTitle}>Generated Looks</Text>
+              <View style={styles.generatedLooksGrid}>
+                {generatedLooks.map((look) => (
+                  <Pressable
+                    key={look.id}
+                    style={styles.generatedLookCard}
+                    onPress={() => setPreviewLook(look)}
+                    onLongPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      Alert.alert('Delete Look', 'Remove this generated look?', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => deleteGeneratedLook(look.id) },
+                      ]);
+                    }}
+                  >
+                    <Image
+                      source={{ uri: look.image_url }}
+                      style={styles.generatedLookImage}
+                      contentFit="cover"
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
           {/* Saved Fits Gallery */}
           {savedFits.length > 0 && (
             <View style={styles.savedFitsSection}>
@@ -146,6 +177,44 @@ export default function DigitalTwinPreviewScreen() {
             <Text style={styles.regenCtaText}>Regenerate</Text>
           </Pressable>
         </SafeAreaView>
+
+        <Modal visible={!!previewLook} animationType="fade" transparent statusBarTranslucent>
+          <View style={styles.previewOverlay}>
+            {previewLook && (
+              <Image source={{ uri: previewLook.image_url }} style={styles.previewImage} contentFit="contain" />
+            )}
+            {previewLook?.prompt && (
+              <View style={styles.previewPromptBadge}>
+                <Text style={styles.previewPromptText}>{previewLook.prompt}</Text>
+              </View>
+            )}
+            <View style={styles.previewHeader}>
+              <Pressable style={styles.previewClose} onPress={() => setPreviewLook(null)} hitSlop={12}>
+                <X size={22} color="#FFF" />
+              </Pressable>
+              <Pressable
+                style={styles.previewDelete}
+                hitSlop={12}
+                onPress={() => {
+                  if (!previewLook) return;
+                  Alert.alert('Delete Look', 'Remove this generated look?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => {
+                        deleteGeneratedLook(previewLook.id);
+                        setPreviewLook(null);
+                      },
+                    },
+                  ]);
+                }}
+              >
+                <Trash2 size={20} color="#FFF" />
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -255,10 +324,20 @@ function createStyles(C: any) {
     savedFitsSection: { marginTop: 8, marginBottom: 16 },
     savedFitsTitle: { fontFamily: Typography.bodyFamilyBold, fontSize: 16, color: C.textPrimary, marginBottom: 12 },
     savedFitsRow: { gap: 12 },
+    generatedLooksGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    generatedLookCard: { width: FIT_CARD_SIZE, height: FIT_CARD_SIZE * 1.4, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
+    generatedLookImage: { width: '100%', height: '100%' },
     savedFitCard: { width: FIT_CARD_SIZE, height: FIT_CARD_SIZE * 1.4, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: C.cardSurfaceAlt, borderWidth: 1, borderColor: C.border },
     savedFitImage: { width: '100%', height: '100%' },
     savedFitOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, backgroundColor: 'rgba(0,0,0,0.6)' },
     savedFitScene: { fontFamily: Typography.bodyFamilyMedium, fontSize: 11, color: '#FFF', textTransform: 'capitalize' },
     savedFitDeleteBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', alignItems: 'center', justifyContent: 'center' },
+    previewImage: { width: '100%', height: '100%' },
+    previewHeader: { position: 'absolute', top: 56, left: 20, right: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    previewClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+    previewDelete: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+    previewPromptBadge: { position: 'absolute', bottom: 56, left: 20, right: 20, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Radius.lg, backgroundColor: 'rgba(0,0,0,0.62)' },
+    previewPromptText: { fontFamily: Typography.bodyFamilyMedium, fontSize: 13, color: '#FFF', textAlign: 'center' },
   });
 }

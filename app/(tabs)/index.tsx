@@ -357,6 +357,7 @@ function DiscoverView({
   const styles = useMemo(() => createIndexStyles(Colors), [Colors]);
   const [communityUsers, setCommunityUsers] = useState<CommunityUser[]>([]);
   const [loadingCommunity, setLoadingCommunity] = useState(true);
+  const [communityError, setCommunityError] = useState<string | null>(null);
   const [searchedUsers, setSearchedUsers] = useState<{ id: string; username: string; avatar_url: string | null }[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
   const following = useSocialStore((s) => s.following);
@@ -375,12 +376,15 @@ function DiscoverView({
     setSearchingUsers(true);
     const timeout = setTimeout(async () => {
       try {
-        const { data } = await supabase
+        let queryBuilder = supabase
           .from('profiles')
           .select('id, display_name, avatar_url')
-          .ilike('display_name', `%${q}%`)
-          .neq('id', currentUserId || '')
-          .limit(10);
+          .ilike('display_name', `%${q}%`);
+        if (currentUserId) {
+          queryBuilder = queryBuilder.neq('id', currentUserId);
+        }
+        const { data, error } = await queryBuilder.limit(10);
+        if (error) throw error;
         const blocked = new Set(blockedIds);
         setSearchedUsers((data || []).filter(p => !blocked.has(p.id)).map(p => ({ id: p.id, username: p.display_name || `user_${p.id.slice(0, 6)}`, avatar_url: p.avatar_url })));
       } catch {
@@ -390,20 +394,36 @@ function DiscoverView({
       }
     }, 300);
     return () => clearTimeout(timeout);
-  }, [searchQuery, currentUserId]);
+  }, [blockedIds, currentUserId, searchQuery]);
 
   const [refreshingCommunity, setRefreshingCommunity] = useState(false);
 
   const fetchCommunity = useCallback(async () => {
+    setCommunityError(null);
     try {
-      const { data: itemRows } = await supabase
+      const { data: itemRows, error: itemsError } = await supabase
         .from('items')
         .select('id, user_id, name, category, brand, colors, image_url, clean_image_url, garment_type, tags, estimated_value, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(100);
+      if (itemsError) throw itemsError;
+
+      const blocked = new Set(blockedIds);
+      const demoItems = localItems.filter(i => i.id.startsWith('demo_'));
+      let demoProfiles: CommunityUser[] = [];
+      if (demoItems.length > 0) {
+        const { generateDemoProfiles } = await import('@/utils/demoData');
+        demoProfiles = generateDemoProfiles(demoItems).filter((profile) => !blocked.has(profile.id));
+      }
 
       if (!itemRows?.length) {
-        setCommunityUsers([]);
+        if (__DEV__) {
+          console.log('[Discover] Community returned no remote items', {
+            currentUserId,
+            demoProfiles: demoProfiles.length,
+          });
+        }
+        setCommunityUsers(demoProfiles);
         return;
       }
 
@@ -455,19 +475,26 @@ function DiscoverView({
         });
       }
 
-      const blocked = new Set(blockedIds);
-      let finalUsers = users.filter(u => u.id !== currentUserId && !blocked.has(u.id));
+      let finalUsers = users.filter((u) => !blocked.has(u.id));
+      if (currentUserId) {
+        finalUsers = finalUsers.filter((u) => u.id !== currentUserId);
+      }
+      finalUsers = [...demoProfiles, ...finalUsers];
 
-      const demoItems = localItems.filter(i => i.id.startsWith('demo_'));
-      if (demoItems.length > 0) {
-        const { generateDemoProfiles } = await import('@/utils/demoData');
-        const demoProfiles = generateDemoProfiles(demoItems);
-        finalUsers = [...demoProfiles, ...finalUsers];
+      if (__DEV__) {
+        console.log('[Discover] Community loaded', {
+          remoteItems: itemRows.length,
+          remoteUsers: users.length,
+          finalUsers: finalUsers.length,
+          currentUserId,
+        });
       }
 
       setCommunityUsers(finalUsers);
     } catch (e) {
       if (__DEV__) console.warn('Failed to load community:', e);
+      setCommunityUsers([]);
+      setCommunityError(e instanceof Error ? e.message : 'Unable to load community right now.');
     } finally {
       setLoadingCommunity(false);
     }
@@ -598,6 +625,11 @@ function DiscoverView({
         <View style={styles.emptyClosetCard}>
           <Text style={styles.emptyClosetText}>Loading community...</Text>
         </View>
+      ) : communityError ? (
+        <View style={[styles.emptyClosetCard, { marginHorizontal: 16 }]}>
+          <Text style={styles.emptyClosetText}>Couldn&apos;t load community right now.</Text>
+          <Text style={styles.emptyClosetSub}>Pull to refresh and try again. {__DEV__ ? communityError : ''}</Text>
+        </View>
       ) : (() => {
         const q = searchQuery.toLowerCase().trim();
         const filtered = q
@@ -615,6 +647,11 @@ function DiscoverView({
         return filtered.length === 0 ? (
           <View style={[styles.emptyClosetCard, { marginHorizontal: 16 }]}>
             <Text style={styles.emptyClosetText}>{q ? 'No results found' : 'No community members yet'}</Text>
+            <Text style={styles.emptyClosetSub}>
+              {q
+                ? 'Try a different name, brand, or clothing type.'
+                : 'As more closets sync to the cloud, they will appear here automatically.'}
+            </Text>
           </View>
         ) : (
           filtered.map((user) => (

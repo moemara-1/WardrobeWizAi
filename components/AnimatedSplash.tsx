@@ -6,9 +6,10 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 interface AnimatedSplashProps {
     onFinish: () => void;
+    onReady?: () => void;
 }
 
-export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
+export default function AnimatedSplash({ onFinish, onReady }: AnimatedSplashProps) {
     // Logo scale + opacity
     const logoScale = useRef(new Animated.Value(0.6)).current;
     const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -36,6 +37,10 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
     const containerOpacity = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
+        onReady?.();
+
+        const timers: ReturnType<typeof setTimeout>[] = [];
+
         // Phase 1: Logo appears with scale + glow (0-600ms)
         Animated.parallel([
             Animated.timing(logoOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
@@ -45,7 +50,7 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
         ]).start();
 
         // Phase 2: Sparkles float up (300-800ms)
-        setTimeout(() => {
+        timers.push(setTimeout(() => {
             const sparkleAnim = (opacity: Animated.Value, y: Animated.Value, delay: number) => {
                 Animated.sequence([
                     Animated.delay(delay),
@@ -61,31 +66,31 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
             sparkleAnim(sparkle1, sparkle1Y, 0);
             sparkleAnim(sparkle2, sparkle2Y, 150);
             sparkleAnim(sparkle3, sparkle3Y, 300);
-        }, 300);
+        }, 300));
 
         // Phase 3: Title slides in (600-1000ms)
-        setTimeout(() => {
+        timers.push(setTimeout(() => {
             Animated.parallel([
                 Animated.timing(titleOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
                 Animated.spring(titleY, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }),
             ]).start();
-        }, 600);
+        }, 600));
 
         // Phase 4: Tagline fades in (900-1200ms)
-        setTimeout(() => {
+        timers.push(setTimeout(() => {
             Animated.timing(taglineOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-        }, 900);
+        }, 900));
 
         // Phase 5: Glow pulse (1200-1600ms)
-        setTimeout(() => {
+        timers.push(setTimeout(() => {
             Animated.sequence([
                 Animated.timing(glowOpacity, { toValue: 0.9, duration: 200, useNativeDriver: true }),
                 Animated.timing(glowOpacity, { toValue: 0.3, duration: 300, useNativeDriver: true }),
             ]).start();
-        }, 1200);
+        }, 1200));
 
         // Phase 6: Fade out entire screen (2000-2500ms)
-        setTimeout(() => {
+        timers.push(setTimeout(() => {
             Animated.timing(containerOpacity, {
                 toValue: 0,
                 duration: 400,
@@ -93,8 +98,12 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
             }).start(() => {
                 onFinish();
             });
-        }, 2200);
-    }, []);
+        }, 2200));
+
+        return () => {
+            timers.forEach(clearTimeout);
+        };
+    }, [containerOpacity, glowOpacity, glowScale, logoOpacity, logoScale, onFinish, onReady, sparkle1, sparkle1Y, sparkle2, sparkle2Y, sparkle3, sparkle3Y, taglineOpacity, titleOpacity, titleY]);
 
     return (
         <Animated.View style={[styles.container, { opacity: containerOpacity }]}>

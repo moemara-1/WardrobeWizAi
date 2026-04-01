@@ -60,13 +60,22 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
   const segments = useSegments();
   const router = useRouter();
   const [showSplash, setShowSplash] = useState(true);
+  const [animatedSplashReady, setAnimatedSplashReady] = useState(false);
+  const [animationDone, setAnimationDone] = useState(false);
 
-  // Hide splash only when both fonts AND auth are resolved
+  // Hide the native splash only after the animated splash has mounted.
   useEffect(() => {
-    if (fontsLoaded && !isLoading) {
-      SplashScreen.hideAsync();
+    if (fontsLoaded && animatedSplashReady) {
+      SplashScreen.hideAsync().catch(() => null);
     }
-  }, [fontsLoaded, isLoading]);
+  }, [animatedSplashReady, fontsLoaded]);
+
+  // Dismiss animated splash only when BOTH animation is done AND auth is resolved
+  useEffect(() => {
+    if (animationDone && !isLoading) {
+      setShowSplash(false);
+    }
+  }, [animationDone, isLoading]);
 
   // Auth-based routing
   useEffect(() => {
@@ -153,7 +162,10 @@ function RootNavigator({ fontsLoaded }: { fontsLoaded: boolean }) {
         />
       </Stack>
       {fontsLoaded && showSplash && (
-        <AnimatedSplash onFinish={() => setShowSplash(false)} />
+        <AnimatedSplash
+          onReady={() => setAnimatedSplashReady(true)}
+          onFinish={() => setAnimationDone(true)}
+        />
       )}
     </ThemeProvider>
   );

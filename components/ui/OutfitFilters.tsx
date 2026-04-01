@@ -10,13 +10,17 @@ import {
   Dumbbell,
   Flame,
   Home,
+  LayoutGrid,
+  Rows2,
+  Rows3,
   Shirt,
   Snowflake,
+  Square,
   Thermometer,
   Wine,
   Zap
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   Pressable,
@@ -38,12 +42,16 @@ interface OutfitFiltersProps {
   visible: boolean;
   onClose: () => void;
   onApply: (filters: FilterState) => void;
+  value?: FilterState;
 }
+
+export type LayoutFilter = 'full-piece' | 'two-piece' | 'three-piece' | 'four-piece';
 
 export interface FilterState {
   style: string[];
   color: string[];
   weather: string[];
+  layout: LayoutFilter;
 }
 
 const STYLE_OPTIONS = [
@@ -73,14 +81,30 @@ const WEATHER_OPTIONS = [
   { key: 'transitional', label: 'Transitional', icon: Cloud },
 ] as const;
 
+const LAYOUT_OPTIONS = [
+  { key: 'four-piece', label: '4 Pieces', icon: LayoutGrid },
+  { key: 'three-piece', label: '3 Pieces', icon: Rows3 },
+  { key: 'two-piece', label: '2 Pieces', icon: Rows2 },
+  { key: 'full-piece', label: 'Full Piece', icon: Square },
+] as const;
 
-export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps) {
+export function OutfitFilters({ visible, onClose, onApply, value }: OutfitFiltersProps) {
   const Colors = useThemeColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
 
   const [selectedStyle, setSelectedStyle] = useState<string[]>([]);
   const [selectedColor, setSelectedColor] = useState<string[]>([]);
   const [selectedWeather, setSelectedWeather] = useState<string[]>([]);
+  const [selectedLayout, setSelectedLayout] = useState<LayoutFilter>('four-piece');
+
+  useEffect(() => {
+    if (!visible) return;
+    setSelectedStyle(value?.style || []);
+    setSelectedColor(value?.color || []);
+    setSelectedWeather(value?.weather || []);
+    setSelectedLayout(value?.layout || 'four-piece');
+  }, [visible, value]);
+
   if (!visible) return null;
 
   const toggleMulti = (key: string, setter: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -95,15 +119,25 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
     setSelectedStyle([]);
     setSelectedColor([]);
     setSelectedWeather([]);
+    setSelectedLayout('four-piece');
   };
 
   const handleApply = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onApply({ style: selectedStyle, color: selectedColor, weather: selectedWeather });
+    onApply({
+      style: selectedStyle,
+      color: selectedColor,
+      weather: selectedWeather,
+      layout: selectedLayout,
+    });
     onClose();
   };
 
-  const activeCount = selectedStyle.length + selectedColor.length + selectedWeather.length;
+  const activeCount =
+    selectedStyle.length +
+    selectedColor.length +
+    selectedWeather.length +
+    (selectedLayout !== 'four-piece' ? 1 : 0);
 
   return (
     <View style={styles.overlay}>
@@ -198,6 +232,26 @@ export function OutfitFilters({ visible, onClose, onApply }: OutfitFiltersProps)
             })}
           </View>
 
+          <Text style={styles.sectionTitle}>Layout</Text>
+          <View style={styles.layoutGrid}>
+            {LAYOUT_OPTIONS.map(({ key, label, icon: Icon }) => {
+              const active = selectedLayout === key;
+              return (
+                <Pressable
+                  key={key}
+                  style={[styles.layoutCard, active && styles.layoutCardActive]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedLayout(key);
+                  }}
+                >
+                  <Icon size={24} color={active ? Colors.textPrimary : Colors.textSecondary} />
+                  <Text style={[styles.layoutLabel, active && styles.layoutLabelActive]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
         </ScrollView>
       </Animated.View>
     </View>
@@ -210,6 +264,39 @@ function createStyles(Colors: any) {
       ...StyleSheet.absoluteFillObject,
       justifyContent: 'flex-end',
       zIndex: 200,
+    },
+    layoutGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 16,
+    },
+    layoutCard: {
+      width: '47%',
+      minHeight: 90,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: Colors.border,
+      backgroundColor: Colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+    },
+    layoutCardActive: {
+      borderWidth: 2,
+      borderColor: '#3B82F6',
+      backgroundColor: Colors.cardSurfaceAlt,
+    },
+    layoutLabel: {
+      fontFamily: Typography.bodyFamilyMedium,
+      fontSize: 12,
+      color: Colors.textSecondary,
+    },
+    layoutLabelActive: {
+      color: Colors.textPrimary,
+      fontFamily: Typography.bodyFamilyBold,
     },
     backdropView: {
       ...StyleSheet.absoluteFillObject,

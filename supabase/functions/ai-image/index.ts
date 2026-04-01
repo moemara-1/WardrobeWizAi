@@ -11,7 +11,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import jpeg from "https://esm.sh/jpeg-js@0.4.4";
 
 const DEEPINFRA_BASE = "https://api.deepinfra.com/v1/openai";
-const NANO_BANANA_VERSION = "5bdc2c7cd642ae33611d8c33f79615f98ff02509ab8db9d8ec1cc6c36d378fba";
+const NANO_BANANA_VERSION =
+  Deno.env.get("REPLICATE_NANO_BANANA_VERSION") ||
+  "5bdc2c7cd642ae33611d8c33f79615f98ff02509ab8db9d8ec1cc6c36d378fba";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -573,9 +575,10 @@ Generate a full-body photograph of THIS EXACT SAME PERSON from head to toe, stan
 
 FACE (HIGHEST PRIORITY):
 - The face MUST be identical to Image 1 — same person, same identity
-- Same eyes, nose, lips, jawline, eyebrows, skin tone, moles/freckles
-- Same hairstyle and hair color as Image 1
-- Do NOT alter, smooth, age, or change the face in ANY way
+- Preserve the exact eyes, nose, lips, jawline, eyebrows, skin tone, moles/freckles, and facial structure from Image 1
+- Keep the SAME hairstyle, hairline, hair texture, and hair color as Image 1
+- Keep a natural expression and realistic skin texture; do NOT beautify, glamorize, smooth, age, or stylize the face
+- If any instruction conflicts, preserve facial identity from Image 1 above all else
 
 BODY:
 - The body type, build, proportions, and frame MUST match Image 2 exactly
@@ -589,7 +592,8 @@ POSE & STYLE:
 - Standing upright with arms relaxed at sides, facing the camera
 - Professional studio photography, soft diffused lighting, no harsh shadows
 - Clean e-commerce product style, seamless pure white background
-- Single photo, NOT a collage`;
+- Single photo, NOT a collage
+- Keep the camera neutral and realistic with no beauty filter or editorial retouching`;
       } else {
         twinPrompt = `Image 1 is a close-up or portrait of a specific real person. Study their face carefully: exact facial features, eye shape, eye color, nose, lips, jawline, skin tone, complexion, eyebrows, hairstyle, hair color.
 ${skinDesc} ${hairDesc}
@@ -598,9 +602,10 @@ Generate a full-body photograph of THIS EXACT SAME PERSON from head to toe, stan
 
 FACE (HIGHEST PRIORITY):
 - The face MUST be identical to Image 1 — same person, same identity
-- Same eyes, nose, lips, jawline, eyebrows, skin tone, moles/freckles
-- Same hairstyle and hair color as Image 1
-- Do NOT alter, smooth, age, or change the face in ANY way
+- Preserve the exact eyes, nose, lips, jawline, eyebrows, skin tone, moles/freckles, and facial structure from Image 1
+- Keep the SAME hairstyle, hairline, hair texture, and hair color as Image 1
+- Keep a natural expression and realistic skin texture; do NOT beautify, glamorize, smooth, age, or stylize the face
+- If any instruction conflicts, preserve facial identity from Image 1 above all else
 
 BODY:
 - Infer a natural, proportionate body type from the person in Image 1
@@ -613,7 +618,8 @@ POSE & STYLE:
 - Standing upright with arms relaxed at sides, facing the camera
 - Professional studio photography, soft diffused lighting, no harsh shadows
 - Clean e-commerce product style, seamless pure white background
-- Single photo, NOT a collage`;
+- Single photo, NOT a collage
+- Keep the camera neutral and realistic with no beauty filter or editorial retouching`;
       }
 
       console.log(`[TWIN] Generating twin via Nano Banana (${hasBodyPhoto ? 'selfie + body photo' : 'selfie only'})...`);
