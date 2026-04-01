@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wardrobewizai.app",
-      "buildNumber": "8",
+      "buildNumber": "9",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "WardrobeWizAi needs camera access to photograph your clothing items for analysis.",
@@ -31,7 +31,7 @@
         "backgroundColor": "#0B0B0E"
       },
       "package": "com.wardrobewizai.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "permissions": [
         "android.permission.CAMERA"
       ]
